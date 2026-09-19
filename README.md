@@ -1,81 +1,79 @@
-# bcn_quiz
+# BCN Quiz
 
-NestJS API for quizzes, topics, courses, attempt sessions, project submissions, and certificates. Authentication is proxied to the Profiles API; learning data lives in PostgreSQL; media uses MinIO presigned PUT uploads.
+Repository gồm hai ứng dụng độc lập, cùng cấu trúc với BCN Profiles:
 
-## Stack
+- `be/`: NestJS API, Prisma, Redis, MinIO và BCN SSO.
+- `fe/`: Next.js web app cho học viên và quản trị viên.
 
-- NestJS 11 + Prisma 7 (PostgreSQL via `@prisma/adapter-pg`)
-- Auth: Bearer / cookie validated against `PROFILES_API_BASE_URL`
-- Email OTP / 2FA mail: gửi qua **Profiles** (Resend) — quiz không gửi SMTP trực tiếp
-- Cache: Redis (`REDIS_HOST`/`REDIS_PORT` in production; legacy URL/Sentinel in development) for auth-token + shared GET catalog + Throttler; key prefix `bcn:quiz:`
-- Logging: Winston (+ optional Loki)
+Production: frontend `https://quizzes.bcn.id.vn`, API `https://quizzes.bcn.id.vn/api`.
 
-## Setup
+## Chạy local
 
-Shared infra (1 Postgres with DBs `profiles` + `bcn_quiz`, shared Redis) lives in workspace `../infra`:
+Postgres, Redis và MinIO dùng **cùng container với bcn_profiles** (host `5433` / `6379` / `9010`). Không bật thêm DB trong `bcn_quiz`.
 
-```bash
-# from NestJS root, or:
-docker compose up -d
-# optional pgAdmin: docker compose --profile tools up -d
-# details: ../infra/README.md
+Terminal 1, backend. `be/.env` local giống Profiles, chỉ đổi database/bucket/prefix:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/bcn_quiz?schema=public
+REDIS_URL=redis://localhost:6379
+REDIS_HOST=
+REDIS_PREFIX=quizzes:
+MINIO_ENDPOINT=http://127.0.0.1:9010
+MINIO_BUCKET=quizzes
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_FORCE_PATH_STYLE=true
 ```
 
 ```bash
-cp .env.example .env
-# Host dev: NODE_ENV=development, APP_PORT=3000 (Quiz: 3001),
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5433/<local-db>?schema=public
-# REDIS_HOST=localhost, REDIS_PORT=6379, PROFILES_API_BASE_URL=http://localhost:3000
-# Fill MINIO_* for your development MinIO server when testing uploads.
-# DATABASE_URL=.../bcn_quiz  REDIS_URL=redis://localhost:6379  PROFILES_API_BASE_URL=...
-
+cd /Users/trantuanhung/Documents/learning_it/nestjs/bcn_quiz/be
+cp .env.example .env   # lần đầu, rồi giữ secret SSO nếu đã có
 npm install
+npx prisma generate
 npx prisma migrate deploy
-npm run db:seed        # optional
 npm run start:dev
 ```
 
-API listens on `APP_PORT` (`PORT` remains supported locally). Production Redis uses `redis:6379`, DB 0 and `REDIS_PREFIX=quizzes:`.
+Lần đầu API sẽ tạo bucket `quizzes` trên MinIO đang chạy (Profiles dùng bucket `profiles` trên cùng instance).
 
-## Scripts
+Terminal 2, frontend:
 
-| Script                   | Purpose                                 |
-| ------------------------ | --------------------------------------- |
-| `npm run start:dev`      | Watch mode                              |
-| `npm run start:prod`     | Run `dist` (migration is a separate deploy step) |
-| `npm run db:migrate`     | Create/apply migrations (dev)           |
-| `npm run migrate:deploy` | Apply migrations (CI/prod)              |
-| `npm test`               | Unit tests                              |
-| `npm run lint`           | ESLint                                  |
+```bash
+cd /Users/trantuanhung/Documents/learning_it/nestjs/bcn_quiz/fe
+cp .env.example .env
+pnpm install
+pnpm dev
+```
 
-## Main modules
+Kiểm tra:
 
-- `auth` — login / 2FA / refresh / logout / me (Profiles proxy)
-- `quiz` / `topic` — catalog CRUD (admin), public quiz payloads hide answers
-- `attempt` — timed topic sessions, scoring, topic progress
-- `course` — curriculum, project submit/review, course progress
-- `certificate` — issued certificates for completed courses
+```bash
+curl -sS http://localhost:3001/api/health
+open http://localhost:5173
+```
 
-### Topic slug lookup
+| Service | URL local |
+| --- | --- |
+| Quiz frontend | `http://localhost:5173` |
+| Quiz API | `http://localhost:3001/api` |
+| Postgres (chung Profiles) | `localhost:5433`, DB `bcn_quiz` |
+| Redis (chung Profiles) | `localhost:6379`, prefix `quizzes:` |
+| MinIO (chung Profiles) | `http://127.0.0.1:9010`, bucket `quizzes` |
+| Profiles SSO | `https://profiles.bcn.id.vn` |
 
-`GET /topic/slug/:slug` and `GET /topic/slug/:slug/quizzes` accept optional `?courseId=` because the same slug may exist in more than one course. Without `courseId`, an ambiguous slug returns `409 Conflict`.
+Để test Quiz local với Profiles, application `QUIZ` cần:
 
-### Topic schedule window
+- `accessMode=MEMBERS` (mọi thành viên BCN vào được; không grant từng user)
+- redirect URI `http://localhost:3001/api/auth/callback`
+- role `MEMBER` + permission MVP (xem [be/docs/profiles-manifest.yaml](be/docs/profiles-manifest.yaml))
 
-Optional `startsAt` / `endsAt` on a Topic control when students may take the exam set (inclusive start, exclusive end). Both `null` = always open (legacy topics). Responses include derived `availability`: `OPEN` | `SCHEDULED` | `CLOSED`.
+Backend dùng:
 
-- Before `startsAt`: start / save / submit are rejected (`TOPIC_NOT_OPEN_YET`).
-- After `endsAt`: no new sessions and no saves (`TOPIC_CLOSED`); **submit** is still allowed for an existing session (same idea as session timer expiry).
-- Session `expiresAt` is `min(now + expiresInMinutes, endsAt)` when `endsAt` is set.
-- Admin can change the window any time via `PUT /topic/:id` (e.g. daily or weekly windows). Recurring RRULE schedules are out of scope.
-- `GET /topic*` and course detail/slug/topics are **not** response-cached (schedule `availability` must stay fresh). Shared catalog cache covers `/quiz*`, `GET /course`, and project-requirement only; quiz/topic/course writes invalidate it.
+```env
+PROFILES_API_BASE_URL=https://profiles.bcn.id.vn/api
+BCN_OAUTH_ISSUER=https://profiles.bcn.id.vn/api
+BCN_OAUTH_REDIRECT_URI=http://localhost:3001/api/auth/callback
+BCN_OAUTH_SUCCESS_REDIRECT_URL=http://localhost:5173/dashboard
+```
 
-## Production notes
-
-- Prefer `migrate deploy` over `db push`.
-- Do not commit `/data` (Docker volumes) or `/prisma/client` leftovers.
-- Set `REQUEST_QUERY_LOG=false` unless debugging.
-
-### BCN organization deployment
-
-See [DEPLOY.md](DEPLOY.md) for shared PostgreSQL/Redis/MinIO, GitHub Environment `production`, database migration and the new frontend MinIO upload flow.
+Tài liệu: [be/docs/BCN_SSO.md](be/docs/BCN_SSO.md), [be/docs/FE_API_GUIDE.md](be/docs/FE_API_GUIDE.md).

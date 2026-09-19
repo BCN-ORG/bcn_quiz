@@ -1,4 +1,0 @@
-# Thin wrapper so `cd bcn_quiz && docker compose up -d` still works
-# when this folder sits next to ../infra in the NestJS workspace.
-include:
-  - path: ../infra/docker-compose.yml

@@ -1,0 +1,51 @@
+# Profiles manifest — BCN Quiz
+# Import: Profiles Admin → Applications → Manifest
+# accessMode members = mọi thành viên BCN đủ điều kiện vào được (không grant từng user).
+
+app:
+  code: QUIZ
+  name: BCN Quiz
+  clientId: bcn-quiz
+
+auth:
+  accessMode: members
+  require2FA: false
+  # Local test — thêm URI prod trên Profiles Admin → OAuth nếu cần:
+  # https://quizzes.bcn.id.vn/api/auth/callback
+  redirectUri: http://localhost:3001/api/auth/callback
+
+roles:
+  - code: MEMBER
+    name: Member
+  - code: MENTOR
+    name: Mentor
+  - code: ADMIN
+    name: Admin
+
+permissions:
+  - code: quiz.question.read
+    description: Read quiz questions / take quizzes
+  - code: quiz.question.create
+    description: Create questions
+  - code: quiz.question.update
+    description: Update questions
+  - code: quiz.question.delete
+    description: Delete questions
+  - code: quiz.result.read
+    description: Read own results
+
+rolePermissions:
+  MEMBER:
+    - quiz.question.read
+    - quiz.result.read
+  MENTOR:
+    - quiz.question.read
+    - quiz.question.create
+    - quiz.question.update
+    - quiz.result.read
+  ADMIN:
+    - quiz.question.read
+    - quiz.question.create
+    - quiz.question.update
+    - quiz.question.delete
+    - quiz.result.read

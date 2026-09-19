@@ -1,0 +1,258 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  PROJECT_NAME: bcn_quiz
+  PROJECT_DIR: /opt/apps/bcn_quiz
+  IMAGE_NAME: ghcr.io/bcn-org/bcn_quiz
+  FE_IMAGE_NAME: ghcr.io/bcn-org/bcn_quiz-web
+
+jobs:
+  backend:
+    name: Test BE, Build & Push Image
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: be
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: be/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npx eslint "{src,apps,libs,test}/**/*.ts"
+
+      - name: Test
+        run: npm test -- --runInBand --forceExit
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Test production environment and compose
+        run: node --test scripts/generate-production-env.test.mjs
+
+      - name: Build
+        run: npm run build
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./be
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+
+  frontend:
+    name: Test FE, Build & Push Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache-dependency-path: fe/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: fe
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: fe
+        run: pnpm lint
+
+      - name: Build
+        working-directory: fe
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://quizzes.bcn.id.vn/api' }}
+          NEXT_PUBLIC_PROFILES_APP_URL: ${{ vars.NEXT_PUBLIC_PROFILES_APP_URL || 'https://profiles.bcn.id.vn' }}
+        run: pnpm build
+
+      - name: Audit production dependencies
+        working-directory: fe
+        run: pnpm audit --prod --audit-level high
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push FE Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./fe
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'https://quizzes.bcn.id.vn/api' }}
+            NEXT_PUBLIC_PROFILES_APP_URL=${{ vars.NEXT_PUBLIC_PROFILES_APP_URL || 'https://profiles.bcn.id.vn' }}
+          tags: |
+            ${{ env.FE_IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.FE_IMAGE_NAME }}:latest
+
+  deploy:
+    name: Deploy Production
+    needs: [backend, frontend]
+    runs-on: [self-hosted, linux, production, docker, bcn-org]
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js for environment validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Generate and validate production environment
+        working-directory: be
+        env:
+          PRODUCTION_VARS: ${{ toJSON(vars) }}
+          PRODUCTION_SECRETS: ${{ toJSON(secrets) }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          FE_IMAGE_NAME: ${{ env.FE_IMAGE_NAME }}
+        run: |
+          set -eu
+          mkdir -p "$PROJECT_DIR"
+          rm -f "$PROJECT_DIR/.env.rollback" "$PROJECT_DIR/.env.compose.rollback" "$PROJECT_DIR/docker-compose.yml.rollback"
+          node scripts/generate-production-env.mjs "$RUNNER_TEMP/production.env"
+          docker network inspect bcn-infra >/dev/null
+          if [ -f "$PROJECT_DIR/docker-compose.yml" ] && [ -f "$PROJECT_DIR/.env" ] && \
+             [ -f "$PROJECT_DIR/.env.compose" ] && grep -q 'bcn-infra' "$PROJECT_DIR/docker-compose.yml"; then
+            cp -p "$PROJECT_DIR/.env" "$PROJECT_DIR/.env.rollback"
+            cp -p "$PROJECT_DIR/.env.compose" "$PROJECT_DIR/.env.compose.rollback"
+            cp -p "$PROJECT_DIR/docker-compose.yml" "$PROJECT_DIR/docker-compose.yml.rollback"
+          fi
+          cp "$RUNNER_TEMP/production.env" "$PROJECT_DIR/.env"
+          cp "$RUNNER_TEMP/production.env.compose" "$PROJECT_DIR/.env.compose"
+          chmod 600 "$PROJECT_DIR/.env" "$PROJECT_DIR/.env.compose"
+          cp docker-compose.prod.yml "$PROJECT_DIR/docker-compose.yml"
+          cd "$PROJECT_DIR"
+          docker compose --env-file .env.compose config --quiet
+
+      - name: Pull images
+        run: |
+          set -eu
+          cd "$PROJECT_DIR"
+          attempt=1
+          until docker compose --env-file .env.compose pull; do
+            if [ "$attempt" -ge 5 ]; then
+              echo "Image pull failed after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "Image pull attempt ${attempt} failed; retrying"
+            attempt=$((attempt + 1))
+            sleep $((attempt * 5))
+          done
+
+      - name: Run application database migration
+        run: |
+          set -eu
+          cd "$PROJECT_DIR"
+          docker compose --env-file .env.compose run --rm --no-deps --entrypoint npx app prisma migrate deploy
+
+      - name: Deploy
+        id: deploy
+        run: |
+          set -eu
+          cd "$PROJECT_DIR"
+          docker compose --env-file .env.compose up -d app web
+
+      - name: Health check
+        id: health
+        env:
+          HOST_PORT_VALUE: ${{ vars.HOST_PORT }}
+          FE_HOST_PORT_VALUE: ${{ vars.FE_HOST_PORT || '18088' }}
+        run: |
+          set -eu
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              "http://127.0.0.1:${HOST_PORT_VALUE}/api/health" >/dev/null \
+              && curl --fail --silent --show-error \
+              "http://127.0.0.1:${FE_HOST_PORT_VALUE}/" >/dev/null; then
+              echo "API and web are healthy"
+              exit 0
+            fi
+            echo "Health check attempt ${attempt}/30 failed"
+            sleep 2
+          done
+          echo "Health check failed"
+          docker logs bcn_quiz --tail 80 || true
+          docker logs bcn_quiz_web --tail 80 || true
+          exit 1
+
+      - name: Restore previous shared-infrastructure application
+        if: ${{ failure() }}
+        run: |
+          set -eu
+          cd "$PROJECT_DIR"
+          if [ -f .env.rollback ] && [ -f .env.compose.rollback ] && [ -f docker-compose.yml.rollback ]; then
+            cp -p .env.rollback .env
+            cp -p .env.compose.rollback .env.compose
+            cp -p docker-compose.yml.rollback docker-compose.yml
+            docker compose --env-file .env.compose up -d
+            for attempt in $(seq 1 30); do
+              if docker compose --env-file .env.compose exec -T app node -e "fetch('http://127.0.0.1:' + process.env.APP_PORT + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+                echo "Rolled back application is healthy"
+                exit 0
+              fi
+              echo "Rollback health check attempt ${attempt}/30 failed"
+              sleep 2
+            done
+            echo "Rolled back application failed health check" >&2
+            docker logs bcn_quiz --tail 80 || true
+            docker logs bcn_quiz_web --tail 80 || true
+            exit 1
+          fi
+
+      - name: Remove rollback configuration after success
+        if: ${{ success() }}
+        run: rm -f "$PROJECT_DIR/.env.rollback" "$PROJECT_DIR/.env.compose.rollback" "$PROJECT_DIR/docker-compose.yml.rollback"
