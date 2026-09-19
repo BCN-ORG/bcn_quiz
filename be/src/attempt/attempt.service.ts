@@ -161,7 +161,9 @@ export class AttemptService {
       session.status !== AttemptSessionStatus.IN_PROGRESS &&
       session.status !== AttemptSessionStatus.EXPIRED
     ) {
-      throw new BadRequestException('Only in-progress sessions can be abandoned');
+      throw new BadRequestException(
+        'Only in-progress sessions can be abandoned',
+      );
     }
 
     if (session.status === AttemptSessionStatus.EXPIRED) {
@@ -311,7 +313,7 @@ export class AttemptService {
       const selectedRaw = answers[quiz.id];
       const answerExists = Boolean(
         selectedRaw &&
-          quiz.options.some((option) => option.label === selectedRaw),
+        quiz.options.some((option) => option.label === selectedRaw),
       );
       const selectedAnswer = answerExists ? selectedRaw : '';
       const isCorrect = answerExists && selectedAnswer === quiz.answer;
@@ -948,7 +950,7 @@ export class AttemptService {
       const linkedAttempt = attemptByQuizId.get(quiz.id);
       const selectedRaw = useLegacyAnswers
         ? (answers[quiz.id] ?? null)
-        : (linkedAttempt?.selectedAnswer || null);
+        : linkedAttempt?.selectedAnswer || null;
       const selectedAnswer = selectedRaw || null;
 
       let isCorrect = false;

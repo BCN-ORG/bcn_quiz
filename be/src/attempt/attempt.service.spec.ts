@@ -496,8 +496,16 @@ describe('AttemptService', () => {
       );
       expect(createMany).toHaveBeenCalledWith({
         data: expect.arrayContaining([
-          expect.objectContaining({ quizId: 'q1', selectedAnswer: 'A', isCorrect: true }),
-          expect.objectContaining({ quizId: 'q2', selectedAnswer: '', isCorrect: false }),
+          expect.objectContaining({
+            quizId: 'q1',
+            selectedAnswer: 'A',
+            isCorrect: true,
+          }),
+          expect.objectContaining({
+            quizId: 'q2',
+            selectedAnswer: '',
+            isCorrect: false,
+          }),
         ]),
       });
     });
