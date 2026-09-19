@@ -74,3 +74,16 @@ test('missing required key or application isolation violation fails before writi
     assert.match(result.stderr, /NEW_REQUIRED_KEY/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('new public web and SSO settings have safe production defaults', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bcn-env-'));
+  try {
+    const config = fixture();
+    for (const key of ['FE_APP_PORT', 'FE_HOST_PORT', 'PROFILES_API_BASE_URL', 'BCN_OAUTH_ISSUER', 'BCN_OAUTH_CLIENT_ID', 'BCN_OAUTH_REDIRECT_URI', 'BCN_OAUTH_SUCCESS_REDIRECT_URL']) delete config.vars[key];
+    const result = generate(root, config);
+    assert.equal(result.status, 0, result.stderr);
+    const output = readFileSync(join(root, '.env'), 'utf8');
+    assert.match(output, /^FE_APP_PORT=3000$/m);
+    assert.match(output, /^BCN_OAUTH_REDIRECT_URI=https:\/\/quizzes\.bcn\.id\.vn\/api\/auth\/callback$/m);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

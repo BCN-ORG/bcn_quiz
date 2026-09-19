@@ -2,6 +2,15 @@ import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 
 const vars = JSON.parse(process.env.PRODUCTION_VARS || '{}');
 const secrets = JSON.parse(process.env.PRODUCTION_SECRETS || '{}');
+const defaults = {
+  FE_APP_PORT: '3000',
+  FE_HOST_PORT: '18088',
+  PROFILES_API_BASE_URL: 'http://bcn_profiles:3000/api',
+  BCN_OAUTH_ISSUER: 'https://profiles.bcn.id.vn/api',
+  BCN_OAUTH_CLIENT_ID: 'bcn-quiz',
+  BCN_OAUTH_REDIRECT_URI: 'https://quizzes.bcn.id.vn/api/auth/callback',
+  BCN_OAUTH_SUCCESS_REDIRECT_URL: 'https://quizzes.bcn.id.vn/dashboard',
+};
 const values = {};
 const optional = new Set();
 for (const line of readFileSync('.env.example', 'utf8').split('\n')) {
@@ -14,6 +23,7 @@ for (const line of readFileSync('.env.example', 'utf8').split('\n')) {
   values[key] =
     secrets[key] ||
     vars[key] ||
+    defaults[key] ||
     (optional.has(key) ? fallback.replace(/^"|"$/g, '') : '');
 }
 for (const [key, value] of Object.entries(values)) {
