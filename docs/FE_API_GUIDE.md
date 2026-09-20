@@ -9,6 +9,8 @@ Tai lieu nay tong hop toan bo API hien co de frontend tich hop nhanh.
 ## 1) Base Information
 
 - Base URL (dev): `http://localhost:3000`
+- Base URL (prod): `https://quizzes.uside.id.vn`
+- Cong cu do latency tren browser: mo `docs/api-latency-tester.html` (khuyen nghi `npx --yes serve docs -p 5173`) — login/token roi chay cac GET, so sanh client time voi header `X-Response-Time-Ms` (neu API co tra).
 - Tat ca response thanh cong duoc wrap theo format:
 
 ```json

@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiz API Latency Tester</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #171d25;
+        --panel-2: #1e2630;
+        --text: #e7eef7;
+        --muted: #8b9bb0;
+        --line: #2a3544;
+        --accent: #3dd6c6;
+        --accent-dim: rgba(61, 214, 198, 0.14);
+        --warn: #f0b429;
+        --bad: #ff6b6b;
+        --ok: #5bd67b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "IBM Plex Sans", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(900px 500px at 10% -10%, rgba(61, 214, 198, 0.16), transparent 55%),
+          radial-gradient(700px 400px at 100% 0%, rgba(80, 120, 255, 0.12), transparent 50%),
+          var(--bg);
+      }
+
+      .wrap {
+        width: min(1100px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 64px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1.6rem, 3vw, 2.1rem);
+        letter-spacing: -0.03em;
+      }
+
+      .sub {
+        color: var(--muted);
+        margin: 0 0 28px;
+        max-width: 62ch;
+        line-height: 1.5;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 1.1fr 0.9fr;
+      }
+
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--panel), var(--panel-2));
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 18px;
+      }
+
+      .card h2 {
+        margin: 0 0 14px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      label {
+        display: block;
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin: 0 0 6px;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: #10161e;
+        color: var(--text);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font: inherit;
+        margin-bottom: 12px;
+      }
+
+      textarea {
+        min-height: 72px;
+        resize: vertical;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.82rem;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 16px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: var(--accent);
+        color: #04221e;
+      }
+
+      button.ghost {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--line);
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .checks {
+        display: grid;
+        gap: 8px;
+        max-height: 320px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .check {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid transparent;
+      }
+
+      .check:hover {
+        border-color: var(--line);
+      }
+
+      .check input {
+        width: auto;
+        margin: 3px 0 0;
+      }
+
+      .check code {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.8rem;
+      }
+
+      .status {
+        min-height: 1.4em;
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin: 10px 0 0;
+      }
+
+      .status.ok {
+        color: var(--ok);
+      }
+
+      .status.bad {
+        color: var(--bad);
+      }
+
+      .table-wrap {
+        margin-top: 18px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--panel);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.86rem;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 500;
+        background: rgba(0, 0, 0, 0.2);
+        position: sticky;
+        top: 0;
+      }
+
+      td.mono {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.78rem;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+
+      .pill.ok {
+        background: rgba(91, 214, 123, 0.15);
+        color: var(--ok);
+      }
+
+      .pill.warn {
+        background: rgba(240, 180, 41, 0.15);
+        color: var(--warn);
+      }
+
+      .pill.bad {
+        background: rgba(255, 107, 107, 0.15);
+        color: var(--bad);
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      @media (max-width: 700px) {
+        .summary {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      .stat {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        background: var(--accent-dim);
+      }
+
+      .stat .label {
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+
+      .stat .value {
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin-top: 4px;
+        font-family: "IBM Plex Mono", monospace;
+      }
+
+      .hint {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.8rem;
+        line-height: 1.45;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Quiz API Latency Tester</h1>
+      <p class="sub">
+        Đo thời gian phản hồi từng request tới production API. So sánh
+        <strong>client total</strong> (trình duyệt) với
+        <strong>server ms</strong> (`X-Response-Time-Ms`) khi API có trả header này.
+      </p>
+
+      <div class="grid">
+        <section class="card">
+          <h2>1. Kết nối</h2>
+          <label for="baseUrl">API base URL</label>
+          <input id="baseUrl" value="https://quizzes.uside.id.vn" />
+
+          <div class="row">
+            <div>
+              <label for="email">Email</label>
+              <input id="email" type="email" placeholder="you@example.com" autocomplete="username" />
+            </div>
+            <div>
+              <label for="password">Password</label>
+              <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+            </div>
+          </div>
+
+          <label for="totp">TOTP (nếu login yêu cầu 2FA)</label>
+          <input id="totp" inputmode="numeric" placeholder="123456" />
+
+          <label for="token">Bearer token (dán tay nếu đã có)</label>
+          <textarea id="token" placeholder="eyJhbGciOi..."></textarea>
+
+          <div class="actions">
+            <button class="primary" id="btnLogin" type="button">Login</button>
+            <button class="ghost" id="btnMe" type="button">GET /auth/me</button>
+            <button class="ghost" id="btnClear" type="button">Clear token</button>
+          </div>
+          <p class="status" id="authStatus">Chưa đăng nhập.</p>
+          <p class="hint">
+            Mở file qua local server (khuyến nghị):
+            <code>npx --yes serve docs -p 5173</code>
+            rồi vào <code>http://localhost:5173/api-latency-tester.html</code>.
+            CORS production đã cho phép <code>localhost</code>.
+          </p>
+        </section>
+
+        <section class="card">
+          <h2>2. Chọn endpoint GET</h2>
+          <div class="actions" style="margin-bottom: 12px">
+            <button class="ghost" id="btnAll" type="button">Chọn tất cả</button>
+            <button class="ghost" id="btnNone" type="button">Bỏ chọn</button>
+          </div>
+          <div class="checks" id="endpointList"></div>
+          <div class="actions" style="margin-top: 14px">
+            <button class="primary" id="btnRun" type="button">Chạy đo latency</button>
+            <button class="ghost" id="btnExport" type="button">Export JSON</button>
+          </div>
+          <p class="status" id="runStatus"></p>
+        </section>
+      </div>
+
+      <div class="summary" id="summary" hidden>
+        <div class="stat">
+          <div class="label">Requests</div>
+          <div class="value" id="statCount">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Avg client total</div>
+          <div class="value" id="statAvg">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Slowest client</div>
+          <div class="value" id="statSlow">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Avg server ms</div>
+          <div class="value" id="statServer">—</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Endpoint</th>
+              <th>Status</th>
+              <th>Client TTFB</th>
+              <th>Client total</th>
+              <th>Server ms</th>
+              <th>Gap</th>
+              <th>Request ID</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody">
+            <tr>
+              <td colspan="8" style="color: var(--muted)">Chưa có kết quả.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const DEFAULT_ENDPOINTS = [
+        { id: "root", method: "GET", path: "/", auth: false },
+        { id: "me", method: "GET", path: "/auth/me", auth: true },
+        { id: "quiz", method: "GET", path: "/quiz?page=1&limit=10", auth: true },
+        { id: "topic", method: "GET", path: "/topic?page=1&limit=10", auth: true },
+        { id: "course", method: "GET", path: "/course?page=1&limit=10", auth: true },
+        { id: "courseProgress", method: "GET", path: "/course/progress/me?page=1&limit=10", auth: true },
+        { id: "attempt", method: "GET", path: "/attempt/me?page=1&limit=10", auth: true },
+        { id: "sessions", method: "GET", path: "/attempt/sessions/me?page=1&limit=10", auth: true },
+        { id: "progress", method: "GET", path: "/progress/me", auth: true },
+        { id: "certificate", method: "GET", path: "/certificate/me", auth: true },
+      ];
+
+      const els = {
+        baseUrl: document.getElementById("baseUrl"),
+        email: document.getElementById("email"),
+        password: document.getElementById("password"),
+        totp: document.getElementById("totp"),
+        token: document.getElementById("token"),
+        authStatus: document.getElementById("authStatus"),
+        runStatus: document.getElementById("runStatus"),
+        endpointList: document.getElementById("endpointList"),
+        resultsBody: document.getElementById("resultsBody"),
+        summary: document.getElementById("summary"),
+        statCount: document.getElementById("statCount"),
+        statAvg: document.getElementById("statAvg"),
+        statSlow: document.getElementById("statSlow"),
+        statServer: document.getElementById("statServer"),
+      };
+
+      let lastResults = [];
+
+      function normalizeBase(url) {
+        return String(url || "").trim().replace(/\/+$/, "");
+      }
+
+      function extractToken(payload) {
+        const candidates = [
+          payload?.access_token,
+          payload?.accessToken,
+          payload?.token,
+          payload?.data?.access_token,
+          payload?.data?.accessToken,
+          payload?.data?.token,
+          payload?.data?.tokens?.access_token,
+          payload?.data?.tokens?.accessToken,
+          payload?.data?.user?.access_token,
+          payload?.tokens?.access_token,
+          payload?.tokens?.accessToken,
+        ];
+        return candidates.find((v) => typeof v === "string" && v.length > 10) || "";
+      }
+
+      function setAuthStatus(text, type = "") {
+        els.authStatus.textContent = text;
+        els.authStatus.className = "status" + (type ? " " + type : "");
+      }
+
+      function renderEndpoints() {
+        els.endpointList.innerHTML = DEFAULT_ENDPOINTS.map(
+          (ep) => `
+          <label class="check">
+            <input type="checkbox" data-id="${ep.id}" checked />
+            <span>
+              <code>${ep.method} ${ep.path}</code>
+              ${ep.auth ? "" : '<span class="pill ok" style="margin-left:6px">public</span>'}
+            </span>
+          </label>
+        `,
+        ).join("");
+      }
+
+      function selectedEndpoints() {
+        const checked = new Set(
+          [...els.endpointList.querySelectorAll("input[type=checkbox]:checked")].map(
+            (el) => el.dataset.id,
+          ),
+        );
+        return DEFAULT_ENDPOINTS.filter((ep) => checked.has(ep.id));
+      }
+
+      function authHeaders() {
+        const token = els.token.value.trim();
+        const headers = { Accept: "application/json" };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        return headers;
+      }
+
+      async function readJsonSafe(res) {
+        const text = await res.text();
+        if (!text) return null;
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { raw: text };
+        }
+      }
+
+      async function login() {
+        const base = normalizeBase(els.baseUrl.value);
+        const email = els.email.value.trim();
+        const password = els.password.value;
+        if (!email || !password) {
+          setAuthStatus("Nhập email/password hoặc dán Bearer token.", "bad");
+          return;
+        }
+
+        setAuthStatus("Đang login...");
+        const res = await fetch(`${base}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await readJsonSafe(res);
+
+        if (!res.ok) {
+          setAuthStatus(`Login thất bại: HTTP ${res.status}`, "bad");
+          console.warn(data);
+          return;
+        }
+
+        let token = extractToken(data);
+        const totp = els.totp.value.trim();
+
+        // Nếu login trả challenge 2FA và user đã điền TOTP
+        if (!token && totp) {
+          const totpRes = await fetch(`${base}/auth/2fa/verify/totp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ code: totp }),
+          });
+          const totpData = await readJsonSafe(totpRes);
+          if (!totpRes.ok) {
+            setAuthStatus(`TOTP thất bại: HTTP ${totpRes.status}`, "bad");
+            return;
+          }
+          token = extractToken(totpData);
+        }
+
+        if (token) {
+          els.token.value = token;
+          localStorage.setItem("latency_tester_token", token);
+          setAuthStatus("Login OK — đã lấy Bearer token.", "ok");
+        } else {
+          setAuthStatus(
+            "Login HTTP OK nhưng không tìm thấy access token trong body. Dán token thủ công, hoặc hoàn tất 2FA rồi thử lại.",
+            "warn",
+          );
+          console.log("login payload", data);
+        }
+      }
+
+      async function pingMe() {
+        const base = normalizeBase(els.baseUrl.value);
+        const res = await fetch(`${base}/auth/me`, {
+          headers: authHeaders(),
+          credentials: "include",
+        });
+        const data = await readJsonSafe(res);
+        if (!res.ok) {
+          setAuthStatus(`GET /auth/me thất bại: HTTP ${res.status}`, "bad");
+          return;
+        }
+        const id =
+          data?.id ||
+          data?.data?.id ||
+          data?.data?.user?.id ||
+          data?.user?.id ||
+          "?";
+        setAuthStatus(`Auth OK — user id: ${id}`, "ok");
+      }
+
+      function pillForStatus(status) {
+        if (status >= 200 && status < 300) return "ok";
+        if (status >= 400 && status < 500) return "warn";
+        return "bad";
+      }
+
+      function fmtMs(value) {
+        if (value == null || Number.isNaN(value)) return "—";
+        return `${Math.round(value)} ms`;
+      }
+
+      function renderResults(results) {
+        lastResults = results;
+        if (!results.length) {
+          els.resultsBody.innerHTML =
+            '<tr><td colspan="8" style="color: var(--muted)">Chưa có kết quả.</td></tr>';
+          els.summary.hidden = true;
+          return;
+        }
+
+        els.resultsBody.innerHTML = results
+          .map((row, index) => {
+            const gap =
+              row.clientTotalMs != null && row.serverMs != null
+                ? Math.max(0, row.clientTotalMs - row.serverMs)
+                : null;
+            return `
+              <tr>
+                <td>${index + 1}</td>
+                <td class="mono">${row.method} ${row.path}</td>
+                <td><span class="pill ${pillForStatus(row.status)}">${row.status}</span></td>
+                <td class="mono">${fmtMs(row.clientTtfbMs)}</td>
+                <td class="mono">${fmtMs(row.clientTotalMs)}</td>
+                <td class="mono">${fmtMs(row.serverMs)}</td>
+                <td class="mono">${fmtMs(gap)}</td>
+                <td class="mono">${row.requestId || "—"}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        const ok = results.filter((r) => r.clientTotalMs != null);
+        const serverRows = results.filter((r) => r.serverMs != null);
+        const avg = ok.reduce((s, r) => s + r.clientTotalMs, 0) / (ok.length || 1);
+        const slow = ok.reduce((m, r) => Math.max(m, r.clientTotalMs), 0);
+        const avgServer =
+          serverRows.reduce((s, r) => s + r.serverMs, 0) / (serverRows.length || 1);
+
+        els.summary.hidden = false;
+        els.statCount.textContent = String(results.length);
+        els.statAvg.textContent = ok.length ? `${Math.round(avg)}` : "—";
+        els.statSlow.textContent = ok.length ? `${Math.round(slow)}` : "—";
+        els.statServer.textContent = serverRows.length ? `${Math.round(avgServer)}` : "—";
+      }
+
+      async function measureOne(ep) {
+        const base = normalizeBase(els.baseUrl.value);
+        const url = `${base}${ep.path}`;
+        const started = performance.now();
+        let ttfb = null;
+        let res;
+
+        try {
+          res = await fetch(url, {
+            method: ep.method,
+            headers: authHeaders(),
+            credentials: "include",
+          });
+          ttfb = performance.now() - started;
+          await res.arrayBuffer();
+        } catch (error) {
+          return {
+            method: ep.method,
+            path: ep.path,
+            status: 0,
+            clientTtfbMs: null,
+            clientTotalMs: performance.now() - started,
+            serverMs: null,
+            requestId: null,
+            error: error instanceof Error ? error.message : "network_error",
+          };
+        }
+
+        const total = performance.now() - started;
+        const serverHeader = res.headers.get("x-response-time-ms");
+        const serverMs = serverHeader != null ? Number(serverHeader) : null;
+
+        return {
+          method: ep.method,
+          path: ep.path,
+          status: res.status,
+          clientTtfbMs: ttfb,
+          clientTotalMs: total,
+          serverMs: Number.isFinite(serverMs) ? serverMs : null,
+          requestId: res.headers.get("x-request-id"),
+        };
+      }
+
+      async function runTests() {
+        const endpoints = selectedEndpoints();
+        if (!endpoints.length) {
+          els.runStatus.textContent = "Chọn ít nhất 1 endpoint.";
+          els.runStatus.className = "status bad";
+          return;
+        }
+
+        const needsAuth = endpoints.some((ep) => ep.auth);
+        if (needsAuth && !els.token.value.trim()) {
+          els.runStatus.textContent = "Các API protected cần Bearer token — login hoặc dán token trước.";
+          els.runStatus.className = "status bad";
+          return;
+        }
+
+        els.runStatus.textContent = `Đang chạy ${endpoints.length} request tuần tự...`;
+        els.runStatus.className = "status";
+        document.getElementById("btnRun").disabled = true;
+
+        const results = [];
+        for (const ep of endpoints) {
+          els.runStatus.textContent = `Đang đo ${ep.method} ${ep.path}...`;
+          results.push(await measureOne(ep));
+          renderResults(results);
+        }
+
+        document.getElementById("btnRun").disabled = false;
+        els.runStatus.textContent = `Xong ${results.length} request.`;
+        els.runStatus.className = "status ok";
+      }
+
+      function exportJson() {
+        const blob = new Blob([JSON.stringify(lastResults, null, 2)], {
+          type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `api-latency-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
+      // init
+      renderEndpoints();
+      const saved = localStorage.getItem("latency_tester_token");
+      if (saved) {
+        els.token.value = saved;
+        setAuthStatus("Đã load token từ localStorage.", "ok");
+      }
+
+      document.getElementById("btnLogin").addEventListener("click", () => {
+        login().catch((err) => setAuthStatus(err.message, "bad"));
+      });
+      document.getElementById("btnMe").addEventListener("click", () => {
+        pingMe().catch((err) => setAuthStatus(err.message, "bad"));
+      });
+      document.getElementById("btnClear").addEventListener("click", () => {
+        els.token.value = "";
+        localStorage.removeItem("latency_tester_token");
+        setAuthStatus("Đã xóa token.");
+      });
+      document.getElementById("btnAll").addEventListener("click", () => {
+        els.endpointList
+          .querySelectorAll("input[type=checkbox]")
+          .forEach((el) => (el.checked = true));
+      });
+      document.getElementById("btnNone").addEventListener("click", () => {
+        els.endpointList
+          .querySelectorAll("input[type=checkbox]")
+          .forEach((el) => (el.checked = false));
+      });
+      document.getElementById("btnRun").addEventListener("click", () => {
+        runTests().catch((err) => {
+          els.runStatus.textContent = err.message;
+          els.runStatus.className = "status bad";
+          document.getElementById("btnRun").disabled = false;
+        });
+      });
+      document.getElementById("btnExport").addEventListener("click", exportJson);
+    </script>
+  </body>
+</html>
