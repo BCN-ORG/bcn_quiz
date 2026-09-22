@@ -5,59 +5,33 @@ import {
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
+import { CertificateQueryDto } from './dto/certificate-query.dto';
 
 @Injectable()
 export class CertificateService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getMyCertificates(req: ExpressRequest) {
+  async getMyCertificates(query: CertificateQueryDto, req: ExpressRequest) {
     const userId = this.extractUserId(req);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const where = { userId };
+    const [items, total] = await Promise.all([
+      this.prisma.certificate.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { issuedAt: 'desc' },
+        include: { course: { select: { id: true, name: true, slug: true } } },
+      }),
+      this.prisma.certificate.count({ where }),
+    ]);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
 
-    type CertificateRow = {
-      id: string;
-      userId: string;
-      courseId: string;
-      certificateCode: string;
-      issuedAt: Date;
-      metadata: unknown;
-      createdAt: Date;
-      course_id: string;
-      course_name: string;
-      course_slug: string;
+    return {
+      items,
+      pagination: { page, limit, total, totalPages },
     };
-
-    const rows = await this.prisma.$queryRaw<CertificateRow[]>`
-      SELECT
-        cert.id,
-        cert."userId",
-        cert."courseId",
-        cert."certificateCode",
-        cert."issuedAt",
-        cert.metadata,
-        cert."createdAt",
-        c.id AS course_id,
-        c.name AS course_name,
-        c.slug AS course_slug
-      FROM certificates cert
-      INNER JOIN courses c ON c.id = cert."courseId"
-      WHERE cert."userId" = ${userId}
-      ORDER BY cert."issuedAt" DESC
-    `;
-
-    return rows.map((row) => ({
-      id: row.id,
-      userId: row.userId,
-      courseId: row.courseId,
-      certificateCode: row.certificateCode,
-      issuedAt: row.issuedAt,
-      metadata: row.metadata,
-      createdAt: row.createdAt,
-      course: {
-        id: row.course_id,
-        name: row.course_name,
-        slug: row.course_slug,
-      },
-    }));
   }
 
   /**

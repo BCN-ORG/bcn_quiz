@@ -4,7 +4,7 @@ import { CertificateService } from './certificate.service';
 describe('CertificateService', () => {
   const prisma = {
     $queryRaw: jest.fn(),
-    certificate: { findMany: jest.fn() },
+    certificate: { findMany: jest.fn(), count: jest.fn() },
   };
 
   let service: CertificateService;
@@ -12,6 +12,31 @@ describe('CertificateService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new CertificateService(prisma as never);
+  });
+
+  describe('getMyCertificates', () => {
+    it('returns one requested page and its total', async () => {
+      const item = { id: 'cert-2', course: { id: 'c1', name: 'Nest', slug: 'nest' } };
+      prisma.certificate.findMany.mockResolvedValue([item]);
+      prisma.certificate.count.mockResolvedValue(11);
+
+      await expect(
+        service.getMyCertificates(
+          { page: 2, limit: 10 },
+          { user: { id: 'u1' } } as never,
+        ),
+      ).resolves.toEqual({
+        items: [item],
+        pagination: { page: 2, limit: 10, total: 11, totalPages: 2 },
+      });
+      expect(prisma.certificate.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'u1' },
+          skip: 10,
+          take: 10,
+        }),
+      );
+    });
   });
 
   describe('verifyByCode', () => {

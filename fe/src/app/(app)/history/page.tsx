@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { ArrowRight, Check, Clock, X } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { ConfirmDialog, Empty, ErrorState, Loading, Status } from '@/components/ui';
+import { useCallback, useEffect, useState } from 'react';
+import { ConfirmDialog, Empty, ErrorState, Loading, PaginationNav, Status } from '@/components/ui';
 import { request } from '@/lib/api';
 import type { Pagination } from '@/lib/types';
 
@@ -28,14 +28,19 @@ export default function HistoryPage() {
   const [error, setError] = useState('');
   const [abandonId, setAbandonId] = useState<string | null>(null);
   const [abandoning, setAbandoning] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
 
-  const load = async () => {
+  const load = useCallback(async (targetPage = page) => {
     setLoading(true); setError('');
-    try { setItems((await request.get<Pagination<HistoryItem>>('/attempt/sessions/me?limit=100')).items); }
+    try {
+      const data = await request.get<Pagination<HistoryItem>>(`/attempt/sessions/me?page=${targetPage}&limit=10`);
+      setItems(data.items); setPagination(data.pagination);
+    }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Không tải được lịch sử'); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); }, []);
+  }, [page]);
+  useEffect(() => { void load(page); }, [load, page]);
 
   const abandon = async () => {
     if (!abandonId) return;
@@ -110,6 +115,7 @@ export default function HistoryPage() {
               </Link>
             );
           })}
+          <PaginationNav {...pagination} disabled={loading} onChange={setPage} />
         </div>
       ) : <Empty title="Chưa có lần làm bài" description="Bắt đầu một topic — bài dở sẽ hiện ở đây để bạn tiếp tục." />}
       <ConfirmDialog

@@ -2,14 +2,18 @@ import { Controller, Get, Param, Query, Request } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { CertificateService } from './certificate.service';
+import { CertificateQueryDto } from './dto/certificate-query.dto';
 
 @Controller('certificate')
 export class CertificateController {
   constructor(private readonly certificateService: CertificateService) {}
 
   @Get('me')
-  async getMyCertificates(@Request() req: ExpressRequest) {
-    return this.certificateService.getMyCertificates(req);
+  async getMyCertificates(
+    @Query() query: CertificateQueryDto,
+    @Request() req: ExpressRequest,
+  ) {
+    return this.certificateService.getMyCertificates(query, req);
   }
 
   /** Public suggest — no auth required. */

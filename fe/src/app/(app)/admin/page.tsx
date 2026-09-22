@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowSquareOut, FloppyDisk, PencilSimple, Trash } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
-import { Empty, ErrorState, Loading, Status, ConfirmDialog } from '@/components/ui';
+import { Empty, ErrorState, Loading, PaginationNav, Status, ConfirmDialog } from '@/components/ui';
 import { ApiError, request, uploadFile } from '@/lib/api';
 import { optionContent, toDatetimeLocal } from '@/lib/format';
 import { downloadQuizImportTemplate, parseQuizSpreadsheet } from '@/lib/quiz-import';
@@ -12,6 +12,7 @@ import type { Course, Pagination, Quiz, Submission, Topic, User } from '@/lib/ty
 
 type Tab = 'courses' | 'topics' | 'quizzes' | 'reviews';
 const labels: Record<Tab, string> = { courses: 'Khóa học', topics: 'Chủ đề', quizzes: 'Câu hỏi', reviews: 'Duyệt project' };
+const EMPTY_PAGE = { page: 1, limit: 10, total: 0, totalPages: 1 };
 
 function slugify(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -54,8 +55,14 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('courses');
   const [courses, setCourses] = useState<Course[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [courseOptions, setCourseOptions] = useState<Course[]>([]);
+  const [topicOptions, setTopicOptions] = useState<Topic[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [coursePagination, setCoursePagination] = useState(EMPTY_PAGE);
+  const [topicPagination, setTopicPagination] = useState(EMPTY_PAGE);
+  const [quizPagination, setQuizPagination] = useState(EMPTY_PAGE);
+  const [reviewPagination, setReviewPagination] = useState(EMPTY_PAGE);
   const [courseId, setCourseId] = useState('');
   const [quizTopicId, setQuizTopicId] = useState('');
   const [editing, setEditing] = useState<Course | Topic | Quiz | null>(null);
@@ -91,39 +98,61 @@ export default function AdminPage() {
     if (!soft) setLoading(true);
     setError('');
     try {
-      const [courseData, topicData, quizData] = await Promise.all([
+      const [courseData, topicData, allCourses, allTopics] = await Promise.all([
+        request.get<Pagination<Course>>(`/course?page=${coursePagination.page}&limit=10`),
+        request.get<Pagination<Topic>>(`/topic?page=${topicPagination.page}&limit=10`),
         request.get<Pagination<Course>>('/course?limit=100'),
         request.get<Pagination<Topic>>('/topic?limit=100'),
-        request.get<Pagination<Quiz>>('/quiz?limit=100'),
       ]);
       setCourses(courseData.items ?? []);
       setTopics(topicData.items ?? []);
-      setQuizzes(quizData.items ?? []);
-      setCourseId((value) => value || courseData.items?.find((item) => item.hasProject)?.id || courseData.items?.[0]?.id || '');
-      setQuizTopicId((value) => value || topicData.items?.[0]?.id || '');
+      setCoursePagination(courseData.pagination);
+      setTopicPagination(topicData.pagination);
+      setCourseOptions(allCourses.items ?? []);
+      setTopicOptions(allTopics.items ?? []);
+      setCourseId((value) => value || allCourses.items?.find((item) => item.hasProject)?.id || allCourses.items?.[0]?.id || '');
+      setQuizTopicId((value) => value || allTopics.items?.[0]?.id || '');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Không tải được dữ liệu quản trị');
     } finally {
       if (!soft) setLoading(false);
     }
   };
-  useEffect(() => { if (allowed) void load(); }, [allowed]);
+  useEffect(() => { if (allowed) void load(); }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadTopicQuizzes = async (selected: string) => {
+  const loadCoursesPage = async (page: number) => {
+    setError('');
+    try {
+      const data = await request.get<Pagination<Course>>(`/course?page=${page}&limit=10`);
+      setCourses(data.items); setCoursePagination(data.pagination);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không tải được khóa học'); }
+  };
+
+  const loadTopicsPage = async (page: number) => {
+    setError('');
+    try {
+      const data = await request.get<Pagination<Topic>>(`/topic?page=${page}&limit=10`);
+      setTopics(data.items); setTopicPagination(data.pagination);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không tải được chủ đề'); }
+  };
+
+  const loadTopicQuizzes = async (selected: string, page = 1) => {
     setQuizTopicId(selected); setError('');
     if (!selected) return setQuizzes([]);
     try {
-      setQuizzes((await request.get<Pagination<Quiz>>(`/topic/${selected}/quizzes/full?limit=100`)).items ?? []);
+      const data = await request.get<Pagination<Quiz>>(`/topic/${selected}/quizzes/full?page=${page}&limit=10`);
+      setQuizzes(data.items ?? []); setQuizPagination(data.pagination);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Không tải được câu hỏi');
     }
   };
 
-  const loadReviews = async (selected: string) => {
+  const loadReviews = async (selected: string, page = 1) => {
     setCourseId(selected); setError('');
     if (!selected) return setSubmissions([]);
     try {
-      setSubmissions((await request.get<Pagination<Submission>>(`/course/${selected}/project-submission?limit=100`)).items ?? []);
+      const data = await request.get<Pagination<Submission>>(`/course/${selected}/project-submission?page=${page}&limit=10`);
+      setSubmissions(data.items ?? []); setReviewPagination(data.pagination);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Không tải được bài nộp');
     }
@@ -239,7 +268,7 @@ export default function AdminPage() {
     const wasEditing = Boolean(editingTopic);
 
     if (!wasEditing) {
-      const duplicate = topics.find((item) => item.slug === slug);
+      const duplicate = topicOptions.find((item) => item.slug === slug);
       if (duplicate) {
         setError(`Slug "${slug}" đã có. Đang mở form sửa chủ đề hiện có — lưu để cập nhật, không tạo mới.`);
         setEditing(duplicate);
@@ -261,7 +290,7 @@ export default function AdminPage() {
       if (!wasEditing && reason instanceof ApiError && reason.status === 409) {
         try {
           const topicData = await request.get<Pagination<Topic>>('/topic?limit=100');
-          setTopics(topicData.items ?? []);
+          setTopicOptions(topicData.items ?? []);
           const existing = topicData.items?.find((item) => item.slug === slug);
           if (existing) {
             setEditing(existing);
@@ -328,7 +357,7 @@ export default function AdminPage() {
     setReviewing(true); setError('');
     try {
       await request.patch(`/course/${courseId}/project-submission/${submissionId}/review`, { decision, reviewerNote });
-      await loadReviews(courseId);
+      await loadReviews(courseId, reviewPagination.page);
       setNotice(decision === 'APPROVE' ? 'Đã duyệt bài.' : 'Đã yêu cầu sửa.');
       setPendingReview(null);
       setReviewNote('');
@@ -397,7 +426,7 @@ export default function AdminPage() {
     tab === 'topics' && editing && !('hasProject' in editing) && !('quizCode' in editing)
       ? (editing as Topic)
       : null;
-  const projectCourses = useMemo(() => courses.filter((item) => item.hasProject), [courses]);
+  const projectCourses = useMemo(() => courseOptions.filter((item) => item.hasProject), [courseOptions]);
 
   if (authLoading || loading) return <Loading />;
   if (!allowed) return null;
@@ -406,7 +435,7 @@ export default function AdminPage() {
   return (
     <>
       <header className="page-heading"><div><p className="eyebrow">Quản trị nội dung</p><h1>Quiz Studio</h1><p>Quản lý lộ trình, câu hỏi, đề project và bài nộp tại một nơi.</p></div></header>
-      <div className="tabs" role="tablist">{(Object.keys(labels) as Tab[]).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} key={item} onClick={() => { setTab(item); resetCreateForm(); setError(''); setNotice(''); if (item === 'reviews') void loadReviews(courseId); if (item === 'quizzes') void loadTopicQuizzes(quizTopicId); }}>{labels[item]}</button>)}</div>
+      <div className="tabs" role="tablist">{(Object.keys(labels) as Tab[]).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} key={item} onClick={() => { setTab(item); resetCreateForm(); setError(''); setNotice(''); if (item === 'reviews') void loadReviews(courseId, 1); if (item === 'quizzes') void loadTopicQuizzes(quizTopicId, 1); }}>{labels[item]}</button>)}</div>
       {error ? <p className="form-error" style={{ marginTop: 16 }} role="alert">{error}</p> : null}
       {notice ? <p className="form-success" style={{ marginTop: 16 }} role="status">{notice}</p> : null}
 
@@ -419,7 +448,7 @@ export default function AdminPage() {
           <label className="field"><span>Ảnh bìa</span><input name="cover" type="file" accept="image/*" /><small>Không bắt buộc. Giữ trống để dùng ảnh hiện tại.</small></label>
           <fieldset className="fieldset"><legend>Chủ đề trong khóa</legend>
             <div className="choice-list">
-              {topics.map((item) => (
+              {topicOptions.map((item) => (
                 <label key={item.id}>
                   <input type="checkbox" checked={selectedTopicIds.includes(item.id)} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))} />
                   <span>{item.name} <small>({item.slug})</small></span>
@@ -438,13 +467,13 @@ export default function AdminPage() {
           ) : null}
           <div className="list-actions"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button>{editingCourse ? <button type="button" className="button secondary" onClick={() => { resetCreateForm(); setError(''); setNotice(''); }}>Hủy</button> : null}</div>
         </form>
-        <div className="panel"><div className="section-title"><h2>Danh sách</h2><span>{courses.length}</span></div><div className="list">{courses.map((item) => <div className="list-row" key={item.id}><div><strong>{item.name}</strong><small>{item.slug} · {item.hasProject ? 'Có project' : 'Không có project'}</small></div><div className="list-actions"><button className="icon-button" onClick={() => void editCourse(item)} aria-label={`Sửa ${item.name}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'course', id: item.id })} aria-label={`Xóa ${item.name}`}><Trash /></button> : null}</div></div>)}</div></div>
+        <div className="panel"><div className="section-title"><h2>Danh sách</h2><span>{coursePagination.total}</span></div><div className="list">{courses.map((item) => <div className="list-row" key={item.id}><div><strong>{item.name}</strong><small>{item.slug} · {item.hasProject ? 'Có project' : 'Không có project'}</small></div><div className="list-actions"><button className="icon-button" onClick={() => void editCourse(item)} aria-label={`Sửa ${item.name}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'course', id: item.id })} aria-label={`Xóa ${item.name}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...coursePagination} onChange={(page) => void loadCoursesPage(page)} /></div>
       </div> : null}
 
       {tab === 'topics' ? <div className="admin-grid section">
         <form className="panel form" key={`topic-${editingTopic?.id || 'new'}-${formKey}`} onSubmit={saveTopic}>
           <h2>{editingTopic ? `Sửa chủ đề · ${editingTopic.slug}` : 'Tạo chủ đề'}</h2>
-          {!editingTopic ? <label className="field"><span>Khóa học</span><select name="courseId" required>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
+          {!editingTopic ? <label className="field"><span>Khóa học</span><select name="courseId" required>{courseOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
           <label className="field"><span>Tên</span><input name="name" defaultValue={editingTopic?.name} required onBlur={(event) => { const slug = event.currentTarget.form?.elements.namedItem('slug') as HTMLInputElement; if (slug && !slug.value) slug.value = slugify(event.currentTarget.value); }} /></label>
           <label className="field"><span>Slug</span><input name="slug" defaultValue={editingTopic?.slug} required /><small>Slug unique trong khóa. Trùng → mở form sửa.</small></label>
           <div className="form-grid">
@@ -453,14 +482,14 @@ export default function AdminPage() {
           </div>
           <div className="list-actions"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button>{editingTopic ? <button type="button" className="button secondary" onClick={() => { resetCreateForm(); setError(''); setNotice(''); }}>Hủy</button> : null}</div>
         </form>
-        <div className="panel"><div className="section-title"><h2>Danh sách</h2><span>{topics.length}</span></div><div className="list">{topics.map((item) => <div className="list-row" key={item.id}><div><strong>{item.name}</strong><small>{item.slug} · {item._count?.quizzes || 0} câu hỏi · {item.availability || 'OPEN'}</small></div><div className="list-actions"><button className="icon-button" onClick={() => { setEditing(item); setError(''); setNotice(''); }} aria-label={`Sửa ${item.name}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'topic', id: item.id })} aria-label={`Xóa ${item.name}`}><Trash /></button> : null}</div></div>)}</div></div>
+        <div className="panel"><div className="section-title"><h2>Danh sách</h2><span>{topicPagination.total}</span></div><div className="list">{topics.map((item) => <div className="list-row" key={item.id}><div><strong>{item.name}</strong><small>{item.slug} · {item._count?.quizzes || 0} câu hỏi · {item.availability || 'OPEN'}</small></div><div className="list-actions"><button className="icon-button" onClick={() => { setEditing(item); setError(''); setNotice(''); }} aria-label={`Sửa ${item.name}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'topic', id: item.id })} aria-label={`Xóa ${item.name}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...topicPagination} onChange={(page) => void loadTopicsPage(page)} /></div>
       </div> : null}
 
       {tab === 'quizzes' ? <div className="admin-grid section">
         <div style={{ display: 'grid', gap: 16 }}>
           <form className="panel form" key={`quiz-${editingQuiz?.id || 'new'}-${formKey}`} onSubmit={saveQuiz}>
             <h2>{editingQuiz ? 'Sửa câu hỏi' : 'Tạo câu hỏi'}</h2>
-            <label className="field"><span>Chủ đề</span><select name="topicId" defaultValue={editingQuiz?.topicId || quizTopicId} required>{topics.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+            <label className="field"><span>Chủ đề</span><select name="topicId" defaultValue={editingQuiz?.topicId || quizTopicId} required>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label className="field"><span>Câu hỏi</span><textarea name="question" defaultValue={editingQuiz?.content?.text || editingQuiz?.question} required /></label>
             <label className="field"><span>Đoạn code (không bắt buộc)</span><textarea name="code" defaultValue={editingQuiz?.content?.code || ''} /></label>
             <label className="field"><span>Ảnh minh họa</span><input name="image" type="file" accept="image/*" /><small>Không bắt buộc. Giữ trống để dùng ảnh hiện tại.</small></label>
@@ -505,7 +534,7 @@ export default function AdminPage() {
             <div className="list-actions"><button className="button" disabled={saving || !bulkJson.trim()}>{saving ? 'Đang import…' : 'Import JSON'}</button></div>
           </form>
         </div>
-        <div className="panel"><div className="section-title"><h2>Danh sách</h2><label className="field"><span>Chủ đề</span><select value={quizTopicId} onChange={(event) => void loadTopicQuizzes(event.target.value)}>{topics.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div><div className="list">{quizzes.map((item) => <div className="list-row" key={item.id}><div><strong>{item.quizCode}</strong><small>{item.content?.text || item.question}</small></div><div className="list-actions"><button className="icon-button" onClick={() => { setEditing(item); setError(''); setNotice(''); }} aria-label={`Sửa ${item.quizCode}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'quiz', id: item.id })} aria-label={`Xóa ${item.quizCode}`}><Trash /></button> : null}</div></div>)}</div></div>
+        <div className="panel"><div className="section-title"><h2>Danh sách</h2><label className="field"><span>Chủ đề</span><select value={quizTopicId} onChange={(event) => void loadTopicQuizzes(event.target.value, 1)}>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div><div className="list">{quizzes.map((item) => <div className="list-row" key={item.id}><div><strong>{item.quizCode}</strong><small>{item.content?.text || item.question}</small></div><div className="list-actions"><button className="icon-button" onClick={() => { setEditing(item); setError(''); setNotice(''); }} aria-label={`Sửa ${item.quizCode}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'quiz', id: item.id })} aria-label={`Xóa ${item.quizCode}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...quizPagination} onChange={(page) => void loadTopicQuizzes(quizTopicId, page)} /></div>
       </div> : null}
 
       {tab === 'reviews' ? (
@@ -513,27 +542,30 @@ export default function AdminPage() {
           <div className="section-title">
             <h2>Bài nộp project</h2>
             {projectCourses.length ? (
-              <label className="field"><span>Khóa học</span><select value={courseId} onChange={(event) => void loadReviews(event.target.value)}>{projectCourses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+              <label className="field"><span>Khóa học</span><select value={courseId} onChange={(event) => void loadReviews(event.target.value, 1)}>{projectCourses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             ) : null}
           </div>
           {!projectCourses.length ? (
             <Empty title="Chưa có khóa có project" description="Bật «Có project cuối khóa» khi tạo/sửa khóa học trước." />
           ) : submissions.length ? (
-            <div className="list">
-              {submissions.map((item) => (
-                <div className="list-row" key={item.id}>
-                  <div>
-                    <strong>{item.userFullName || item.userEmail || `Học viên ${item.userId}`}</strong>
-                    <small>{item.userEmail ? `${item.userEmail} · ` : ''}Nộp {new Date(item.submittedAt).toLocaleString('vi-VN')} · {item.reviewerNote || item.note || `${item.files.length} file`}</small>
-                    <div className="file-links">{item.files.map((file) => <a key={file.id} href={file.secureUrl} target="_blank" rel="noreferrer">{file.originalName} <ArrowSquareOut aria-hidden="true" /></a>)}</div>
+            <>
+              <div className="list">
+                {submissions.map((item) => (
+                  <div className="list-row" key={item.id}>
+                    <div>
+                      <strong>{item.userFullName || item.userEmail || `Học viên ${item.userId}`}</strong>
+                      <small>{item.userEmail ? `${item.userEmail} · ` : ''}Nộp {new Date(item.submittedAt).toLocaleString('vi-VN')} · {item.reviewerNote || item.note || `${item.files.length} file`}</small>
+                      <div className="file-links">{item.files.map((file) => <a key={file.id} href={file.secureUrl} target="_blank" rel="noreferrer">{file.originalName} <ArrowSquareOut aria-hidden="true" /></a>)}</div>
+                    </div>
+                    <div className="list-actions">
+                      <Status value={item.status} />
+                      {item.status === 'PENDING_REVIEW' ? <><button className="button" onClick={() => { setPendingReview({ id: item.id, decision: 'APPROVE' }); setReviewNote(''); setError(''); }}>Duyệt</button><button className="button danger" onClick={() => { setPendingReview({ id: item.id, decision: 'REJECT' }); setReviewNote(''); setError(''); }}>Yêu cầu sửa</button></> : null}
+                    </div>
                   </div>
-                  <div className="list-actions">
-                    <Status value={item.status} />
-                    {item.status === 'PENDING_REVIEW' ? <><button className="button" onClick={() => { setPendingReview({ id: item.id, decision: 'APPROVE' }); setReviewNote(''); setError(''); }}>Duyệt</button><button className="button danger" onClick={() => { setPendingReview({ id: item.id, decision: 'REJECT' }); setReviewNote(''); setError(''); }}>Yêu cầu sửa</button></> : null}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              <PaginationNav {...reviewPagination} onChange={(page) => void loadReviews(courseId, page)} />
+            </>
           ) : <Empty title="Chưa có bài cần duyệt" description="Bài nộp project sẽ xuất hiện tại đây." />}
         </section>
       ) : null}

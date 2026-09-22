@@ -70,6 +70,8 @@ export class CourseService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
+    const search = query.q?.trim() ?? '';
+    const pattern = `%${search}%`;
 
     type CourseListRow = {
       id: string;
@@ -126,6 +128,9 @@ export class CourseService {
         COUNT(*) OVER()::int AS total_count
       FROM courses c
       LEFT JOIN course_project_requirements pr ON pr."courseId" = c.id
+      WHERE ${search} = ''
+        OR c.name ILIKE ${pattern}
+        OR COALESCE(c.description, '') ILIKE ${pattern}
       ORDER BY c."createdAt" DESC
       LIMIT ${limit} OFFSET ${skip}
     `;

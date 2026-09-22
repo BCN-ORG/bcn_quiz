@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { ArrowRight, BookOpen, FolderSimple, UploadSimple } from '@phosphor-icons/react';
 import { useParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Empty, ErrorState, Loading, Progress, Status } from '@/components/ui';
+import { Empty, ErrorState, Loading, PaginationNav, Progress, Status } from '@/components/ui';
 import { request, uploadFile } from '@/lib/api';
 import { topicOpen } from '@/lib/format';
-import type { Course, CourseProgress, ProjectRequirement, Submission, Topic } from '@/lib/types';
+import type { Course, CourseProgress, Pagination, ProjectRequirement, Submission, Topic } from '@/lib/types';
+
+type CourseTopic = NonNullable<Course['topics']>[number];
 
 export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +17,9 @@ export default function CourseDetailPage() {
   const [progress, setProgress] = useState<CourseProgress | null>(null);
   const [requirement, setRequirement] = useState<ProjectRequirement | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
+  const [topics, setTopics] = useState<CourseTopic[]>([]);
+  const [topicPage, setTopicPage] = useState(1);
+  const [topicPagination, setTopicPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -57,6 +62,12 @@ export default function CourseDetailPage() {
     finally { setLoading(false); }
   }, [id]);
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    void request.get<Pagination<CourseTopic>>(`/course/${id}/topics?page=${topicPage}&limit=10`)
+      .then((data) => { setTopics(data.items); setTopicPagination(data.pagination); })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : 'Không tải được chủ đề'));
+  }, [id, topicPage]);
 
   const canResubmit = !submission || submission.status === 'REJECTED' || submission.status === 'PENDING_REVIEW';
 
@@ -112,14 +123,14 @@ export default function CourseDetailPage() {
         <section className="panel"><h2>Điều kiện hoàn thành</h2><p>Mỗi topic cần coverage đáp án đúng từ 80%. {course.hasProject ? 'Project cần được quản trị viên duyệt.' : 'Khóa học này không yêu cầu project.'}</p></section>
       </div>
       <section className="section">
-        <div className="section-title"><h2>Nội dung khóa học</h2><span>{course.topics?.length || 0} chủ đề</span></div>
+        <div className="section-title"><h2>Nội dung khóa học</h2><span>{topicPagination.total} chủ đề</span></div>
         <div className="topic-list">
-          {course.topics?.map((link, index) => {
+          {topics.map((link, index) => {
             const topic = link.topic as Topic;
             const open = topicOpen(topic.availability);
             return (
               <div className={`topic-row ${open ? '' : 'is-locked'}`} key={topic.id}>
-                <span className="topic-number">{String(index + 1).padStart(2, '0')}</span>
+                <span className="topic-number">{String((topicPage - 1) * topicPagination.limit + index + 1).padStart(2, '0')}</span>
                 <div>
                   <h3>{topic.name}</h3>
                   <p><BookOpen size={14} /> {topic._count?.quizzes ?? 0} câu hỏi{topic.availability && topic.availability !== 'OPEN' ? ` · ${topic.availability === 'SCHEDULED' ? 'Chưa tới lịch thi' : 'Đã đóng'}` : ''}</p>
@@ -129,6 +140,7 @@ export default function CourseDetailPage() {
             );
           })}
         </div>
+        <PaginationNav {...topicPagination} onChange={setTopicPage} />
       </section>
       {course.hasProject ? (
         <section className="section panel">

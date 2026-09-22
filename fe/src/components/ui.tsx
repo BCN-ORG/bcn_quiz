@@ -33,6 +33,29 @@ export function Empty({ title, description }: { title: string; description: stri
   );
 }
 
+export function PaginationNav({
+  page,
+  totalPages,
+  total,
+  disabled = false,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+  disabled?: boolean;
+  onChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <nav className="list-actions" style={{ justifyContent: 'center', marginTop: 20 }} aria-label="Phân trang">
+      <button type="button" className="button secondary" disabled={disabled || page <= 1} onClick={() => onChange(page - 1)}>Trang trước</button>
+      <span>Trang {page}/{totalPages} · {total} mục</span>
+      <button type="button" className="button secondary" disabled={disabled || page >= totalPages} onClick={() => onChange(page + 1)}>Trang sau</button>
+    </nav>
+  );
+}
+
 export function Progress({ value, label }: { value: number; label?: string }) {
   const safe = Math.max(0, Math.min(100, Math.round(value || 0)));
   return (

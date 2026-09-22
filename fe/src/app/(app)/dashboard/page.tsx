@@ -12,7 +12,7 @@ import type { Certificate as CourseCertificate, CourseProgress, Pagination } fro
 export default function DashboardPage() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<CourseProgress[]>([]);
-  const [certificates, setCertificates] = useState<CourseCertificate[]>([]);
+  const [certificateCount, setCertificateCount] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -21,9 +21,9 @@ export default function DashboardPage() {
     try {
       const [progress, certs] = await Promise.all([
         request.get<Pagination<CourseProgress>>('/course/progress/me?limit=6'),
-        request.get<CourseCertificate[]>('/certificate/me'),
+        request.get<Pagination<CourseCertificate>>('/certificate/me?limit=1'),
       ]);
-      setCourses(progress.items); setCertificates(certs);
+      setCourses(progress.items); setCertificateCount(certs.pagination.total);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Đã có lỗi xảy ra'); }
     finally { setLoading(false); }
   };
@@ -47,7 +47,7 @@ export default function DashboardPage() {
         <div className="hero-side">
           <div className="metric"><span>Đang học</span><strong>{courses.length - completed}</strong><BookOpen /></div>
           <div className="metric"><span>Tiến độ TB</span><strong>{average}%</strong><Target /></div>
-          <div className="metric"><span>Chứng chỉ</span><strong>{certificates.length}</strong><Certificate /></div>
+          <div className="metric"><span>Chứng chỉ</span><strong>{certificateCount}</strong><Certificate /></div>
         </div>
       </section>
       <section className="section">
