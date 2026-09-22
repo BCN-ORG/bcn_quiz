@@ -10,9 +10,8 @@ app:
 auth:
   accessMode: members
   require2FA: false
-  # Local test — thêm URI prod trên Profiles Admin → OAuth nếu cần:
-  # https://quizzes.bcn.id.vn/api/auth/callback
-  redirectUri: http://localhost:3001/api/auth/callback
+  # Local test: add http://localhost:3001/api/auth/callback in Profiles Admin.
+  redirectUri: https://quizzes.bcn.id.vn/api/auth/callback
 
 roles:
   - code: MEMBER
