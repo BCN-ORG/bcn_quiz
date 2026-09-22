@@ -16,15 +16,17 @@ describe('CertificateService', () => {
 
   describe('getMyCertificates', () => {
     it('returns one requested page and its total', async () => {
-      const item = { id: 'cert-2', course: { id: 'c1', name: 'Nest', slug: 'nest' } };
+      const item = {
+        id: 'cert-2',
+        course: { id: 'c1', name: 'Nest', slug: 'nest' },
+      };
       prisma.certificate.findMany.mockResolvedValue([item]);
       prisma.certificate.count.mockResolvedValue(11);
 
       await expect(
-        service.getMyCertificates(
-          { page: 2, limit: 10 },
-          { user: { id: 'u1' } } as never,
-        ),
+        service.getMyCertificates({ page: 2, limit: 10 }, {
+          user: { id: 'u1' },
+        } as never),
       ).resolves.toEqual({
         items: [item],
         pagination: { page: 2, limit: 10, total: 11, totalPages: 2 },
