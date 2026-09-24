@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, CheckCircle, PaperPlaneTilt } from '@phosphor-ic
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { QuizReview } from '@/components/quiz-review';
 import { Empty, ErrorState, Loading, Status, ConfirmDialog } from '@/components/ui';
 import { request } from '@/lib/api';
 import { topicOpen } from '@/lib/format';
@@ -138,12 +139,16 @@ function TopicQuizPage() {
   if (result) return (
     <>
       <header className="page-heading"><div><p className="eyebrow">Kết quả</p><h1>{topic.name}</h1><p>Đúng {result.correctCount}/{result.attemptedQuizCount} câu, đạt {Math.round(result.score * 100)}%.</p></div><CheckCircle size={54} color="var(--accent)" /></header>
-      <div className="list-actions" style={{ marginBottom: 20, gap: 12 }}>
-        {courseId ? <Link className="button" href={`/courses/${courseId}`}>Về khóa học</Link> : <Link className="button" href="/courses">Xem khóa học</Link>}
-        <Link className="button secondary" href="/history">Lịch sử làm bài</Link>
-        <button type="button" className="button secondary" disabled={saving} onClick={() => void startFresh()}>Làm lại</button>
-      </div>
-      <div className="list">{result.quizResults.map((item, index) => <article key={item.quizId} className={`panel ${item.isCorrect ? 'result-correct' : 'result-wrong'}`}><strong>Câu {index + 1}: {item.content.text}</strong><p>Đáp án của bạn: {item.selectedAnswer || 'Chưa trả lời (tính sai)'} | Đáp án đúng: {item.correctAnswer}</p>{item.explanation ? <small>{item.explanation}</small> : null}</article>)}</div>
+      <QuizReview
+        items={result.quizResults}
+        actions={(
+          <>
+            {courseId ? <Link className="button" href={`/courses/${courseId}`}>Về khóa học</Link> : <Link className="button" href="/courses">Xem khóa học</Link>}
+            <Link className="button secondary" href="/history">Lịch sử làm bài</Link>
+            <button type="button" className="button secondary" disabled={saving} onClick={() => void startFresh()}>Làm lại</button>
+          </>
+        )}
+      />
     </>
   );
   if (!session) {

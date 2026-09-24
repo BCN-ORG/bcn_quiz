@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Check, Clock, X } from '@phosphor-icons/react';
+import { ArrowLeft } from '@phosphor-icons/react';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { QuizReview } from '@/components/quiz-review';
 import { Empty, ErrorState, Loading } from '@/components/ui';
 import { request } from '@/lib/api';
 
@@ -21,7 +22,8 @@ type SessionDetail = {
   quizResults: Array<{
     quizId: string;
     quizCode: string;
-    content: { text: string; code?: string | null };
+    content: { text: string; code?: string | null; image?: string | null };
+    options?: { data?: Record<string, string> };
     selectedAnswer: string | null;
     correctAnswer: string;
     isCorrect: boolean | null;
@@ -62,22 +64,7 @@ export default function HistoryDetailPage() {
         </div>
         <Link className="button secondary" href="/history"><ArrowLeft /> Lịch sử</Link>
       </header>
-      <div className="card-meta" style={{ marginBottom: 20, gap: 16 }}>
-        <span><Check size={16} /> {detail.correctCount} đúng</span>
-        <span><X size={16} /> {(detail.quizTotal ?? detail.answeredCount) - detail.correctCount} sai / bỏ trống</span>
-        <span><Clock size={16} /> {Math.round((detail.durationMs || 0) / 1000)}s</span>
-        <strong>{Math.round(detail.score * 100)}%</strong>
-      </div>
-      <div className="list">
-        {detail.quizResults.map((item, index) => (
-          <article key={item.quizId} className={`panel ${item.isCorrect ? 'result-correct' : 'result-wrong'}`}>
-            <strong>Câu {index + 1}: {item.content.text}</strong>
-            {item.content.code ? <pre className="code-block"><code>{item.content.code}</code></pre> : null}
-            <p>Đáp án của bạn: {item.selectedAnswer || 'Chưa trả lời (tính sai)'} | Đáp án đúng: {item.correctAnswer}</p>
-            {item.explanation ? <small>{item.explanation}</small> : null}
-          </article>
-        ))}
-      </div>
+      <QuizReview items={detail.quizResults} />
     </>
   );
 }

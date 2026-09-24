@@ -232,11 +232,36 @@ img { display: block; max-width: 100%; }
 .answer { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; text-align: left; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--text); transition: border .18s ease, background .18s ease; }
 .answer:hover, .answer.selected { border-color: var(--accent); background: var(--accent-soft); }
 .answer > span:first-child { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--surface-2); font: 700 13px/1 var(--font-mono), ui-monospace, monospace; }
+.answer.review { cursor: default; }
+.answer.review.correct { border-color: var(--accent); background: var(--accent-soft); }
+.answer.review.correct > span:first-child { background: var(--accent); color: #fff; }
+.answer.review.wrong { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
+.answer.review.wrong > span:first-child { background: var(--danger); color: #fff; }
+.answer.review.neutral { color: var(--muted); }
+.answer.review.correct:hover { border-color: var(--accent); background: var(--accent-soft); }
+.answer.review.wrong:hover { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
+.answer.review.neutral:hover { border-color: var(--line); background: var(--surface); }
+.review-badge { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 12px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+.review-badge.ok { background: var(--accent-soft); color: var(--accent-strong); }
+.review-badge.bad { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger); }
+.review-explain { margin-top: 20px; padding: 16px 18px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface-2); }
+.review-explain strong { display: block; margin-bottom: 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.review-explain p { margin: 0; }
+.review-fallback { margin: 0; color: var(--muted); }
+.review-score { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+.review-legend { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+.review-legend .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--danger); }
+.review-legend .dot.ok { background: var(--accent); margin-left: 6px; }
+.review-legend .dot.ok:first-child { margin-left: 0; }
+.review-actions { display: grid; gap: 8px; margin-top: 20px; }
+.review-actions .button { width: 100%; }
 .quiz-nav { align-self: start; position: sticky; top: 92px; }
 .question-map { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .question-map button { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--text); }
-.question-map button.current { border-color: var(--accent); }
+.question-map button.current { box-shadow: inset 0 0 0 2px var(--accent); }
 .question-map button.answered { background: var(--accent-soft); color: var(--accent-strong); }
+.question-map button.correct { background: var(--accent-soft); color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.question-map button.wrong { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
 .result-correct { border-left: 4px solid var(--accent); }
 .result-wrong { border-left: 4px solid var(--danger); }
 
