@@ -22,6 +22,7 @@ describe('QuizService.createQuizzes', () => {
     topic: { findMany: jest.fn() },
     quiz: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
       createMany: jest.fn(),
       create: jest.fn(),
     },
@@ -119,6 +120,34 @@ describe('QuizService.createQuizzes', () => {
     expect(
       courseProgressService.reopenTopicProgressAndCourses,
     ).toHaveBeenCalledWith('topic-1');
+  });
+
+  it('never exposes answers in a public quiz response', async () => {
+    prisma.quiz.findUnique.mockResolvedValue({
+      id: 'quiz-1',
+      quizCode: 'q_001',
+      question: 'Question',
+      code: null,
+      imageUrl: null,
+      imagePublicId: null,
+      answer: 'A',
+      explanation: 'Secret explanation',
+      options: [
+        { id: 'option-a', label: 'A', content: 'one', isCode: false },
+        { id: 'option-b', label: 'B', content: 'two', isCode: false },
+      ],
+    });
+
+    const result = await service.getQuizById('quiz-1');
+
+    expect(result).not.toHaveProperty('answer');
+    expect(result).not.toHaveProperty('explanation');
+    expect(result?.options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'option-a', label: 'A' }),
+        expect.objectContaining({ id: 'option-b', label: 'B' }),
+      ]),
+    );
   });
 
   it('keeps a 200-quiz import at two createMany calls', async () => {

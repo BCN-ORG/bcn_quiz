@@ -13,6 +13,7 @@ describe('TopicService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    quiz: { findMany: jest.fn(), count: jest.fn() },
     course: { findUnique: jest.fn() },
     courseTopic: {
       findFirst: jest.fn(),
@@ -85,6 +86,36 @@ describe('TopicService', () => {
         NotFoundException,
       );
     });
+  });
+
+  it('keeps option order stable within a session without exposing answers', async () => {
+    prisma.topic.findUnique.mockResolvedValue({ id: 't1' });
+    prisma.quiz.count.mockResolvedValue(1);
+    prisma.quiz.findMany.mockResolvedValue([
+      {
+        id: 'q1',
+        quizCode: 'Q1',
+        question: 'Question',
+        answer: 'A',
+        explanation: 'Secret',
+        options: [
+          { id: 'o1', label: 'A', content: 'One', isCode: false },
+          { id: 'o2', label: 'B', content: 'Two', isCode: false },
+          { id: 'o3', label: 'C', content: 'Three', isCode: false },
+        ],
+      },
+    ]);
+
+    const first = await service.getQuizzesByTopicId('t1', {
+      sessionId: 'session-1',
+    });
+    const second = await service.getQuizzesByTopicId('t1', {
+      sessionId: 'session-1',
+    });
+
+    expect(second.items[0].options).toEqual(first.items[0].options);
+    expect(first.items[0]).not.toHaveProperty('answer');
+    expect(first.items[0]).not.toHaveProperty('explanation');
   });
 
   describe('schedule window validation', () => {

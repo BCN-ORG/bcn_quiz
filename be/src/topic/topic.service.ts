@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../common/storage/minio.service';
 import { CourseProgressService } from '../course/course-progress.service';
@@ -30,6 +31,12 @@ type RawQuiz = {
   options: {
     is_code: boolean;
     data: Record<string, string>;
+    items: Array<{
+      id: string;
+      label: string;
+      content: string;
+      isCode: boolean;
+    }>;
   };
   answer: string;
   explanation: string;
@@ -58,7 +65,7 @@ function mapQuiz(raw: RawQuiz) {
 }
 
 /** Public variant — omits answer and explanation for quiz-taking endpoints */
-function mapQuizPublic(raw: RawQuiz) {
+function mapQuizPublic(raw: RawQuiz, sessionId?: string) {
   return {
     id: raw.id,
     quizCode: raw.quizCode,
@@ -69,10 +76,17 @@ function mapQuizPublic(raw: RawQuiz) {
       image: raw.content.image,
       has_image: raw.content.has_image,
     },
-    options: {
-      is_code: raw.options.is_code,
-      data: raw.options.data,
-    },
+    options: raw.options.items
+      .map((option) => ({
+        ...option,
+        sort: sessionId
+          ? createHash('sha256')
+              .update(`${sessionId}:${raw.id}:${option.id}`)
+              .digest('hex')
+          : randomInt(0x100000000).toString(16).padStart(8, '0'),
+      }))
+      .sort((a, b) => a.sort.localeCompare(b.sort))
+      .map(({ sort: _, ...option }) => option),
   };
 }
 
@@ -95,6 +109,12 @@ function toRawQuiz(quiz: any): RawQuiz {
           option.content,
         ]),
       ),
+      items: (quiz.options ?? []).map((option: any) => ({
+        id: option.id,
+        label: option.label,
+        content: option.content,
+        isCode: option.isCode,
+      })),
     },
     answer: quiz.answer,
     explanation: quiz.explanation ?? '',
@@ -119,7 +139,9 @@ export class TopicService {
     );
 
     return {
-      items: items.map((quiz) => mapQuizPublic(toRawQuiz(quiz))),
+      items: items.map((quiz) =>
+        mapQuizPublic(toRawQuiz(quiz), query.sessionId),
+      ),
       pagination,
     };
   }
@@ -207,7 +229,9 @@ export class TopicService {
     );
 
     return {
-      items: items.map((quiz) => mapQuizPublic(toRawQuiz(quiz))),
+      items: items.map((quiz) =>
+        mapQuizPublic(toRawQuiz(quiz), query.sessionId),
+      ),
       pagination,
     };
   }

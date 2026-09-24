@@ -13,9 +13,9 @@ import type { Pagination, Quiz, QuizSession, SessionResult, Topic } from '@/lib/
 /** Session TTL only for cleanup — not an exam timer. Topic startsAt/endsAt still gate access. */
 const SESSION_TTL_MINUTES = 365 * 24 * 60;
 
-function optionsOf(quiz: Quiz): Array<[string, string]> {
-  if (Array.isArray(quiz.options)) return quiz.options.map((option) => [option.label, option.content]);
-  return Object.entries(quiz.options.data || {});
+function optionsOf(quiz: Quiz): Array<[string, string, string]> {
+  if (Array.isArray(quiz.options)) return quiz.options.map((option) => [option.id ?? option.label, option.label, option.content]);
+  return Object.entries(quiz.options.data || {}).map(([label, content]) => [label, label, content]);
 }
 
 function TopicQuizPage() {
@@ -38,7 +38,9 @@ function TopicQuizPage() {
     const active = await request.post<QuizSession>(`/topic/${id}/session/start`, {
       expiresInMinutes: SESSION_TTL_MINUTES,
     });
+    const quizData = await request.get<Pagination<Quiz>>(`/topic/${id}/quizzes?limit=100&sessionId=${encodeURIComponent(active.id)}`);
     setSession(active);
+    setQuizzes(quizData.items);
     setAnswers(active.answers || {});
     setCurrent(0);
     setResult(null);
@@ -71,11 +73,13 @@ function TopicQuizPage() {
       // Resume only — do not auto-start (avoids ghost IN_PROGRESS rows in history).
       const active = await request.get<QuizSession | null>(`/topic/${id}/session/resume`);
       if (active && active.status === 'IN_PROGRESS') {
+        const sessionQuizData = await request.get<Pagination<Quiz>>(`/topic/${id}/quizzes?limit=100&sessionId=${encodeURIComponent(active.id)}`);
         setSession(active);
+        setQuizzes(sessionQuizData.items);
         const restored = active.answers || {};
         setAnswers(restored);
         const resumeIndex = active.currentQuizId
-          ? quizData.items.findIndex((item) => item.id === active.currentQuizId)
+          ? sessionQuizData.items.findIndex((item) => item.id === active.currentQuizId)
           : -1;
         setCurrent(resumeIndex >= 0 ? resumeIndex : 0);
       } else {
@@ -97,11 +101,11 @@ function TopicQuizPage() {
 
   const quiz = quizzes[current];
   const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
-  const choose = async (label: string) => {
+  const choose = async (optionId: string, label: string) => {
     if (!quiz || !session || result) return;
     const next = { ...answers, [quiz.id]: label };
     setAnswers(next); setSaving(true);
-    try { await request.post(`/attempt/session/${session.id}/save`, { currentQuizId: quiz.id, selectedAnswer: label, answers: next }); }
+    try { await request.post(`/attempt/session/${session.id}/save`, { currentQuizId: quiz.id, selectedAnswer: optionId }); }
     catch (reason) {
       const message = reason instanceof Error ? reason.message : 'Không lưu được đáp án';
       setError(message);
@@ -176,7 +180,7 @@ function TopicQuizPage() {
           <h1>{content.text}</h1>
           {content.code ? <pre className="code-block"><code>{content.code}</code></pre> : null}
           {content.image ? <Image src={content.image} alt="Minh họa cho câu hỏi" width={960} height={540} style={{ width: '100%', height: 'auto', borderRadius: 12 }} /> : null}
-          <div className="answer-list">{optionsOf(quiz).map(([label, text]) => <button key={label} className={`answer ${answers[quiz.id] === label ? 'selected' : ''}`} onClick={() => void choose(label)}><span>{label}</span><span>{text}</span></button>)}</div>
+          <div className="answer-list">{optionsOf(quiz).map(([optionId, label, text]) => <button key={optionId} className={`answer ${answers[quiz.id] === label ? 'selected' : ''}`} disabled={saving} onClick={() => void choose(optionId, label)}><span>{label}</span><span>{text}</span></button>)}</div>
           <div className="list-actions" style={{ justifyContent: 'space-between', marginTop: 24 }}>
             <button className="button secondary" disabled={current === 0} onClick={() => setCurrent((value) => value - 1)}><ArrowLeft /> Câu trước</button>
             {current < quizzes.length - 1 ? <button className="button" onClick={() => setCurrent((value) => value + 1)}>Câu tiếp <ArrowRight /></button> : <button className="button" disabled={saving} onClick={() => setConfirmSubmit(true)}><PaperPlaneTilt /> Nộp bài</button>}

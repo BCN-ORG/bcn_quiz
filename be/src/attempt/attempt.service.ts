@@ -213,20 +213,24 @@ export class AttemptService {
     const topic = await this.getTopicScheduleOrThrow(session.topicId);
     assertTopicWindow(topic, 'mutate');
 
-    if (dto.currentQuizId) {
-      await this.ensureQuizInTopic(dto.currentQuizId, session.topicId);
-    }
-
     if (dto.selectedAnswer && !dto.currentQuizId) {
       throw new BadRequestException(
         'currentQuizId is required when selectedAnswer is provided',
       );
     }
 
+    const selectedAnswer = dto.currentQuizId
+      ? await this.ensureQuizInTopic(
+          dto.currentQuizId,
+          session.topicId,
+          dto.selectedAnswer,
+        )
+      : undefined;
+
     const previousAnswers = this.parseAnswers(session.answers);
     const nextAnswersFromSelection =
-      dto.currentQuizId && dto.selectedAnswer
-        ? { [dto.currentQuizId]: dto.selectedAnswer }
+      dto.currentQuizId && selectedAnswer
+        ? { [dto.currentQuizId]: selectedAnswer }
         : {};
 
     const mergedAnswers = {
@@ -471,11 +475,12 @@ export class AttemptService {
     const topic = await this.getTopicScheduleOrThrow(quiz.topicId);
     assertTopicWindow(topic, 'mutate');
 
-    const answerExists = quiz.options.some(
-      (option) => option.label === dto.selectedAnswer,
+    const selectedOption = quiz.options.find(
+      (option) =>
+        option.id === dto.selectedAnswer || option.label === dto.selectedAnswer,
     );
 
-    if (!answerExists) {
+    if (!selectedOption) {
       throw new BadRequestException('selectedAnswer is invalid for this quiz');
     }
 
@@ -486,7 +491,8 @@ export class AttemptService {
         ? Math.max(0, submittedAt.getTime() - startedAt.getTime())
         : null;
 
-    const isCorrect = dto.selectedAnswer === quiz.answer;
+    const selectedAnswer = selectedOption.label;
+    const isCorrect = selectedAnswer === quiz.answer;
     const score = isCorrect ? 1 : 0;
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -495,7 +501,7 @@ export class AttemptService {
           userId,
           quizId: quiz.id,
           topicId: quiz.topicId,
-          selectedAnswer: dto.selectedAnswer,
+          selectedAnswer,
           isCorrect,
           score,
           startedAt,
@@ -537,7 +543,7 @@ export class AttemptService {
         id: quiz.id,
         quizCode: quiz.quizCode,
       },
-      selectedAnswer: dto.selectedAnswer,
+      selectedAnswer,
       correctAnswer: quiz.answer,
       isCorrect,
       score,
@@ -1263,13 +1269,17 @@ export class AttemptService {
   private async ensureQuizInTopic(
     quizId: string,
     topicId: string,
-  ): Promise<void> {
+    selectedAnswer?: string,
+  ): Promise<string | undefined> {
     const quiz = await this.prisma.quiz.findFirst({
       where: {
         id: quizId,
         topicId,
       },
-      select: { id: true },
+      select: {
+        id: true,
+        options: { select: { id: true, label: true } },
+      },
     });
 
     if (!quiz) {
@@ -1277,6 +1287,18 @@ export class AttemptService {
         `Quiz '${quizId}' does not belong to topic '${topicId}'`,
       );
     }
+
+    if (!selectedAnswer) return undefined;
+
+    const selectedOption = quiz.options.find(
+      (option) =>
+        option.id === selectedAnswer || option.label === selectedAnswer,
+    );
+    if (!selectedOption) {
+      throw new BadRequestException('selectedAnswer is invalid for this quiz');
+    }
+
+    return selectedOption.label;
   }
 
   private async expireSessionIfNeeded(

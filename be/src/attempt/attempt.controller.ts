@@ -16,6 +16,8 @@ import { AttemptQueryDto } from './dto/attempt-query.dto';
 import { SessionHistoryQueryDto } from './dto/session-history-query.dto';
 import { StartSessionDto } from './dto/start-session.dto';
 import { SaveSessionDto } from './dto/save-session.dto';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { CONTENT_WRITE } from '../auth/quiz-permissions';
 
 @Controller()
 export class AttemptController {
@@ -68,6 +70,7 @@ export class AttemptController {
   }
 
   @Post('quiz/:id/attempt')
+  @Permissions(...CONTENT_WRITE)
   @HttpCode(HttpStatus.OK)
   async submitAttempt(
     @Param('id') id: string,

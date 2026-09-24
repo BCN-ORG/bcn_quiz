@@ -55,6 +55,43 @@ describe('AttemptService', () => {
   });
 
   describe('saveSessionProgress expiry', () => {
+    it('merges one selected answer into the saved progress', async () => {
+      const session = {
+        id: 'sess-0',
+        userId: 'user-1',
+        topicId: 'topic-1',
+        status: AttemptSessionStatus.IN_PROGRESS,
+        expiresAt: new Date(Date.now() + 60_000),
+        startedAt: new Date(),
+        lastSeenAt: new Date(),
+        submittedAt: null,
+        answers: { q1: 'A' },
+        currentQuizId: 'q1',
+      };
+      prisma.attemptSession.findUnique.mockResolvedValue(session);
+      prisma.quiz.findFirst.mockResolvedValue({
+        id: 'q2',
+        options: [{ id: 'option-b', label: 'B' }],
+      });
+      prisma.attemptSession.update.mockImplementation(({ data }) =>
+        Promise.resolve({ ...session, ...data }),
+      );
+
+      await service.saveSessionProgress(
+        'sess-0',
+        { currentQuizId: 'q2', selectedAnswer: 'option-b' },
+        req,
+      );
+
+      expect(prisma.attemptSession.update).toHaveBeenCalledWith({
+        where: { id: 'sess-0' },
+        data: expect.objectContaining({
+          currentQuizId: 'q2',
+          answers: { q1: 'A', q2: 'B' },
+        }),
+      });
+    });
+
     it('rejects save when session status is already EXPIRED', async () => {
       prisma.attemptSession.findUnique.mockResolvedValue({
         id: 'sess-1',

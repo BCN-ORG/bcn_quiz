@@ -52,7 +52,7 @@ export type CourseProgress = {
   course: Course & { topicCount?: number };
 };
 
-export type QuizOption = { label: string; content: string; isCode: boolean };
+export type QuizOption = { id?: string; label: string; content: string; isCode: boolean };
 export type Quiz = {
   id: string;
   quizCode: string;
