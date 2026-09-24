@@ -86,7 +86,12 @@ function mapQuizPublic(raw: RawQuiz, sessionId?: string) {
           : randomInt(0x100000000).toString(16).padStart(8, '0'),
       }))
       .sort((a, b) => a.sort.localeCompare(b.sort))
-      .map(({ sort: _, ...option }) => option),
+      .map((option) => ({
+        id: option.id,
+        label: option.label,
+        content: option.content,
+        isCode: option.isCode,
+      })),
   };
 }
 

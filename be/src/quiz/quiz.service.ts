@@ -78,7 +78,12 @@ function mapQuizPublic(raw: RawQuiz) {
     options: raw.options.items
       .map((option) => ({ ...option, sort: randomInt(0x100000000) }))
       .sort((a, b) => a.sort - b.sort)
-      .map(({ sort: _, ...option }) => option),
+      .map((option) => ({
+        id: option.id,
+        label: option.label,
+        content: option.content,
+        isCode: option.isCode,
+      })),
   };
 }
 
