@@ -8,7 +8,13 @@ import { Empty, ErrorState, Loading, PaginationNav, Status, ConfirmDialog } from
 import { ApiError, request, uploadFile } from '@/lib/api';
 import { optionContent, toDatetimeLocal } from '@/lib/format';
 import { downloadQuizImportTemplate, parseQuizSpreadsheet } from '@/lib/quiz-import';
-import type { Course, Pagination, Quiz, Submission, Topic, User } from '@/lib/types';
+import {
+  canCreateContent,
+  canDeleteContent,
+  canManageContent,
+  canUpdateContent,
+} from '@/lib/permissions';
+import type { Course, Pagination, Quiz, Submission, Topic } from '@/lib/types';
 
 type Tab = 'courses' | 'topics' | 'quizzes' | 'reviews';
 const labels: Record<Tab, string> = { courses: 'Khóa học', topics: 'Chủ đề', quizzes: 'Câu hỏi', reviews: 'Duyệt project' };
@@ -16,29 +22,6 @@ const EMPTY_PAGE = { page: 1, limit: 10, total: 0, totalPages: 1 };
 
 function slugify(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
-function canManageContent(user: User | null) {
-  if (!user) return false;
-  const permissions = (user.permissions ?? []).map((p) => p.toLowerCase());
-  if (
-    permissions.includes('quiz.question.create') ||
-    permissions.includes('quiz.question.update') ||
-    permissions.includes('quiz.question.delete')
-  ) {
-    return true;
-  }
-  // Platform ADMIN from Profiles — same escape hatch as BE when permissions lag.
-  return user.role?.toLowerCase() === 'admin';
-}
-
-/** Delete requires quiz.question.delete (or platform ADMIN). */
-function canDeleteContent(user: User | null) {
-  if (!user) return false;
-  if ((user.permissions ?? []).some((p) => p.toLowerCase() === 'quiz.question.delete')) {
-    return true;
-  }
-  return user.role?.toLowerCase() === 'admin';
 }
 
 function upsertById<T extends { id: string }>(items: T[], item: T): T[] {
@@ -81,6 +64,8 @@ export default function AdminPage() {
   const [reviewing, setReviewing] = useState(false);
 
   const allowed = canManageContent(user);
+  const allowCreate = canCreateContent(user);
+  const allowUpdate = canUpdateContent(user);
   const allowDelete = canDeleteContent(user);
 
   useEffect(() => {
@@ -171,7 +156,7 @@ export default function AdminPage() {
   const remove = async () => {
     if (!pendingDelete) return;
     if (!allowDelete) {
-      setError('Chỉ ADMIN mới được xóa. MENTOR chỉ tạo/sửa.');
+      setError('Tài khoản không có quyền quiz.question.delete.');
       setPendingDelete(null);
       return;
     }
@@ -435,12 +420,12 @@ export default function AdminPage() {
   return (
     <>
       <header className="page-heading"><div><p className="eyebrow">Quản trị nội dung</p><h1>Quiz Studio</h1><p>Quản lý lộ trình, câu hỏi, đề project và bài nộp tại một nơi.</p></div></header>
-      <div className="tabs" role="tablist">{(Object.keys(labels) as Tab[]).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} key={item} onClick={() => { setTab(item); resetCreateForm(); setError(''); setNotice(''); if (item === 'reviews') void loadReviews(courseId, 1); if (item === 'quizzes') void loadTopicQuizzes(quizTopicId, 1); }}>{labels[item]}</button>)}</div>
+      <div className="tabs" role="tablist">{(Object.keys(labels) as Tab[]).filter((item) => item !== 'reviews' || allowUpdate).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} key={item} onClick={() => { setTab(item); resetCreateForm(); setError(''); setNotice(''); if (item === 'reviews') void loadReviews(courseId, 1); if (item === 'quizzes') void loadTopicQuizzes(quizTopicId, 1); }}>{labels[item]}</button>)}</div>
       {error ? <p className="form-error" style={{ marginTop: 16 }} role="alert">{error}</p> : null}
       {notice ? <p className="form-success" style={{ marginTop: 16 }} role="status">{notice}</p> : null}
 
       {tab === 'courses' ? <div className="admin-grid section">
-        <form className="panel form" key={`course-${editingCourse?.id || 'new'}-${formKey}`} onSubmit={saveCourse}>
+        {(editingCourse ? allowUpdate : allowCreate) ? <form className="panel form" key={`course-${editingCourse?.id || 'new'}-${formKey}`} onSubmit={saveCourse}>
           <h2>{editingCourse ? 'Sửa khóa học' : 'Tạo khóa học'}</h2>
           <label className="field"><span>Tên</span><input name="name" defaultValue={editingCourse?.name} required onBlur={(event) => { const slug = event.currentTarget.form?.elements.namedItem('slug') as HTMLInputElement; if (slug && !slug.value) slug.value = slugify(event.currentTarget.value); }} /></label>
           <label className="field"><span>Slug</span><input name="slug" defaultValue={editingCourse?.slug} required /></label>
@@ -466,12 +451,12 @@ export default function AdminPage() {
             </fieldset>
           ) : null}
           <div className="list-actions"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button>{editingCourse ? <button type="button" className="button secondary" onClick={() => { resetCreateForm(); setError(''); setNotice(''); }}>Hủy</button> : null}</div>
-        </form>
-        <div className="panel"><div className="section-title"><h2>Danh sách</h2><span>{coursePagination.total}</span></div><div className="list">{courses.map((item) => <div className="list-row" key={item.id}><div><strong>{item.name}</strong><small>{item.slug} · {item.hasProject ? 'Có project' : 'Không có project'}</small></div><div className="list-actions"><button className="icon-button" onClick={() => void editCourse(item)} aria-label={`Sửa ${item.name}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'course', id: item.id })} aria-label={`Xóa ${item.name}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...coursePagination} onChange={(page) => void loadCoursesPage(page)} /></div>
+        </form> : null}
+        <div className="panel"><div className="section-title"><h2>Danh sách</h2><span>{coursePagination.total}</span></div><div className="list">{courses.map((item) => <div className="list-row" key={item.id}><div><strong>{item.name}</strong><small>{item.slug} · {item.hasProject ? 'Có project' : 'Không có project'}</small></div><div className="list-actions">{allowUpdate ? <button className="icon-button" onClick={() => void editCourse(item)} aria-label={`Sửa ${item.name}`}><PencilSimple /></button> : null}{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'course', id: item.id })} aria-label={`Xóa ${item.name}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...coursePagination} onChange={(page) => void loadCoursesPage(page)} /></div>
       </div> : null}
 
       {tab === 'topics' ? <div className="admin-grid section">
-        <form className="panel form" key={`topic-${editingTopic?.id || 'new'}-${formKey}`} onSubmit={saveTopic}>
+        {(editingTopic ? allowUpdate : allowCreate) ? <form className="panel form" key={`topic-${editingTopic?.id || 'new'}-${formKey}`} onSubmit={saveTopic}>
           <h2>{editingTopic ? `Sửa chủ đề · ${editingTopic.slug}` : 'Tạo chủ đề'}</h2>
           {!editingTopic ? <label className="field"><span>Khóa học</span><select name="courseId" required>{courseOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
           <label className="field"><span>Tên</span><input name="name" defaultValue={editingTopic?.name} required onBlur={(event) => { const slug = event.currentTarget.form?.elements.namedItem('slug') as HTMLInputElement; if (slug && !slug.value) slug.value = slugify(event.currentTarget.value); }} /></label>
@@ -481,13 +466,13 @@ export default function AdminPage() {
             <label className="field"><span>Đóng lúc</span><input name="endsAt" type="datetime-local" defaultValue={toDatetimeLocal(editingTopic?.endsAt)} /></label>
           </div>
           <div className="list-actions"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button>{editingTopic ? <button type="button" className="button secondary" onClick={() => { resetCreateForm(); setError(''); setNotice(''); }}>Hủy</button> : null}</div>
-        </form>
-        <div className="panel"><div className="section-title"><h2>Danh sách</h2><span>{topicPagination.total}</span></div><div className="list">{topics.map((item) => <div className="list-row" key={item.id}><div><strong>{item.name}</strong><small>{item.slug} · {item._count?.quizzes || 0} câu hỏi · {item.availability || 'OPEN'}</small></div><div className="list-actions"><button className="icon-button" onClick={() => { setEditing(item); setError(''); setNotice(''); }} aria-label={`Sửa ${item.name}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'topic', id: item.id })} aria-label={`Xóa ${item.name}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...topicPagination} onChange={(page) => void loadTopicsPage(page)} /></div>
+        </form> : null}
+        <div className="panel"><div className="section-title"><h2>Danh sách</h2><span>{topicPagination.total}</span></div><div className="list">{topics.map((item) => <div className="list-row" key={item.id}><div><strong>{item.name}</strong><small>{item.slug} · {item._count?.quizzes || 0} câu hỏi · {item.availability || 'OPEN'}</small></div><div className="list-actions">{allowUpdate ? <button className="icon-button" onClick={() => { setEditing(item); setError(''); setNotice(''); }} aria-label={`Sửa ${item.name}`}><PencilSimple /></button> : null}{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'topic', id: item.id })} aria-label={`Xóa ${item.name}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...topicPagination} onChange={(page) => void loadTopicsPage(page)} /></div>
       </div> : null}
 
       {tab === 'quizzes' ? <div className="admin-grid section">
         <div style={{ display: 'grid', gap: 16 }}>
-          <form className="panel form" key={`quiz-${editingQuiz?.id || 'new'}-${formKey}`} onSubmit={saveQuiz}>
+          {(editingQuiz ? allowUpdate : allowCreate) ? <form className="panel form" key={`quiz-${editingQuiz?.id || 'new'}-${formKey}`} onSubmit={saveQuiz}>
             <h2>{editingQuiz ? 'Sửa câu hỏi' : 'Tạo câu hỏi'}</h2>
             <label className="field"><span>Chủ đề</span><select name="topicId" defaultValue={editingQuiz?.topicId || quizTopicId} required>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label className="field"><span>Câu hỏi</span><textarea name="question" defaultValue={editingQuiz?.content?.text || editingQuiz?.question} required /></label>
@@ -498,8 +483,8 @@ export default function AdminPage() {
             <label className="field"><span>Đáp án đúng</span><select name="answer" defaultValue={editingQuiz?.answer || 'A'}>{['A', 'B', 'C', 'D'].map((label) => <option key={label}>{label}</option>)}</select></label>
             <label className="field"><span>Giải thích</span><textarea name="explanation" defaultValue={editingQuiz?.explanation || ''} /></label>
             <div className="list-actions"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button>{editingQuiz ? <button type="button" className="button secondary" onClick={() => { resetCreateForm(); setError(''); setNotice(''); }}>Hủy</button> : null}</div>
-          </form>
-          <form className="panel form" onSubmit={(event) => { event.preventDefault(); void importBulkJson(); }}>
+          </form> : null}
+          {allowCreate ? <form className="panel form" onSubmit={(event) => { event.preventDefault(); void importBulkJson(); }}>
             <h2>Import hàng loạt</h2>
             <label className="field">
               <span>File Excel / CSV</span>
@@ -532,12 +517,12 @@ export default function AdminPage() {
               <small>Thiếu topicId → dùng chủ đề đang chọn ở danh sách bên phải.</small>
             </label>
             <div className="list-actions"><button className="button" disabled={saving || !bulkJson.trim()}>{saving ? 'Đang import…' : 'Import JSON'}</button></div>
-          </form>
+          </form> : null}
         </div>
-        <div className="panel"><div className="section-title"><h2>Danh sách</h2><label className="field"><span>Chủ đề</span><select value={quizTopicId} onChange={(event) => void loadTopicQuizzes(event.target.value, 1)}>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div><div className="list">{quizzes.map((item) => <div className="list-row" key={item.id}><div><strong>{item.quizCode}</strong><small>{item.content?.text || item.question}</small></div><div className="list-actions"><button className="icon-button" onClick={() => { setEditing(item); setError(''); setNotice(''); }} aria-label={`Sửa ${item.quizCode}`}><PencilSimple /></button>{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'quiz', id: item.id })} aria-label={`Xóa ${item.quizCode}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...quizPagination} onChange={(page) => void loadTopicQuizzes(quizTopicId, page)} /></div>
+        <div className="panel"><div className="section-title"><h2>Danh sách</h2><label className="field"><span>Chủ đề</span><select value={quizTopicId} onChange={(event) => void loadTopicQuizzes(event.target.value, 1)}>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div><div className="list">{quizzes.map((item) => <div className="list-row" key={item.id}><div><strong>{item.quizCode}</strong><small>{item.content?.text || item.question}</small></div><div className="list-actions">{allowUpdate ? <button className="icon-button" onClick={() => { setEditing(item); setError(''); setNotice(''); }} aria-label={`Sửa ${item.quizCode}`}><PencilSimple /></button> : null}{allowDelete ? <button className="icon-button" onClick={() => setPendingDelete({ kind: 'quiz', id: item.id })} aria-label={`Xóa ${item.quizCode}`}><Trash /></button> : null}</div></div>)}</div><PaginationNav {...quizPagination} onChange={(page) => void loadTopicQuizzes(quizTopicId, page)} /></div>
       </div> : null}
 
-      {tab === 'reviews' ? (
+      {tab === 'reviews' && allowUpdate ? (
         <section className="section panel">
           <div className="section-title">
             <h2>Bài nộp project</h2>

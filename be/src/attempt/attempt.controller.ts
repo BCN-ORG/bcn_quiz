@@ -17,12 +17,13 @@ import { SessionHistoryQueryDto } from './dto/session-history-query.dto';
 import { StartSessionDto } from './dto/start-session.dto';
 import { SaveSessionDto } from './dto/save-session.dto';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { CONTENT_WRITE } from '../auth/quiz-permissions';
+import { CONTENT_READ, CONTENT_WRITE, RESULT_READ } from '../auth/quiz-permissions';
 
 @Controller()
 export class AttemptController {
   constructor(private readonly attemptService: AttemptService) {}
 
+  @Permissions(...CONTENT_READ)
   @Post('topic/:topicId/session/start')
   @HttpCode(HttpStatus.OK)
   async startTopicSession(
@@ -33,6 +34,7 @@ export class AttemptController {
     return this.attemptService.startTopicSession(topicId, dto, req);
   }
 
+  @Permissions(...CONTENT_READ)
   @Get('topic/:topicId/session/resume')
   async resumeTopicSession(
     @Param('topicId') topicId: string,
@@ -41,6 +43,7 @@ export class AttemptController {
     return this.attemptService.resumeTopicSession(topicId, req);
   }
 
+  @Permissions(...CONTENT_READ)
   @Post('attempt/session/:sessionId/save')
   @HttpCode(HttpStatus.OK)
   async saveSessionProgress(
@@ -51,6 +54,7 @@ export class AttemptController {
     return this.attemptService.saveSessionProgress(sessionId, dto, req);
   }
 
+  @Permissions(...CONTENT_READ)
   @Post('attempt/session/:sessionId/submit')
   @HttpCode(HttpStatus.OK)
   async submitSession(
@@ -60,6 +64,7 @@ export class AttemptController {
     return this.attemptService.submitSession(sessionId, req);
   }
 
+  @Permissions(...CONTENT_READ)
   @Post('attempt/session/:sessionId/abandon')
   @HttpCode(HttpStatus.OK)
   async abandonSession(
@@ -80,6 +85,7 @@ export class AttemptController {
     return this.attemptService.submitAttempt(id, dto, req);
   }
 
+  @Permissions(...RESULT_READ)
   @Get('attempt/sessions/me')
   async getMySessions(
     @Query() query: SessionHistoryQueryDto,
@@ -88,6 +94,7 @@ export class AttemptController {
     return this.attemptService.getMySessions(query, req);
   }
 
+  @Permissions(...RESULT_READ)
   @Get('attempt/sessions/me/:sessionId')
   async getMySessionById(
     @Param('sessionId') sessionId: string,
@@ -96,6 +103,7 @@ export class AttemptController {
     return this.attemptService.getMySessionById(sessionId, req);
   }
 
+  @Permissions(...RESULT_READ)
   @Get('attempt/me')
   async getMyAttempts(
     @Query() query: AttemptQueryDto,
@@ -104,6 +112,7 @@ export class AttemptController {
     return this.attemptService.getMyAttempts(query, req);
   }
 
+  @Permissions(...RESULT_READ)
   @Get('attempt/me/:attemptId')
   async getMyAttemptById(
     @Param('attemptId') attemptId: string,
@@ -112,11 +121,13 @@ export class AttemptController {
     return this.attemptService.getMyAttemptById(attemptId, req);
   }
 
+  @Permissions(...CONTENT_READ)
   @Get('progress/me')
   async getMyProgress(@Request() req: ExpressRequest) {
     return this.attemptService.getMyProgress(req);
   }
 
+  @Permissions(...CONTENT_READ)
   @Get('progress/me/topic/:topicId')
   async getMyTopicProgress(
     @Param('topicId') topicId: string,

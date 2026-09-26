@@ -15,7 +15,12 @@ import { BulkCreateQuizzesDto } from './dto/bulk-create-quizzes.dto';
 import { CreateUploadSignatureDto } from './dto/create-upload-signature.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { CONTENT_DELETE, CONTENT_WRITE } from '../auth/quiz-permissions';
+import {
+  CONTENT_CREATE,
+  CONTENT_DELETE,
+  CONTENT_UPDATE,
+  CONTENT_WRITE,
+} from '../auth/quiz-permissions';
 
 @Controller('quiz')
 export class QuizController {
@@ -43,19 +48,19 @@ export class QuizController {
     return this.quizService.createImageUploadSignature(dto);
   }
 
-  @Permissions(...CONTENT_WRITE)
+  @Permissions(...CONTENT_CREATE)
   @Post('bulk')
   async createQuizzes(@Body() data: BulkCreateQuizzesDto) {
     return this.quizService.createQuizzes(data);
   }
 
-  @Permissions(...CONTENT_WRITE)
+  @Permissions(...CONTENT_CREATE)
   @Post()
   async createQuiz(@Body() data: CreateQuizDto) {
     return this.quizService.createQuiz(data);
   }
 
-  @Permissions(...CONTENT_WRITE)
+  @Permissions(...CONTENT_UPDATE)
   @Put(':id')
   async updateQuiz(@Param('id') id: string, @Body() data: UpdateQuizDto) {
     return this.quizService.updateQuiz(id, data);

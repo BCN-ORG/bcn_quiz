@@ -15,14 +15,15 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
+import { canManageContent, canReadQuestions, canReadResults } from '@/lib/permissions';
 import { useAuth } from './auth-provider';
-import { Loading } from './ui';
+import { Empty, Loading } from './ui';
 
 const primary = [
-  { href: '/dashboard', label: 'Tổng quan', icon: Gauge },
-  { href: '/courses', label: 'Khóa học', icon: BookOpen },
-  { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise },
-  { href: '/certificates', label: 'Chứng chỉ', icon: Certificate },
+  { href: '/dashboard', label: 'Tổng quan', icon: Gauge, allow: () => true },
+  { href: '/courses', label: 'Khóa học', icon: BookOpen, allow: canReadQuestions },
+  { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise, allow: canReadResults },
+  { href: '/certificates', label: 'Chứng chỉ', icon: Certificate, allow: canReadResults },
 ];
 
 const PROFILES_APP_URL = (
@@ -60,17 +61,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (loading || !user) return <main className="center-page"><Loading label="Đang xác thực phiên BCN" /></main>;
 
   const appRoles = (user.roles ?? []).map((role) => role.toLowerCase());
-  const permissions = (user.permissions ?? []).map((p) => p.toLowerCase());
-  const canManage =
-    permissions.includes('quiz.question.create') ||
-    permissions.includes('quiz.question.update') ||
-    permissions.includes('quiz.question.delete') ||
-    user.role?.toLowerCase() === 'admin' ||
-    appRoles.includes('admin') ||
-    appRoles.includes('mentor');
-  const links = canManage
-    ? [...primary, { href: '/admin', label: 'Quản trị', icon: GearSix }]
-    : primary;
+  const links = primary.filter((item) => item.allow(user));
+  if (canManageContent(user)) {
+    links.push({ href: '/admin', label: 'Quản trị', icon: GearSix, allow: canManageContent });
+  }
 
   const setTheme = () => {
     const next = !dark;
@@ -134,7 +128,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span>Học chắc từng chủ đề</span>
           <button className="icon-button" onClick={setTheme} aria-label={dark ? 'Dùng giao diện sáng' : 'Dùng giao diện tối'}>{dark ? <Sun /> : <Moon />}</button>
         </header>
-        <main className="page-content">{children}</main>
+        <main className="page-content">
+          {pathname.startsWith('/courses') || pathname.startsWith('/topics') ? (
+            canReadQuestions(user) ? children : <Empty title="Không có quyền xem khóa học" description="Tài khoản cần quyền xem khóa học và làm bài." />
+          ) : pathname.startsWith('/history') || pathname.startsWith('/certificates') ? (
+            canReadResults(user) ? children : <Empty title="Không có quyền xem lịch sử" description="Tài khoản cần quyền xem lịch sử làm bài." />
+          ) : children}
+        </main>
       </div>
       <nav className="bottom-nav" aria-label="Điều hướng di động">
         {links.slice(0, 5).map(({ href, label, icon: Icon }) => (
