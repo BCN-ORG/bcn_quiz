@@ -18,6 +18,7 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 import {
   CONTENT_CREATE,
   CONTENT_DELETE,
+  CONTENT_READ,
   CONTENT_UPDATE,
   CONTENT_WRITE,
 } from '../auth/quiz-permissions';
@@ -26,17 +27,20 @@ import {
 export class QuizController {
   constructor(private quizService: QuizService) {}
 
+  @Permissions(...CONTENT_READ)
   @Get()
   async getAllQuizzes(@Query() query: PaginationQueryDto) {
     return this.quizService.getAllQuizzes(query);
   }
 
   /** Static segment before `:id` so `/quiz/code/...` is not captured as an id. */
+  @Permissions(...CONTENT_READ)
   @Get('code/:code')
   async getQuizByCode(@Param('code') code: string) {
     return this.quizService.getQuizByCode(code);
   }
 
+  @Permissions(...CONTENT_READ)
   @Get(':id')
   async getQuizById(@Param('id') id: string) {
     return this.quizService.getQuizById(id);
