@@ -179,16 +179,19 @@ jobs:
           docker compose --env-file .env.compose config --quiet
 
       - name: Pull images
+        timeout-minutes: 10
         run: |
           set -eu
           cd "$PROJECT_DIR"
           attempt=1
-          until docker compose --env-file .env.compose pull; do
-            if [ "$attempt" -ge 5 ]; then
+          # A hung registry request never exits, so the retry loop never starts.
+          # Kill each attempt and try again before the job timeout cancels deploy.
+          until timeout -k 20s 90s docker compose --env-file .env.compose pull; do
+            if [ "$attempt" -ge 4 ]; then
               echo "Image pull failed after ${attempt} attempts" >&2
               exit 1
             fi
-            echo "Image pull attempt ${attempt} failed; retrying"
+            echo "Image pull attempt ${attempt} failed or timed out; retrying"
             attempt=$((attempt + 1))
             sleep $((attempt * 5))
           done
