@@ -193,7 +193,7 @@ jobs:
       (needs.backend.result == 'success' || needs.frontend.result == 'success' || github.event_name == 'workflow_dispatch')
     runs-on: [self-hosted, linux, production, docker, bcn-org]
     environment: production
-    timeout-minutes: 35
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -252,13 +252,15 @@ jobs:
           cd "$PROJECT_DIR"
           docker compose --env-file .env.compose config --quiet
 
-      - name: Pull images
-        timeout-minutes: 25
+      - name: Ensure images
+        timeout-minutes: 45
         env:
           DEPLOY_BACKEND: ${{ needs.changes.outputs.backend }}
           DEPLOY_FRONTEND: ${{ needs.changes.outputs.frontend }}
           DOCKER_CLIENT_TIMEOUT: '600'
           COMPOSE_HTTP_TIMEOUT: '600'
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://quizzes.bcn.id.vn/api' }}
+          NEXT_PUBLIC_PROFILES_APP_URL: ${{ vars.NEXT_PUBLIC_PROFILES_APP_URL || 'https://profiles.bcn.id.vn' }}
         run: |
           set -eu
           cd "$PROJECT_DIR"
@@ -271,34 +273,47 @@ jobs:
           fi
           PULL_TARGETS="${PULL_TARGETS# }"
           if [ -z "$PULL_TARGETS" ]; then
-            echo "No services to pull"
+            echo "No services to ensure"
             exit 0
           fi
 
-          # Pull one service at a time. A 90s global timeout was killing slow/hung
-          # GHCR transfers mid-layer and forcing full retries of both images.
-          pull_service() {
+          IMAGE_NAME="$(grep -E '^IMAGE_NAME=' .env.compose | head -n1 | cut -d= -f2-)"
+          IMAGE_TAG="$(grep -E '^IMAGE_TAG=' .env.compose | head -n1 | cut -d= -f2-)"
+          FE_IMAGE_NAME="$(grep -E '^FE_IMAGE_NAME=' .env.compose | head -n1 | cut -d= -f2-)"
+          FE_IMAGE_TAG="$(grep -E '^FE_IMAGE_TAG=' .env.compose | head -n1 | cut -d= -f2-)"
+
+          ensure_service() {
             local svc="$1"
-            local attempt=1
-            local max_attempts=5
-            local limit_secs=600
-            while [ "$attempt" -le "$max_attempts" ]; do
-              echo "Pulling ${svc} (attempt ${attempt}/${max_attempts}, timeout ${limit_secs}s)"
-              if timeout -k 30s "${limit_secs}s" \
-                docker compose --env-file .env.compose pull "$svc"; then
-                echo "Pulled ${svc}"
-                return 0
-              fi
-              echo "Pull ${svc} attempt ${attempt} failed or timed out"
-              attempt=$((attempt + 1))
-              sleep $((attempt * 10))
-            done
-            echo "Image pull failed for ${svc} after ${max_attempts} attempts" >&2
-            return 1
+            echo "Ensuring image for ${svc}"
+            # One short GHCR attempt: runner often hangs at "Pulling fs layer 0B".
+            if timeout -k 20s 180s docker compose --env-file .env.compose pull "$svc"; then
+              echo "Pulled ${svc} from GHCR"
+              return 0
+            fi
+            echo "GHCR pull failed/hung for ${svc}; building locally from checkout"
+            case "$svc" in
+              app)
+                docker build \
+                  -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+                  "${GITHUB_WORKSPACE}/be"
+                ;;
+              web)
+                docker build \
+                  --build-arg "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" \
+                  --build-arg "NEXT_PUBLIC_PROFILES_APP_URL=${NEXT_PUBLIC_PROFILES_APP_URL}" \
+                  -t "${FE_IMAGE_NAME}:${FE_IMAGE_TAG}" \
+                  "${GITHUB_WORKSPACE}/fe"
+                ;;
+              *)
+                echo "Unknown service ${svc}" >&2
+                return 1
+                ;;
+            esac
+            echo "Built ${svc} locally as expected compose tag"
           }
 
           for svc in $PULL_TARGETS; do
-            pull_service "$svc"
+            ensure_service "$svc"
           done
 
       - name: Run application database migration
