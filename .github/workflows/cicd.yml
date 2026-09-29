@@ -20,8 +20,48 @@ env:
   FE_IMAGE_NAME: ghcr.io/bcn-org/bcn_quiz-web
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.set.outputs.backend }}
+      frontend: ${{ steps.set.outputs.frontend }}
+      prisma: ${{ steps.set.outputs.prisma }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Path filters
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'be/**'
+              - '.github/workflows/cicd.yml'
+            frontend:
+              - 'fe/**'
+              - '.github/workflows/cicd.yml'
+            prisma:
+              - 'be/prisma/**'
+
+      - name: Set change outputs
+        id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            echo "prisma=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=${{ steps.filter.outputs.backend }}" >> "$GITHUB_OUTPUT"
+            echo "frontend=${{ steps.filter.outputs.frontend }}" >> "$GITHUB_OUTPUT"
+            echo "prisma=${{ steps.filter.outputs.prisma }}" >> "$GITHUB_OUTPUT"
+          fi
+
   backend:
     name: Test BE, Build & Push Image
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -65,17 +105,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: ./be
           push: true
+          cache-from: type=gha,scope=be
+          cache-to: type=gha,mode=max,scope=be
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.IMAGE_NAME }}:latest
 
   frontend:
     name: Test FE, Build & Push Image
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -118,11 +165,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push FE Docker image
         uses: docker/build-push-action@v6
         with:
           context: ./fe
           push: true
+          cache-from: type=gha,scope=fe
+          cache-to: type=gha,mode=max,scope=fe
           build-args: |
             NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'https://quizzes.bcn.id.vn/api' }}
             NEXT_PUBLIC_PROFILES_APP_URL=${{ vars.NEXT_PUBLIC_PROFILES_APP_URL || 'https://profiles.bcn.id.vn' }}
@@ -132,7 +184,13 @@ jobs:
 
   deploy:
     name: Deploy Production
-    needs: [backend, frontend]
+    needs: [changes, backend, frontend]
+    if: |
+      always() &&
+      needs.changes.result == 'success' &&
+      (needs.backend.result == 'success' || needs.backend.result == 'skipped') &&
+      (needs.frontend.result == 'success' || needs.frontend.result == 'skipped') &&
+      (needs.backend.result == 'success' || needs.frontend.result == 'success' || github.event_name == 'workflow_dispatch')
     runs-on: [self-hosted, linux, production, docker, bcn-org]
     environment: production
     timeout-minutes: 15
@@ -173,6 +231,22 @@ jobs:
           fi
           cp "$RUNNER_TEMP/production.env" "$PROJECT_DIR/.env"
           cp "$RUNNER_TEMP/production.env.compose" "$PROJECT_DIR/.env.compose"
+          # Keep prior image tags for services that were not rebuilt this run.
+          # generate-production-env always stamps GITHUB_SHA onto both tags.
+          if [ "${{ needs.changes.outputs.backend }}" != "true" ] && [ -f "$PROJECT_DIR/.env.rollback" ]; then
+            prior="$(grep -E '^IMAGE_TAG=' "$PROJECT_DIR/.env.rollback" | head -n1 | cut -d= -f2- || true)"
+            if [ -n "$prior" ]; then
+              sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${prior}|" "$PROJECT_DIR/.env"
+              sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${prior}|" "$PROJECT_DIR/.env.compose"
+            fi
+          fi
+          if [ "${{ needs.changes.outputs.frontend }}" != "true" ] && [ -f "$PROJECT_DIR/.env.rollback" ]; then
+            prior="$(grep -E '^FE_IMAGE_TAG=' "$PROJECT_DIR/.env.rollback" | head -n1 | cut -d= -f2- || true)"
+            if [ -n "$prior" ]; then
+              sed -i "s|^FE_IMAGE_TAG=.*|FE_IMAGE_TAG=${prior}|" "$PROJECT_DIR/.env"
+              sed -i "s|^FE_IMAGE_TAG=.*|FE_IMAGE_TAG=${prior}|" "$PROJECT_DIR/.env.compose"
+            fi
+          fi
           chmod 600 "$PROJECT_DIR/.env" "$PROJECT_DIR/.env.compose"
           cp docker-compose.prod.yml "$PROJECT_DIR/docker-compose.yml"
           cd "$PROJECT_DIR"
@@ -180,13 +254,26 @@ jobs:
 
       - name: Pull images
         timeout-minutes: 10
+        env:
+          DEPLOY_BACKEND: ${{ needs.changes.outputs.backend }}
+          DEPLOY_FRONTEND: ${{ needs.changes.outputs.frontend }}
         run: |
           set -eu
           cd "$PROJECT_DIR"
+          PULL_TARGETS=""
+          if [ "$DEPLOY_BACKEND" = "true" ]; then
+            PULL_TARGETS="app"
+          fi
+          if [ "$DEPLOY_FRONTEND" = "true" ]; then
+            PULL_TARGETS="${PULL_TARGETS} web"
+          fi
+          PULL_TARGETS="${PULL_TARGETS# }"
+          if [ -z "$PULL_TARGETS" ]; then
+            echo "No services to pull"
+            exit 0
+          fi
           attempt=1
-          # A hung registry request never exits, so the retry loop never starts.
-          # Kill each attempt and try again before the job timeout cancels deploy.
-          until timeout -k 20s 90s docker compose --env-file .env.compose pull; do
+          until timeout -k 20s 90s docker compose --env-file .env.compose pull $PULL_TARGETS; do
             if [ "$attempt" -ge 4 ]; then
               echo "Image pull failed after ${attempt} attempts" >&2
               exit 1
@@ -197,6 +284,7 @@ jobs:
           done
 
       - name: Run application database migration
+        if: needs.changes.outputs.backend == 'true'
         run: |
           set -eu
           cd "$PROJECT_DIR"
@@ -204,10 +292,21 @@ jobs:
 
       - name: Deploy
         id: deploy
+        env:
+          DEPLOY_BACKEND: ${{ needs.changes.outputs.backend }}
+          DEPLOY_FRONTEND: ${{ needs.changes.outputs.frontend }}
         run: |
           set -eu
           cd "$PROJECT_DIR"
-          docker compose --env-file .env.compose up -d app web
+          if [ "$DEPLOY_BACKEND" = "true" ] && [ "$DEPLOY_FRONTEND" = "true" ]; then
+            docker compose --env-file .env.compose up -d app web
+          elif [ "$DEPLOY_BACKEND" = "true" ]; then
+            docker compose --env-file .env.compose up -d --no-deps app
+          elif [ "$DEPLOY_FRONTEND" = "true" ]; then
+            docker compose --env-file .env.compose up -d --no-deps web
+          else
+            echo "No services to deploy"
+          fi
 
       - name: Health check
         id: health
