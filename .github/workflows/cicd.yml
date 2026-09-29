@@ -285,20 +285,23 @@ jobs:
           ensure_service() {
             local svc="$1"
             echo "Ensuring image for ${svc}"
-            # One short GHCR attempt: runner often hangs at "Pulling fs layer 0B".
-            if timeout -k 20s 180s docker compose --env-file .env.compose pull "$svc"; then
+            # Self-hosted runner often hangs on GHCR ("Pulling fs layer 0B") and
+            # cannot reach Docker Hub over IPv6 for BuildKit's syntax frontend.
+            # Prefer a short pull; on failure build with classic builder (no
+            # docker.io/docker/dockerfile pull).
+            if timeout -k 20s 120s docker compose --env-file .env.compose pull "$svc"; then
               echo "Pulled ${svc} from GHCR"
               return 0
             fi
             echo "GHCR pull failed/hung for ${svc}; building locally from checkout"
             case "$svc" in
               app)
-                docker build \
+                DOCKER_BUILDKIT=0 docker build \
                   -t "${IMAGE_NAME}:${IMAGE_TAG}" \
                   "${GITHUB_WORKSPACE}/be"
                 ;;
               web)
-                docker build \
+                DOCKER_BUILDKIT=0 docker build \
                   --build-arg "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" \
                   --build-arg "NEXT_PUBLIC_PROFILES_APP_URL=${NEXT_PUBLIC_PROFILES_APP_URL}" \
                   -t "${FE_IMAGE_NAME}:${FE_IMAGE_TAG}" \
