@@ -1,6 +1,12 @@
 node_modules
 .next
+.turbo
+coverage
+dist
 .git
+.gitignore
 *.md
 .env*
 !.env.example
+*.log
+*.tsbuildinfo
