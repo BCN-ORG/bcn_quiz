@@ -38,9 +38,21 @@ export class ProfilesService {
       metadata?: Record<string, unknown>;
     },
   ): Promise<void> {
-    if (!this.clientSecret) return;
     const userId = this.userId(req);
     if (!userId) return;
+    await this.createTimelineEventForUser(userId, data);
+  }
+
+  async createTimelineEventForUser(
+    userId: string,
+    data: {
+      eventType: string;
+      title: string;
+      idempotencyKey: string;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    if (!this.clientSecret || !userId) return;
 
     try {
       await firstValueFrom(

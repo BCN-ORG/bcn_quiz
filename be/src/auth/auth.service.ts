@@ -78,6 +78,14 @@ export class AuthService implements OnModuleInit {
     };
   }
 
+  loginErrorRedirectUrl(): string | undefined {
+    if (!this.successRedirect) return undefined;
+    const url = new URL(this.successRedirect);
+    url.pathname = '/';
+    url.search = 'auth_error=oauth_callback';
+    return url.toString();
+  }
+
   async finishLogin(
     code: string | undefined,
     state: string | undefined,

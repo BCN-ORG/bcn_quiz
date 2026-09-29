@@ -22,7 +22,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Get('login')
   @Header('Cache-Control', 'no-store')
   login(@Response() response: ExpressResponse) {
@@ -32,7 +32,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Get('callback')
   @Header('Cache-Control', 'no-store')
   async callback(
@@ -58,12 +58,14 @@ export class AuthController {
         'set-cookie',
         this.authService.clearTransientCookies(),
       );
+      const redirectUrl = this.authService.loginErrorRedirectUrl();
+      if (redirectUrl) return response.redirect(302, redirectUrl);
       throw error;
     }
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')

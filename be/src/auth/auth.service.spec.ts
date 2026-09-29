@@ -61,6 +61,16 @@ describe('AuthService BCN SSO', () => {
     expect(flow.setCookies[1]).toContain('Path=/api/auth/callback');
   });
 
+  it('builds a safe frontend redirect for callback errors', () => {
+    process.env.BCN_OAUTH_SUCCESS_REDIRECT_URL =
+      'https://quiz.example.com/dashboard';
+    const configured = new AuthService(http, redisMock());
+
+    expect(configured.loginErrorRedirectUrl()).toBe(
+      'https://quiz.example.com/?auth_error=oauth_callback',
+    );
+  });
+
   it('exchanges the callback code and stores app tokens in HttpOnly cookies', async () => {
     const flow = service.startLogin();
     const state = cookieValue(flow.setCookies[0]);

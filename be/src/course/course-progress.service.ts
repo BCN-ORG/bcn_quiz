@@ -596,11 +596,11 @@ export class CourseProgressService {
     req?: ExpressRequest,
   ): Promise<void> {
     const now = progress.updatedAt ?? new Date();
-
-    if (
+    const newlyCompleted =
       progress.status === CourseProgressStatus.COMPLETED &&
-      existing?.status !== CourseProgressStatus.COMPLETED
-    ) {
+      existing?.status !== CourseProgressStatus.COMPLETED;
+
+    if (newlyCompleted) {
       await this.prisma.certificate.upsert({
         where: {
           userId_courseId: {
@@ -632,10 +632,9 @@ export class CourseProgressService {
     // Retry safely on later evaluations; Profiles deduplicates this stable key.
     if (
       progress.status === CourseProgressStatus.COMPLETED &&
-      req &&
-      this.extractUserId(req) === userId
+      (newlyCompleted || (req && this.extractUserId(req) === userId))
     ) {
-      await this.profilesService.createTimelineEvent(req, {
+      await this.profilesService.createTimelineEventForUser(userId, {
         eventType: 'COURSE_COMPLETE',
         title: `Hoàn thành khóa học ${course.name}`,
         idempotencyKey: `quiz:course:${course.id}:${userId}`,

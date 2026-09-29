@@ -356,6 +356,27 @@ export class AttemptService {
     const score = totalQuizCount > 0 ? correctCount / totalQuizCount : 0;
 
     const topicCompleted = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.attemptSession.updateMany({
+        where: {
+          id: session.id,
+          status: {
+            in: [
+              AttemptSessionStatus.IN_PROGRESS,
+              AttemptSessionStatus.EXPIRED,
+            ],
+          },
+        },
+        data: {
+          status: AttemptSessionStatus.SUBMITTED,
+          submittedAt,
+          lastSeenAt: submittedAt,
+        },
+      });
+
+      if (claimed.count === 0) {
+        throw new BadRequestException('Session is not in progress');
+      }
+
       if (attemptPayloads.length > 0) {
         await tx.quizAttempt.createMany({
           data: attemptPayloads.map((payload) => ({
@@ -384,15 +405,6 @@ export class AttemptService {
         correctCount,
         submittedAt,
       );
-
-      await tx.attemptSession.update({
-        where: { id: session.id },
-        data: {
-          status: AttemptSessionStatus.SUBMITTED,
-          submittedAt,
-          lastSeenAt: submittedAt,
-        },
-      });
 
       return completed;
     });

@@ -291,7 +291,9 @@ describe('AttemptService', () => {
         async (cb: (tx: unknown) => Promise<unknown>) => {
           const tx = {
             quizAttempt: { createMany: jest.fn() },
-            attemptSession: { update: jest.fn() },
+            attemptSession: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
             topicProgress: {
               findUnique: jest.fn().mockResolvedValue(null),
               create: jest.fn(),
@@ -342,7 +344,9 @@ describe('AttemptService', () => {
         async (cb: (tx: unknown) => Promise<unknown>) =>
           cb({
             quizAttempt: { createMany: jest.fn() },
-            attemptSession: { update: jest.fn() },
+            attemptSession: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
             topicProgress: {
               findUnique: jest.fn().mockResolvedValue(null),
               create: jest.fn(),
@@ -496,7 +500,9 @@ describe('AttemptService', () => {
         async (cb: (tx: unknown) => Promise<unknown>) => {
           const tx = {
             quizAttempt: { createMany },
-            attemptSession: { update: jest.fn() },
+            attemptSession: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
             topicProgress: {
               findUnique: jest.fn().mockResolvedValue(null),
               create: jest.fn(),
@@ -545,6 +551,44 @@ describe('AttemptService', () => {
           }),
         ]),
       });
+    });
+
+    it('does not create duplicate attempts when the session was already submitted', async () => {
+      prisma.attemptSession.findUnique.mockResolvedValue({
+        id: 'sess-race',
+        userId: 'user-1',
+        topicId: 'topic-1',
+        status: AttemptSessionStatus.IN_PROGRESS,
+        expiresAt: new Date(Date.now() + 60_000),
+        answers: { q1: 'A' },
+        currentQuizId: 'q1',
+        startedAt: new Date(Date.now() - 60_000),
+        lastSeenAt: new Date(),
+      });
+      prisma.quiz.findMany.mockResolvedValue(twoQuizzes);
+      const createMany = jest.fn();
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: unknown) => Promise<unknown>) =>
+          cb({
+            quizAttempt: { createMany },
+            attemptSession: {
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
+            topicProgress: {
+              findUnique: jest.fn(),
+              create: jest.fn(),
+              update: jest.fn(),
+              upsert: jest.fn(),
+            },
+            quiz: { count: jest.fn() },
+            $queryRaw: jest.fn(),
+          }),
+      );
+
+      await expect(service.submitSession('sess-race', req)).rejects.toEqual(
+        expect.objectContaining({ message: 'Session is not in progress' }),
+      );
+      expect(createMany).not.toHaveBeenCalled();
     });
   });
 

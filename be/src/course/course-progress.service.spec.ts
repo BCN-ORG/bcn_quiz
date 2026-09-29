@@ -5,10 +5,12 @@ describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
     topicProgress: { updateMany: jest.fn() },
     courseTopic: { findMany: jest.fn() },
     userCourseProgress: { findMany: jest.fn() },
+    certificate: { upsert: jest.fn() },
   };
 
   const profilesService = {
     createTimelineEvent: jest.fn(),
+    createTimelineEventForUser: jest.fn(),
   };
 
   let service: CourseProgressService;
@@ -32,5 +34,38 @@ describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
     });
     expect(prisma.courseTopic.findMany).not.toHaveBeenCalled();
     expect(prisma.userCourseProgress.findMany).not.toHaveBeenCalled();
+  });
+
+  it('syncs a newly completed course when approval runs as a reviewer', async () => {
+    prisma.certificate.upsert.mockResolvedValue({});
+    const completion = service as unknown as {
+      maybeIssueCertificateAndSyncProfiles: (
+        userId: string,
+        course: unknown,
+        existing: unknown,
+        progress: unknown,
+      ) => Promise<void>;
+    };
+
+    await completion.maybeIssueCertificateAndSyncProfiles(
+      'learner-1',
+      { id: 'course-1', name: 'Course', slug: 'course' },
+      { status: 'IN_PROGRESS' },
+      {
+        status: 'COMPLETED',
+        topicProgressPercent: 50,
+        projectProgressPercent: 50,
+        progressPercent: 100,
+        updatedAt: new Date(),
+      },
+    );
+
+    expect(profilesService.createTimelineEventForUser).toHaveBeenCalledWith(
+      'learner-1',
+      expect.objectContaining({
+        eventType: 'COURSE_COMPLETE',
+        idempotencyKey: 'quiz:course:course-1:learner-1',
+      }),
+    );
   });
 });
