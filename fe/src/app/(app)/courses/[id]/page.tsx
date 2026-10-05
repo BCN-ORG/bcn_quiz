@@ -5,7 +5,7 @@ import { ArrowRight, BookOpen, FolderSimple, UploadSimple } from '@phosphor-icon
 import { useParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Empty, ErrorState, Loading, PaginationNav, Progress, Status } from '@/components/ui';
-import { request, uploadFile } from '@/lib/api';
+import { logUploadStageError, request, uploadFile } from '@/lib/api';
 import { topicOpen } from '@/lib/format';
 import type { Course, CourseProgress, Pagination, ProjectRequirement, Submission, Topic } from '@/lib/types';
 
@@ -104,7 +104,10 @@ export default function CourseDetailPage() {
       }
       event.currentTarget.reset();
       await load();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể nộp project'); }
+    } catch (reason) {
+      logUploadStageError(reason);
+      setError(reason instanceof Error ? reason.message : 'Không thể nộp project');
+    }
     finally { setSubmitting(false); }
   };
 

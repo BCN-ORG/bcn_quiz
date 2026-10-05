@@ -5,7 +5,14 @@ import { ArrowSquareOut, FloppyDisk, PencilSimple, Trash } from '@phosphor-icons
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { Empty, ErrorState, Loading, PaginationNav, Status, ConfirmDialog } from '@/components/ui';
-import { ApiError, request, uploadFile } from '@/lib/api';
+import {
+  ApiError,
+  logUploadStageError,
+  markConfirmUploadError,
+  request,
+  uploadFile,
+  uploadImageFile,
+} from '@/lib/api';
 import { optionContent, toDatetimeLocal } from '@/lib/format';
 import { downloadQuizImportTemplate, parseQuizSpreadsheet } from '@/lib/quiz-import';
 import {
@@ -202,14 +209,16 @@ export default function AdminPage() {
     const wasEditing = Boolean(editingCourse);
     try {
       const cover = form.get('cover');
-      if (cover instanceof File && cover.size) {
-        const uploaded = await uploadFile('/course/upload/image-signature', cover);
+      const coverFile = cover instanceof File && cover.size ? cover : undefined;
+      if (coverFile) {
+        const uploaded = await uploadImageFile('/course/upload/image-signature', coverFile);
         body.imageUrl = uploaded.secureUrl;
         body.imagePublicId = uploaded.publicId;
       }
-      const saved = wasEditing
-        ? await request.put<Course>(`/course/${editingCourse!.id}`, body)
-        : await request.post<Course>('/course', body);
+      const saved = await (wasEditing
+        ? request.put<Course>(`/course/${editingCourse!.id}`, body)
+        : request.post<Course>('/course', body)
+      ).catch((error) => coverFile ? markConfirmUploadError(error, coverFile) : Promise.reject(error));
       // Always sync curriculum on edit (incl. empty = unlink all). On create, only if selected.
       if (wasEditing || selectedTopicIds.length) {
         await request.put(`/course/${saved.id}/topics`, { topicIds: selectedTopicIds });
@@ -230,6 +239,7 @@ export default function AdminPage() {
       setNotice(wasEditing ? 'Đã cập nhật khóa học.' : 'Đã tạo khóa học.');
       await load(true);
     } catch (reason) {
+      logUploadStageError(reason);
       setError(reason instanceof Error ? reason.message : 'Không thể lưu khóa học');
     } finally {
       setSaving(false);
@@ -311,20 +321,23 @@ export default function AdminPage() {
     const wasEditing = Boolean(editingQuiz);
     try {
       const image = form.get('image');
-      if (image instanceof File && image.size) {
-        const uploaded = await uploadFile('/quiz/upload/signature', image);
+      const imageFile = image instanceof File && image.size ? image : undefined;
+      if (imageFile) {
+        const uploaded = await uploadImageFile('/quiz/upload/signature', imageFile);
         body.imageUrl = uploaded.secureUrl;
         body.imagePublicId = uploaded.publicId;
       }
-      const saved = wasEditing
-        ? await request.put<Quiz>(`/quiz/${editingQuiz!.id}`, body)
-        : await request.post<Quiz>('/quiz', body);
+      const saved = await (wasEditing
+        ? request.put<Quiz>(`/quiz/${editingQuiz!.id}`, body)
+        : request.post<Quiz>('/quiz', body)
+      ).catch((error) => imageFile ? markConfirmUploadError(error, imageFile) : Promise.reject(error));
       setQuizTopicId(topicId);
       setQuizzes((items) => upsertById(items, saved));
       resetCreateForm();
       setNotice(wasEditing ? 'Đã cập nhật câu hỏi.' : 'Đã tạo câu hỏi.');
       await loadTopicQuizzes(topicId);
     } catch (reason) {
+      logUploadStageError(reason);
       setError(reason instanceof Error ? reason.message : 'Không thể lưu câu hỏi');
     } finally {
       setSaving(false);

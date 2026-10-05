@@ -77,7 +77,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="app-layout">
       <aside className={`sidebar ${menu ? 'sidebar-open' : ''}`}>
         <div className="brand-row">
-          <Link href="/dashboard" className="brand"><span>B</span><strong>BCN Quiz</strong></Link>
+          <Link href="/dashboard" className="brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/bcn-card-back.webp" alt="BCN" className="brand-logo" width={36} height={36} />
+            <strong>BCN Quiz</strong>
+          </Link>
           <button className="icon-button mobile-only" onClick={() => setMenu(false)} aria-label="Đóng menu"><X /></button>
         </div>
         <nav aria-label="Điều hướng chính">

@@ -58,6 +58,7 @@ img { display: block; max-width: 100%; }
 .brand-row { display: flex; align-items: center; justify-content: space-between; min-height: 48px; }
 .brand { display: inline-flex; align-items: center; gap: 11px; font-size: 18px; }
 .brand > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--accent); color: #fff; font: 700 18px/1 var(--font-mono), ui-monospace, monospace; }
+.brand-logo { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 11px; object-fit: cover; box-shadow: 0 0 0 1px var(--line); }
 .sidebar nav { display: grid; gap: 6px; margin-top: 42px; }
 .sidebar nav a { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 10px 12px; border-radius: 12px; color: var(--muted); font-weight: 600; transition: background .18s ease, color .18s ease, transform .18s ease; }
 .sidebar nav a:hover, .sidebar nav a.active { background: var(--accent-soft); color: var(--accent-strong); }

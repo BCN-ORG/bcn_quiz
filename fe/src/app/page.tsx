@@ -15,7 +15,8 @@ export default function HomePage() {
     <main className="landing">
       <nav className="landing-nav" aria-label="Điều hướng đầu trang">
         <Link href="/" className="brand">
-          <span>B</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/bcn-card-back.webp" alt="BCN" className="brand-logo" width={36} height={36} />
           <strong>BCN Quiz</strong>
         </Link>
         <div className="landing-actions">
