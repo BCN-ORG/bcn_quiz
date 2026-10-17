@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { canManageContent, canReadQuestions, canReadResults } from '@/lib/permissions';
 import { useAuth } from './auth-provider';
 import { Empty, Loading } from './ui';
+import { NotificationCenter } from './notification-center';
 
 const primary = [
   { href: '/dashboard', label: 'Tổng quan', icon: Gauge, allow: () => true },
@@ -130,7 +131,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="topbar">
           <button className="icon-button mobile-only" onClick={() => setMenu(true)} aria-label="Mở menu"><List /></button>
           <span>Học chắc từng chủ đề</span>
-          <button className="icon-button" onClick={setTheme} aria-label={dark ? 'Dùng giao diện sáng' : 'Dùng giao diện tối'}>{dark ? <Sun /> : <Moon />}</button>
+          <div className="topbar-actions">
+            <NotificationCenter />
+            <button className="icon-button" onClick={setTheme} aria-label={dark ? 'Dùng giao diện sáng' : 'Dùng giao diện tối'}>{dark ? <Sun /> : <Moon />}</button>
+          </div>
         </header>
         <main className="page-content">
           {pathname.startsWith('/courses') || pathname.startsWith('/topics') ? (

@@ -25,6 +25,7 @@ export type Topic = {
   endsAt?: string | null;
   availability?: 'OPEN' | 'SCHEDULED' | 'CLOSED';
   _count?: { quizzes?: number };
+  leaderboard?: { totalQuestions: number; maxScore: number; questionWeight: number };
 };
 
 export type Course = {
@@ -78,6 +79,7 @@ export type SessionResult = {
   score: number;
   correctCount: number;
   attemptedQuizCount: number;
+  leaderboard: { isOfficial: boolean; score: number; attemptScore: number; maxScore: number; rank: number | null; businessDate: string };
   quizResults: Array<{
     quizId: string;
     quizCode: string;

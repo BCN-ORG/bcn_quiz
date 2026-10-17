@@ -19,6 +19,8 @@ import { RequestLoggingMiddleware } from './common/logging/request-logging.middl
 import { PrismaModule } from './prisma/prisma.module';
 import { createRedisClient } from './redis/redis.factory';
 import { RedisModule } from './redis/redis.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -55,6 +57,8 @@ import { RedisModule } from './redis/redis.module';
     AttemptModule,
     CourseModule,
     CertificateModule,
+    LeaderboardModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [

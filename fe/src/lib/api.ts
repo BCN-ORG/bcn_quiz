@@ -82,6 +82,18 @@ export const request = {
 
 export const apiUrl = (path = '') => `${API_URL}${path}`;
 
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  let response = await fetch(apiUrl(path), { credentials: 'include' });
+  if (response.status === 401 && await refresh()) response = await fetch(apiUrl(path), { credentials: 'include' });
+  if (!response.ok) throw new ApiError('Không thể tải file', response.status, response.headers.get('x-request-id'));
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = response.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function uploadFile(signaturePath: string, file: File) {
   const signed = await createUploadSignature(signaturePath, file);
   if (file.size > signed.maxBytes) throw new Error('File vượt quá dung lượng cho phép');

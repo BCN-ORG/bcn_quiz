@@ -17,6 +17,7 @@ import {
   validateTopicScheduleWindow,
   withTopicAvailability,
 } from './topic-schedule';
+import { MAX_LEADERBOARD_SCORE } from '../leaderboard/leaderboard-rules';
 
 type RawQuiz = {
   id: string;
@@ -322,7 +323,17 @@ export class TopicService {
       throw new NotFoundException(`Topic with id '${id}' was not found`);
     }
 
-    return withTopicAvailability(topic);
+    return {
+      ...withTopicAvailability(topic),
+      leaderboard: {
+        totalQuestions: topic._count.quizzes,
+        maxScore: MAX_LEADERBOARD_SCORE,
+        questionWeight:
+          topic._count.quizzes > 0
+            ? MAX_LEADERBOARD_SCORE / topic._count.quizzes
+            : 0,
+      },
+    };
   }
 
   async getTopicBySlug(slug: string, courseId?: string) {

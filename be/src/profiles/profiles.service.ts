@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { AxiosError } from 'axios';
 import type { Request as ExpressRequest } from 'express';
 import { firstValueFrom } from 'rxjs';
@@ -121,6 +121,52 @@ export class ProfilesService {
       this.logger.error('[resolveUsers] unexpected error', error as Error);
     }
     return out;
+  }
+
+  async searchUserIds(query: string): Promise<string[]> {
+    const ids: string[] = [];
+    for (let page = 1; ; page += 1) {
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get(`${this.baseUrl}/internal/users/search`, {
+            params: { q: query, page },
+            headers: { Authorization: this.basicAuthHeader() },
+          }),
+        );
+        const payload = response.data as {
+          data?: { users: ProfilesUserSummary[]; total: number };
+          users?: ProfilesUserSummary[];
+          total?: number;
+        };
+        const result = payload.data ?? payload;
+        const users = result.users ?? [];
+        ids.push(...users.map((user) => user.id));
+        if (!users.length || ids.length >= (result.total ?? 0)) return ids;
+      } catch (error) {
+        this.logger.warn(
+          `[searchUserIds] Profiles search failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw new BadGatewayException('Profiles user search is unavailable');
+      }
+    }
+  }
+
+  async eligibleUserIds(
+    page: number,
+  ): Promise<{ userIds: string[]; total: number }> {
+    const response = await firstValueFrom(
+      this.httpService.get(`${this.baseUrl}/internal/users/eligible`, {
+        params: { page },
+        headers: { Authorization: this.basicAuthHeader() },
+      }),
+    );
+    const payload = response.data as {
+      data?: { userIds: string[]; total: number };
+      userIds?: string[];
+      total?: number;
+    };
+    const result = payload.data ?? payload;
+    return { userIds: result.userIds ?? [], total: result.total ?? 0 };
   }
 
   private basicAuthHeader(): string {

@@ -25,12 +25,20 @@ export class ResponseInterceptor implements NestInterceptor {
       path.startsWith('/attempt') ||
       path.startsWith('/progress') ||
       path.includes('/quizzes') ||
-      path.includes('/session')
+      path.includes('/session') ||
+      path.startsWith('/leaderboards') ||
+      path.startsWith('/admin/leaderboards') ||
+      path.startsWith('/notifications')
     ) {
       res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     }
 
-    if (path.startsWith('/auth') || path === '/health') {
+    if (
+      path.startsWith('/auth') ||
+      path === '/health' ||
+      path.endsWith('/export') ||
+      path === '/notifications/stream'
+    ) {
       return next.handle();
     }
 

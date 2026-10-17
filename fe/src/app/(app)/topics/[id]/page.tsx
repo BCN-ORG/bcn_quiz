@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { QuizReview } from '@/components/quiz-review';
+import { TopicLeaderboard } from '@/components/topic-leaderboard';
 import { Empty, ErrorState, Loading, Status, ConfirmDialog } from '@/components/ui';
 import { request } from '@/lib/api';
 import { topicOpen } from '@/lib/format';
@@ -13,6 +14,16 @@ import type { Pagination, Quiz, QuizSession, SessionResult, Topic } from '@/lib/
 
 /** Session TTL only for cleanup — not an exam timer. Topic startsAt/endsAt still gate access. */
 const SESSION_TTL_MINUTES = 365 * 24 * 60;
+
+async function loadTopicQuizzes(topicId: string, sessionId?: string): Promise<Quiz[]> {
+  const suffix = sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : '';
+  const first = await request.get<Pagination<Quiz>>(`/topic/${topicId}/quizzes?page=1&limit=100${suffix}`);
+  const pages = await Promise.all(Array.from({ length: first.pagination.totalPages - 1 }, (_, index) =>
+    request.get<Pagination<Quiz>>(`/topic/${topicId}/quizzes?page=${index + 2}&limit=100${suffix}`)));
+  return [first, ...pages].flatMap((page) => page.items);
+}
+
+function weightLabel(value: number) { return Number(value.toFixed(2)).toLocaleString('vi-VN', { maximumFractionDigits: 2 }); }
 
 function optionsOf(quiz: Quiz): Array<[string, string, string]> {
   if (Array.isArray(quiz.options)) return quiz.options.map((option) => [option.id ?? option.label, option.label, option.content]);
@@ -39,9 +50,9 @@ function TopicQuizPage() {
     const active = await request.post<QuizSession>(`/topic/${id}/session/start`, {
       expiresInMinutes: SESSION_TTL_MINUTES,
     });
-    const quizData = await request.get<Pagination<Quiz>>(`/topic/${id}/quizzes?limit=100&sessionId=${encodeURIComponent(active.id)}`);
+    const quizData = await loadTopicQuizzes(id, active.id);
     setSession(active);
-    setQuizzes(quizData.items);
+    setQuizzes(quizData);
     setAnswers(active.answers || {});
     setCurrent(0);
     setResult(null);
@@ -67,20 +78,20 @@ function TopicQuizPage() {
     try {
       const [topicData, quizData] = await Promise.all([
         request.get<Topic>(`/topic/${id}`),
-        request.get<Pagination<Quiz>>(`/topic/${id}/quizzes?limit=100`),
+        loadTopicQuizzes(id),
       ]);
-      setTopic(topicData); setQuizzes(quizData.items);
+      setTopic(topicData); setQuizzes(quizData);
       if (!topicOpen(topicData.availability)) return;
       // Resume only — do not auto-start (avoids ghost IN_PROGRESS rows in history).
       const active = await request.get<QuizSession | null>(`/topic/${id}/session/resume`);
       if (active && active.status === 'IN_PROGRESS') {
-        const sessionQuizData = await request.get<Pagination<Quiz>>(`/topic/${id}/quizzes?limit=100&sessionId=${encodeURIComponent(active.id)}`);
+        const sessionQuizData = await loadTopicQuizzes(id, active.id);
         setSession(active);
-        setQuizzes(sessionQuizData.items);
+        setQuizzes(sessionQuizData);
         const restored = active.answers || {};
         setAnswers(restored);
         const resumeIndex = active.currentQuizId
-          ? sessionQuizData.items.findIndex((item) => item.id === active.currentQuizId)
+          ? sessionQuizData.findIndex((item) => item.id === active.currentQuizId)
           : -1;
         setCurrent(resumeIndex >= 0 ? resumeIndex : 0);
       } else {
@@ -132,13 +143,14 @@ function TopicQuizPage() {
       <>
         <header className="page-heading"><div><p className="eyebrow">{topic.name}</p><h1>Chưa đến lúc làm bài</h1><p>Chủ đề này {topic.availability === 'SCHEDULED' ? 'chưa mở' : 'đã đóng'}.</p></div><Status value={topic.availability || 'CLOSED'} /></header>
         <Empty title={topic.availability === 'SCHEDULED' ? 'Bài thi chưa mở' : 'Bài thi đã đóng'} description={topic.startsAt || topic.endsAt ? `Lịch: ${topic.startsAt ? new Date(topic.startsAt).toLocaleString('vi-VN') : 'không giới hạn'} đến ${topic.endsAt ? new Date(topic.endsAt).toLocaleString('vi-VN') : 'không giới hạn'}.` : 'Quay lại khóa học để xem các chủ đề khác.'} />
+        <TopicLeaderboard topicId={id} />
       </>
     );
   }
-  if (!topic || !quizzes.length) return <Empty title="Topic chưa có câu hỏi" description="Quay lại sau khi nội dung được cập nhật." />;
+  if (!topic || !quizzes.length) return <><Empty title="Topic chưa có câu hỏi" description="Quay lại sau khi nội dung được cập nhật." /><TopicLeaderboard topicId={id} /></>;
   if (result) return (
     <>
-      <header className="page-heading"><div><p className="eyebrow">Kết quả</p><h1>{topic.name}</h1><p>Đúng {result.correctCount}/{result.attemptedQuizCount} câu, đạt {Math.round(result.score * 100)}%.</p></div><CheckCircle size={54} color="var(--accent)" /></header>
+      <header className="page-heading"><div><p className="eyebrow">Kết quả</p><h1>{topic.name}</h1><p>Đúng {result.correctCount}/{result.attemptedQuizCount} câu · sai {result.attemptedQuizCount - result.correctCount} câu · chính xác {Math.round(result.score * 100)}%.</p><p><strong>{result.leaderboard.attemptScore}/{result.leaderboard.maxScore} điểm</strong> · hạng ngày #{result.leaderboard.rank ?? '—'}</p><p>{result.leaderboard.isOfficial ? 'Kết quả này được tính vào bảng xếp hạng hôm nay.' : `Lượt luyện tập. Điểm chính thức hôm nay: ${result.leaderboard.score}.`}</p></div><CheckCircle size={54} color="var(--accent)" /></header>
       <QuizReview
         items={result.quizResults}
         actions={(
@@ -146,9 +158,11 @@ function TopicQuizPage() {
             {courseId ? <Link className="button" href={`/courses/${courseId}`}>Về khóa học</Link> : <Link className="button" href="/courses">Xem khóa học</Link>}
             <Link className="button secondary" href="/history">Lịch sử làm bài</Link>
             <button type="button" className="button secondary" disabled={saving} onClick={() => void startFresh()}>Làm lại</button>
+            <a className="button secondary" href="#topic-leaderboard">Xem bảng xếp hạng</a>
           </>
         )}
       />
+      <TopicLeaderboard topicId={id} refreshKey={result.sessionId.length + new Date(result.leaderboard.businessDate).getTime()} />
     </>
   );
   if (!session) {
@@ -157,7 +171,9 @@ function TopicQuizPage() {
         <header className="page-heading">
           <div>
             <p className="eyebrow">{topic.name}</p>
-            <h1>{quizzes.length} câu hỏi</h1>
+            <h1>{topic.leaderboard?.totalQuestions ?? quizzes.length} câu hỏi · {topic.leaderboard?.maxScore ?? 0} điểm tối đa</h1>
+            <p>Mỗi câu có trọng số bằng nhau. Mỗi câu đúng {topic.leaderboard?.questionWeight && !Number.isInteger(topic.leaderboard.questionWeight) ? '≈ ' : '= '}{weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm; sai = 0.</p>
+            <p>Điểm cuối cùng dựa trên tổng số câu đúng và làm tròn về số nguyên. Lần nộp đầu tiên hôm nay được tính vào bảng xếp hạng.</p>
             <p>Bắt đầu khi sẵn sàng — tiến độ sẽ được lưu nếu bạn thoát giữa chừng.</p>
           </div>
         </header>
@@ -168,6 +184,7 @@ function TopicQuizPage() {
           </button>
           {courseId ? <Link className="button secondary" href={`/courses/${courseId}`}>Về khóa học</Link> : null}
         </div>
+        <TopicLeaderboard topicId={id} />
       </>
     );
   }
@@ -176,7 +193,7 @@ function TopicQuizPage() {
   return (
     <>
       <header className="page-heading">
-        <div><p className="eyebrow">{topic.name}</p><h1>Câu {current + 1} / {quizzes.length}</h1><p>{answeredCount} câu đã trả lời{saving ? ', đang lưu' : ''}</p></div>
+        <div><p className="eyebrow">{topic.name}</p><h1>Câu {current + 1} / {quizzes.length}</h1><p>≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu · {answeredCount} câu đã trả lời{saving ? ', đang lưu' : ''}</p></div>
         <button type="button" className="button secondary" disabled={saving} onClick={() => setConfirmRestart(true)}>Bỏ bài dở & làm lại</button>
       </header>
       {error ? <p className="form-error">{error}</p> : null}
@@ -212,6 +229,7 @@ function TopicQuizPage() {
         onCancel={() => setConfirmRestart(false)}
         onConfirm={() => void restartFresh()}
       />
+      <TopicLeaderboard topicId={id} />
     </>
   );
 }

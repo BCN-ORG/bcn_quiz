@@ -10,20 +10,21 @@ datasource db {
 }
 
 model Topic {
-  id             String  @id @default(cuid())
-  name           String
-  slug           String
-  imageUrl       String?
-  imagePublicId  String?
+  id            String    @id @default(cuid())
+  name          String
+  slug          String
+  imageUrl      String?
+  imagePublicId String?
   /// Calendar open window (null = always open). Inclusive start, exclusive end.
-  startsAt       DateTime?
-  endsAt         DateTime?
+  startsAt      DateTime?
+  endsAt        DateTime?
 
-  quizzes    Quiz[]
-  attempts   QuizAttempt[]
-  progresses TopicProgress[]
-  sessions   AttemptSession[]
-  courseLinks CourseTopic[]
+  quizzes            Quiz[]
+  attempts           QuizAttempt[]
+  progresses         TopicProgress[]
+  sessions           AttemptSession[]
+  courseLinks        CourseTopic[]
+  leaderboardResults TopicLeaderboardResult[]
 
   createdAt DateTime @default(now())
 
@@ -34,8 +35,8 @@ model Topic {
 }
 
 model Quiz {
-  id          String   @id @default(cuid())
-  quizCode    String
+  id       String @id @default(cuid())
+  quizCode String
 
   question    String
   code        String?
@@ -45,15 +46,15 @@ model Quiz {
   imageUrl      String?
   imagePublicId String?
 
-  topicId     String
-  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId String
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
-  options     Option[]
-  attempts    QuizAttempt[]
-  sessions    AttemptSession[]
+  options  Option[]
+  attempts QuizAttempt[]
+  sessions AttemptSession[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([topicId, quizCode])
   @@index([createdAt])
@@ -63,36 +64,36 @@ model Quiz {
 }
 
 model Option {
-  id       String @id @default(cuid())
+  id String @id @default(cuid())
 
-  label    String   // A, B, C, D
-  content  String
-  isCode   Boolean @default(false)
+  label   String // A, B, C, D
+  content String
+  isCode  Boolean @default(false)
 
-  quizId   String
-  quiz     Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
 
   @@index([quizId])
   @@map("options")
 }
 
 model QuizAttempt {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   userId         String
   quizId         String
   topicId        String
   sessionId      String?
   selectedAnswer String
   isCorrect      Boolean
-  score          Int      @default(0)
+  score          Int       @default(0)
   startedAt      DateTime?
-  submittedAt    DateTime @default(now())
+  submittedAt    DateTime  @default(now())
   durationMs     Int?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
-  quiz           Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  topic          Topic           @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  session        AttemptSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  quiz    Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  topic   Topic           @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  session AttemptSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([userId, submittedAt])
   @@index([userId, quizId, submittedAt])
@@ -102,20 +103,20 @@ model QuizAttempt {
 }
 
 model TopicProgress {
-  id             String   @id @default(cuid())
-  userId         String
-  topicId        String
-  totalAttempts  Int      @default(0)
-  correctAttempts Int     @default(0)
-  accuracy       Float    @default(0)
-  isCompleted    Boolean  @default(false)
-  completedAt    DateTime?
-  completionThreshold Float @default(0.8)
-  lastAttemptAt  DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  userId              String
+  topicId             String
+  totalAttempts       Int       @default(0)
+  correctAttempts     Int       @default(0)
+  accuracy            Float     @default(0)
+  isCompleted         Boolean   @default(false)
+  completedAt         DateTime?
+  completionThreshold Float     @default(0.8)
+  lastAttemptAt       DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  topic          Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   @@unique([userId, topicId])
   @@index([userId, updatedAt])
@@ -136,37 +137,37 @@ enum ProjectSubmissionStatus {
 }
 
 model Course {
-  id             String               @id @default(cuid())
-  name           String
-  slug           String               @unique
-  description    String?
-  imageUrl       String?
-  imagePublicId  String?
-  hasProject     Boolean              @default(false)
-  topicWeight    Int                  @default(50)
-  projectWeight  Int                  @default(50)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String?
+  imageUrl      String?
+  imagePublicId String?
+  hasProject    Boolean  @default(false)
+  topicWeight   Int      @default(50)
+  projectWeight Int      @default(50)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  topics         CourseTopic[]
+  topics             CourseTopic[]
   projectRequirement CourseProjectRequirement?
-  userProgresses UserCourseProgress[]
-  submissions    ProjectSubmission[]
-  certificates   Certificate[]
+  userProgresses     UserCourseProgress[]
+  submissions        ProjectSubmission[]
+  certificates       Certificate[]
 
   @@index([createdAt])
   @@map("courses")
 }
 
 model CourseTopic {
-  id          String   @id @default(cuid())
-  courseId    String
-  topicId     String
-  sortOrder   Int
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  courseId  String
+  topicId   String
+  sortOrder Int
+  createdAt DateTime @default(now())
 
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic  Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, topicId])
   @@index([courseId, sortOrder])
@@ -174,20 +175,20 @@ model CourseTopic {
 }
 
 model CourseProjectRequirement {
-  id                       String   @id @default(cuid())
-  courseId                 String   @unique
-  title                    String
-  description              String?
-  isRequired               Boolean  @default(true)
+  id                     String   @id @default(cuid())
+  courseId               String   @unique
+  title                  String
+  description            String?
+  isRequired             Boolean  @default(true)
   /// Optional brief/spec file (pdf/docx/zip/rar) for detailed requirements
-  attachmentUrl            String?
-  attachmentPublicId       String?
-  attachmentOriginalName   String?
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  attachmentUrl          String?
+  attachmentPublicId     String?
+  attachmentOriginalName String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  submissions    ProjectSubmission[]
+  course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions ProjectSubmission[]
 
   @@map("course_project_requirements")
 }
@@ -206,7 +207,7 @@ model UserCourseProgress {
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
 
-  course                 Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@index([userId, status, updatedAt])
@@ -214,41 +215,41 @@ model UserCourseProgress {
 }
 
 model ProjectSubmission {
-  id                   String                  @id @default(cuid())
-  userId               String
-  courseId             String
-  requirementId        String
-  note                 String?
-  status               ProjectSubmissionStatus @default(PENDING_REVIEW)
-  reviewerId           String?
-  reviewerNote         String?
-  reviewedAt           DateTime?
-  submittedAt          DateTime                @default(now())
-  createdAt            DateTime                @default(now())
-  updatedAt            DateTime                @updatedAt
+  id            String                  @id @default(cuid())
+  userId        String
+  courseId      String
+  requirementId String
+  note          String?
+  status        ProjectSubmissionStatus @default(PENDING_REVIEW)
+  reviewerId    String?
+  reviewerNote  String?
+  reviewedAt    DateTime?
+  submittedAt   DateTime                @default(now())
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
 
-  course               Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  requirement          CourseProjectRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  files                ProjectSubmissionFile[]
+  course      Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  requirement CourseProjectRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  files       ProjectSubmissionFile[]
 
-  @@index([courseId, status, submittedAt])
   @@unique([userId, courseId])
+  @@index([courseId, status, submittedAt])
   @@index([userId, courseId, submittedAt])
   @@map("project_submissions")
 }
 
 model ProjectSubmissionFile {
-  id            String            @id @default(cuid())
-  submissionId  String
-  filePath      String
-  storageKey    String?
-  originalName  String
-  mimeType      String?
-  fileSize      Int?
-  sortOrder     Int
-  createdAt     DateTime          @default(now())
+  id           String   @id @default(cuid())
+  submissionId String
+  filePath     String
+  storageKey   String?
+  originalName String
+  mimeType     String?
+  fileSize     Int?
+  sortOrder    Int
+  createdAt    DateTime @default(now())
 
-  submission    ProjectSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submission ProjectSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
   @@index([submissionId, sortOrder])
   @@map("project_submission_files")
@@ -263,7 +264,7 @@ model Certificate {
   metadata        Json?
   createdAt       DateTime @default(now())
 
-  course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@index([userId, issuedAt])
@@ -290,12 +291,65 @@ model AttemptSession {
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
-  topic         Topic                @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  currentQuiz   Quiz?                @relation(fields: [currentQuizId], references: [id], onDelete: SetNull)
-  attempts      QuizAttempt[]
+  topic             Topic                   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  currentQuiz       Quiz?                   @relation(fields: [currentQuizId], references: [id], onDelete: SetNull)
+  attempts          QuizAttempt[]
+  leaderboardResult TopicLeaderboardResult?
 
   @@index([userId, topicId, status, updatedAt])
   @@index([userId, status, expiresAt])
   @@index([userId, topicId, submittedAt])
   @@map("attempt_sessions")
+}
+
+model TopicLeaderboardResult {
+  id             String   @id @default(cuid())
+  userId         String
+  topicId        String
+  sessionId      String   @unique
+  businessDate   String   @db.VarChar(10)
+  score          Int
+  correctCount   Int
+  totalQuestions Int
+  durationMs     Int
+  submittedAt    DateTime
+  createdAt      DateTime @default(now())
+
+  topic   Topic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  session AttemptSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId, businessDate])
+  @@index([topicId, businessDate, score])
+  @@index([submittedAt])
+  @@map("topic_leaderboard_results")
+}
+
+enum NotificationType {
+  LEADERBOARD_RESULT
+  LEADERBOARD_TOP10
+  LEADERBOARD_TOP3
+  LEADERBOARD_RANK_DROPPED
+  DAILY_REMINDER
+  WEEKLY_PROGRESS
+  WEEKLY_SUMMARY
+}
+
+model Notification {
+  id                  String           @id @default(cuid())
+  userId              String
+  type                NotificationType
+  title               String
+  message             String
+  topicId             String?
+  leaderboardResultId String?
+  businessDate        String?          @db.VarChar(10)
+  weekStart           String?          @db.VarChar(10)
+  dedupKey            String           @unique
+  isRead              Boolean          @default(false)
+  readAt              DateTime?
+  createdAt           DateTime         @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }

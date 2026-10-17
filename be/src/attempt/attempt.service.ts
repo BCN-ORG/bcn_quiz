@@ -15,6 +15,12 @@ import { StartSessionDto } from './dto/start-session.dto';
 import { SaveSessionDto } from './dto/save-session.dto';
 import { CourseProgressService } from '../course/course-progress.service';
 import { ProfilesService } from '../profiles/profiles.service';
+import { LeaderboardService } from '../leaderboard/leaderboard.service';
+import { NotificationService } from '../notification/notification.service';
+import {
+  businessDate,
+  calculateTopicLeaderboardScore,
+} from '../leaderboard/leaderboard-rules';
 import {
   assertTopicWindow,
   computeSessionExpiresAt,
@@ -28,6 +34,8 @@ export class AttemptService {
     private readonly prisma: PrismaService,
     private readonly courseProgressService: CourseProgressService,
     private readonly profilesService: ProfilesService,
+    private readonly leaderboardService: LeaderboardService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async startTopicSession(
@@ -348,66 +356,128 @@ export class AttemptService {
       };
     });
 
-    const submittedAt = new Date();
     const correctCount = attemptPayloads.filter(
       (item) => item.isCorrect,
     ).length;
     const totalQuizCount = quizzes.length;
     const score = totalQuizCount > 0 ? correctCount / totalQuizCount : 0;
 
-    const topicCompleted = await this.prisma.$transaction(async (tx) => {
-      const claimed = await tx.attemptSession.updateMany({
-        where: {
-          id: session.id,
-          status: {
-            in: [
-              AttemptSessionStatus.IN_PROGRESS,
-              AttemptSessionStatus.EXPIRED,
-            ],
+    const { topicCompleted, submittedAt, leaderboardDate, notifications } =
+      await this.prisma.$transaction(async (tx) => {
+        // Serialize submissions for one user/topic before assigning DB time.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${session.topicId}`}))`;
+        const clock = await tx.$queryRaw<
+          Array<{ epochMs: bigint }>
+        >`SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS "epochMs"`;
+        const submittedAt = new Date(Number(clock[0].epochMs));
+        const leaderboardDate = businessDate(submittedAt);
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`leaderboard:${session.topicId}:${leaderboardDate}`}))`;
+        const claimed = await tx.attemptSession.updateMany({
+          where: {
+            id: session.id,
+            status: {
+              in: [
+                AttemptSessionStatus.IN_PROGRESS,
+                AttemptSessionStatus.EXPIRED,
+              ],
+            },
           },
-        },
-        data: {
-          status: AttemptSessionStatus.SUBMITTED,
+          data: {
+            status: AttemptSessionStatus.SUBMITTED,
+            submittedAt,
+            lastSeenAt: submittedAt,
+          },
+        });
+
+        if (claimed.count === 0) {
+          throw new BadRequestException('Session is not in progress');
+        }
+
+        if (attemptPayloads.length > 0) {
+          await tx.quizAttempt.createMany({
+            data: attemptPayloads.map((payload) => ({
+              userId: payload.userId,
+              quizId: payload.quizId,
+              topicId: payload.topicId,
+              sessionId: session.id,
+              selectedAnswer: payload.selectedAnswer,
+              isCorrect: payload.isCorrect,
+              score: payload.score,
+              startedAt: payload.startedAt,
+              submittedAt,
+              durationMs: Math.max(
+                0,
+                submittedAt.getTime() - session.startedAt.getTime(),
+              ),
+            })),
+          });
+        }
+
+        const completed = await this.updateTopicProgress(
+          tx,
+          userId,
+          session.topicId,
+          totalQuizCount,
+          correctCount,
           submittedAt,
-          lastSeenAt: submittedAt,
-        },
+        );
+        const before = await this.notificationService.captureBoundary(
+          tx,
+          session.topicId,
+          leaderboardDate,
+        );
+        const inserted = await tx.topicLeaderboardResult.createMany({
+          data: [
+            {
+              userId,
+              topicId: session.topicId,
+              sessionId: session.id,
+              businessDate: leaderboardDate,
+              score: calculateTopicLeaderboardScore(
+                correctCount,
+                totalQuizCount,
+              ),
+              correctCount,
+              totalQuestions: totalQuizCount,
+              durationMs: Math.max(
+                0,
+                submittedAt.getTime() - session.startedAt.getTime(),
+              ),
+              submittedAt,
+            },
+          ],
+          skipDuplicates: true,
+        });
+
+        const result = inserted.count
+          ? await tx.topicLeaderboardResult.findUniqueOrThrow({
+              where: {
+                userId_topicId_businessDate: {
+                  userId,
+                  topicId: session.topicId,
+                  businessDate: leaderboardDate,
+                },
+              },
+            })
+          : null;
+        const notifications = result
+          ? await this.notificationService.recordOfficial(
+              tx,
+              result,
+              topic.name,
+              before,
+            )
+          : [];
+
+        return {
+          topicCompleted: completed,
+          submittedAt,
+          leaderboardDate,
+          notifications,
+        };
       });
 
-      if (claimed.count === 0) {
-        throw new BadRequestException('Session is not in progress');
-      }
-
-      if (attemptPayloads.length > 0) {
-        await tx.quizAttempt.createMany({
-          data: attemptPayloads.map((payload) => ({
-            userId: payload.userId,
-            quizId: payload.quizId,
-            topicId: payload.topicId,
-            sessionId: session.id,
-            selectedAnswer: payload.selectedAnswer,
-            isCorrect: payload.isCorrect,
-            score: payload.score,
-            startedAt: payload.startedAt,
-            submittedAt,
-            durationMs: Math.max(
-              0,
-              submittedAt.getTime() - session.startedAt.getTime(),
-            ),
-          })),
-        });
-      }
-
-      const completed = await this.updateTopicProgress(
-        tx,
-        userId,
-        session.topicId,
-        totalQuizCount,
-        correctCount,
-        submittedAt,
-      );
-
-      return completed;
-    });
+    await this.notificationService.publishCreated(notifications);
 
     await this.safeReevaluateCourseProgressByTopic(
       userId,
@@ -439,6 +509,18 @@ export class AttemptService {
       correctCount,
       score,
       submittedAt,
+      leaderboard: {
+        ...(await this.leaderboardService.resultForSubmit(
+          userId,
+          session.topicId,
+          leaderboardDate,
+          session.id,
+        )),
+        attemptScore: calculateTopicLeaderboardScore(
+          correctCount,
+          totalQuizCount,
+        ),
+      },
       quizResults: quizzes.map((quiz) => {
         const attempt = attemptByQuizId.get(quiz.id);
         return {

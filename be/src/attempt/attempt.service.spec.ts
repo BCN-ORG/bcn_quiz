@@ -3,6 +3,11 @@ import { AttemptSessionStatus } from '@prisma/client';
 import { AttemptService } from './attempt.service';
 
 describe('AttemptService', () => {
+  const submitQueries = () =>
+    jest
+      .fn()
+      .mockResolvedValueOnce([{ epochMs: BigInt(Date.now()) }])
+      .mockResolvedValue([{ count: 1 }]);
   const prisma = {
     attemptSession: {
       findUnique: jest.fn(),
@@ -31,6 +36,17 @@ describe('AttemptService', () => {
   const profilesService = {
     createTimelineEvent: jest.fn(),
   };
+  const leaderboardService = {
+    resultForSubmit: jest
+      .fn()
+      .mockResolvedValue({ isOfficial: true, score: 500, rank: 1 }),
+  };
+
+  const notifications = {
+    captureBoundary: jest.fn().mockResolvedValue([]),
+    recordOfficial: jest.fn().mockResolvedValue([]),
+    publishCreated: jest.fn().mockResolvedValue(undefined),
+  };
 
   let service: AttemptService;
 
@@ -50,6 +66,8 @@ describe('AttemptService', () => {
       prisma as never,
       courseProgressService as never,
       profilesService as never,
+      leaderboardService as never,
+      notifications as never,
     );
     prisma.topic.findUnique.mockResolvedValue(openTopic);
   });
@@ -291,6 +309,9 @@ describe('AttemptService', () => {
         async (cb: (tx: unknown) => Promise<unknown>) => {
           const tx = {
             quizAttempt: { createMany: jest.fn() },
+            topicLeaderboardResult: {
+              createMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
             attemptSession: {
               updateMany: jest.fn().mockResolvedValue({ count: 1 }),
             },
@@ -301,7 +322,8 @@ describe('AttemptService', () => {
               upsert: jest.fn(),
             },
             quiz: { count: jest.fn().mockResolvedValue(2) },
-            $queryRaw: jest.fn().mockResolvedValue([{ count: 1 }]),
+            $queryRaw: submitQueries(),
+            $executeRaw: jest.fn().mockResolvedValue(1),
           };
           return cb(tx);
         },
@@ -344,6 +366,9 @@ describe('AttemptService', () => {
         async (cb: (tx: unknown) => Promise<unknown>) =>
           cb({
             quizAttempt: { createMany: jest.fn() },
+            topicLeaderboardResult: {
+              createMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
             attemptSession: {
               updateMany: jest.fn().mockResolvedValue({ count: 1 }),
             },
@@ -353,7 +378,8 @@ describe('AttemptService', () => {
               update: jest.fn(),
             },
             quiz: { count: jest.fn().mockResolvedValue(1) },
-            $queryRaw: jest.fn().mockResolvedValue([{ count: 1 }]),
+            $queryRaw: submitQueries(),
+            $executeRaw: jest.fn().mockResolvedValue(1),
           }),
       );
       courseProgressService.evaluateCoursesByTopic.mockResolvedValue(undefined);
@@ -500,6 +526,9 @@ describe('AttemptService', () => {
         async (cb: (tx: unknown) => Promise<unknown>) => {
           const tx = {
             quizAttempt: { createMany },
+            topicLeaderboardResult: {
+              createMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
             attemptSession: {
               updateMany: jest.fn().mockResolvedValue({ count: 1 }),
             },
@@ -510,7 +539,8 @@ describe('AttemptService', () => {
               upsert: jest.fn(),
             },
             quiz: { count: jest.fn().mockResolvedValue(2) },
-            $queryRaw: jest.fn().mockResolvedValue([{ count: 1 }]),
+            $queryRaw: submitQueries(),
+            $executeRaw: jest.fn().mockResolvedValue(1),
           };
           return cb(tx);
         },
@@ -571,6 +601,9 @@ describe('AttemptService', () => {
         async (cb: (tx: unknown) => Promise<unknown>) =>
           cb({
             quizAttempt: { createMany },
+            topicLeaderboardResult: {
+              createMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
             attemptSession: {
               updateMany: jest.fn().mockResolvedValue({ count: 0 }),
             },
@@ -581,7 +614,8 @@ describe('AttemptService', () => {
               upsert: jest.fn(),
             },
             quiz: { count: jest.fn() },
-            $queryRaw: jest.fn(),
+            $queryRaw: submitQueries(),
+            $executeRaw: jest.fn().mockResolvedValue(1),
           }),
       );
 
@@ -590,6 +624,43 @@ describe('AttemptService', () => {
       );
       expect(createMany).not.toHaveBeenCalled();
     });
+  });
+
+  it('does not enter the leaderboard from the single-question submit route', async () => {
+    prisma.quiz.findUnique.mockResolvedValue({
+      id: 'q1',
+      topicId: 'topic-1',
+      quizCode: 'Q1',
+      answer: 'A',
+      options: [{ id: 'option-b', label: 'B' }],
+    });
+    prisma.$transaction.mockImplementation(
+      async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb({
+          quizAttempt: {
+            create: jest.fn().mockResolvedValue({
+              id: 'attempt-1',
+              submittedAt: new Date(),
+              durationMs: null,
+            }),
+          },
+          topicProgress: {
+            findUnique: jest.fn().mockResolvedValue(null),
+            create: jest.fn(),
+          },
+          quiz: { count: jest.fn().mockResolvedValue(1) },
+          $queryRaw: jest.fn().mockResolvedValue([{ count: 0 }]),
+        }),
+    );
+    courseProgressService.evaluateCoursesByTopic.mockResolvedValue(undefined);
+
+    const result = await service.submitAttempt(
+      'q1',
+      { selectedAnswer: 'option-b' },
+      req,
+    );
+    expect(result.score).toBe(0);
+    expect(leaderboardService.resultForSubmit).not.toHaveBeenCalled();
   });
 
   describe('getMySessionById', () => {

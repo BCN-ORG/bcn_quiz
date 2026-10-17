@@ -15,6 +15,7 @@ import {
 } from '@/lib/api';
 import { optionContent, toDatetimeLocal } from '@/lib/format';
 import { downloadQuizImportTemplate, parseQuizSpreadsheet } from '@/lib/quiz-import';
+import { AdminLeaderboard } from '@/components/admin-leaderboard';
 import {
   canCreateContent,
   canDeleteContent,
@@ -23,8 +24,8 @@ import {
 } from '@/lib/permissions';
 import type { Course, Pagination, Quiz, Submission, Topic } from '@/lib/types';
 
-type Tab = 'courses' | 'topics' | 'quizzes' | 'reviews';
-const labels: Record<Tab, string> = { courses: 'Khóa học', topics: 'Chủ đề', quizzes: 'Câu hỏi', reviews: 'Duyệt project' };
+type Tab = 'courses' | 'topics' | 'quizzes' | 'reviews' | 'leaderboards';
+const labels: Record<Tab, string> = { courses: 'Khóa học', topics: 'Chủ đề', quizzes: 'Câu hỏi', reviews: 'Duyệt project', leaderboards: 'Bảng xếp hạng' };
 const EMPTY_PAGE = { page: 1, limit: 10, total: 0, totalPages: 1 };
 
 function slugify(value: string) {
@@ -433,7 +434,8 @@ export default function AdminPage() {
   return (
     <>
       <header className="page-heading"><div><p className="eyebrow">Quản trị nội dung</p><h1>Quiz Studio</h1><p>Quản lý lộ trình, câu hỏi, đề project và bài nộp tại một nơi.</p></div></header>
-      <div className="tabs" role="tablist">{(Object.keys(labels) as Tab[]).filter((item) => item !== 'reviews' || allowUpdate).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} key={item} onClick={() => { setTab(item); resetCreateForm(); setError(''); setNotice(''); if (item === 'reviews') void loadReviews(courseId, 1); if (item === 'quizzes') void loadTopicQuizzes(quizTopicId, 1); }}>{labels[item]}</button>)}</div>
+      <div className="tabs" role="tablist">{(Object.keys(labels) as Tab[]).filter((item) => !['reviews', 'leaderboards'].includes(item) || allowUpdate).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} key={item} onClick={() => { setTab(item); resetCreateForm(); setError(''); setNotice(''); if (item === 'reviews') void loadReviews(courseId, 1); if (item === 'quizzes') void loadTopicQuizzes(quizTopicId, 1); }}>{labels[item]}</button>)}</div>
+      {tab === 'leaderboards' && allowUpdate ? <AdminLeaderboard /> : null}
       {error ? <p className="form-error" style={{ marginTop: 16 }} role="alert">{error}</p> : null}
       {notice ? <p className="form-success" style={{ marginTop: 16 }} role="status">{notice}</p> : null}
 

@@ -99,6 +99,22 @@ img { display: block; max-width: 100%; }
 .icon-button svg { width: 19px; height: 19px; }
 .main-column { min-height: 100dvh; margin-left: 264px; }
 .topbar { position: sticky; top: 0; z-index: 10; height: 68px; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); background: color-mix(in srgb, var(--bg) 86%, transparent); border-bottom: 1px solid var(--line); backdrop-filter: blur(14px); }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.notification-center { position: relative; color: var(--text); }
+.notification-bell { position: relative; }
+.notification-badge { position: absolute; top: -6px; right: -7px; min-width: 21px; height: 21px; padding: 1px 4px; border-radius: 999px; background: var(--danger); color: white; font-size: 11px; font-weight: 700; line-height: 19px; }
+.notification-panel { position: absolute; top: calc(100% + 12px); right: 0; z-index: 30; width: min(380px, calc(100vw - 24px)); max-height: min(520px, 75vh); display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+.notification-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.notification-heading button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--accent-strong); font-size: 13px; font-weight: 700; }
+.notification-list { overflow: auto; }
+.notification-row { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 13px 16px; border: 0; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--text); text-align: left; }
+.notification-row:hover, .notification-row.unread { background: var(--accent-soft); }
+.notification-row > span:last-child, .notification-toast > span:last-child { display: grid; gap: 3px; }
+.notification-row strong, .notification-toast strong { font-size: 14px; }
+.notification-row span span, .notification-toast span span { color: var(--muted); font-size: 13px; }
+.notification-row small { color: var(--muted); font-size: 11px; }
+.notification-empty { margin: 0; padding: 24px 16px; color: var(--muted); }
+.notification-toast { position: fixed; right: 22px; bottom: 22px; z-index: 50; width: min(360px, calc(100vw - 32px)); display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: left; }
 .page-content { width: min(1180px, 100%); margin: 0 auto; padding: 38px 32px 80px; }
 .mobile-only, .bottom-nav { display: none; }
 
