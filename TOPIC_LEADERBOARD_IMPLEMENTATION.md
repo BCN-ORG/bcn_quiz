@@ -20,7 +20,7 @@ Trong transaction submit, backend lấy khóa PostgreSQL theo `userId:topicId`, 
 
 ## Daily Ranking
 
-Theo `score DESC`, `durationMs ASC`, `submittedAt ASC`, `userId ASC`. `ROW_NUMBER()` tạo rank toàn cục trước pagination. Response có `items`, `pagination`, `top3`, `top10Cutoff`, `currentUserRank`, `currentUserResult`, `aroundMe`, `closesAt`. Public response chỉ có user ID, full name, avatar; thiếu Profiles thì `User` và avatar null.
+Theo `score DESC`, `durationMs ASC`, `submittedAt ASC`, `userId ASC`. `ROW_NUMBER()` tạo rank toàn cục trước pagination. Response có `items`, `pagination`, `top3`, `top10Cutoff`, `currentUserRank`, `currentUserResult`, `aroundMe`, `closesAt`. API giữ user ID nội bộ để xác định người dùng hiện tại; giao diện chỉ hiện tên và avatar. Thiếu Profiles thì hiện `Người dùng` và avatar viết tắt.
 
 ## Weekly Ranking
 
@@ -40,11 +40,11 @@ Tất cả route có tiền tố `/api`. User: `GET /leaderboards/topics/:topicI
 
 ## Frontend UX
 
-Trang Topic hiển thị tổng câu, điểm tối đa, trọng số/câu và quy tắc lượt đầu trước khi bắt đầu; header lúc làm hiển thị điểm ước lượng/câu. Kết quả có điểm lượt vừa nộp, điểm chính thức, hạng và nhãn official/practice. Bảng ngày/tuần hiển thị Top 3, hạng cá nhân, Top 10 cutoff, hàng lân cận, phân trang và chọn ngày/tuần trước. Bảng trống và user chưa tham gia có thông điệp riêng.
+Trang Topic hiển thị tổng câu, điểm tối đa, trọng số/câu và quy tắc lượt đầu trước khi bắt đầu; header lúc làm hiển thị điểm ước lượng/câu. Kết quả có điểm lượt vừa nộp, điểm chính thức, hạng và nhãn official/practice. Bảng xếp hạng ở route riêng `/topics/:topicId/leaderboard`, có Top 3, hạng cá nhân, hàng lân cận, phân trang và chọn ngày/tuần trước. Màn đang trả lời chỉ có link phụ mở route này trong tab mới để giữ nguyên attempt; màn kết quả cũng có CTA. Bảng trống và user chưa tham gia có thông điệp riêng.
 
 ## Admin UX
 
-Tab “Bảng xếp hạng” trong `/admin` có filter Course → Topic (deduplicate theo Topic ID), Daily/Weekly, ngày/tuần, tìm theo full name, phân trang và export. Bảng rộng có cuộn ngang trên màn nhỏ. Lọc Course chỉ thay đổi danh sách Topic chọn, không đổi identity của leaderboard.
+Tab “Bảng xếp hạng” trong `/admin` có filter Course → Topic (deduplicate theo Topic ID), Daily/Weekly, ngày/tuần, tìm theo full name, phân trang và export. Bảng responsive chỉ hiện hạng, tên/avatar và điểm trên mobile; desktop thêm số câu đúng hoặc số ngày và thời gian. Không hiển thị User ID hoặc email trên bảng; XLSX vẫn giữ User ID để đối soát. Lọc Course chỉ thay đổi danh sách Topic chọn, không đổi identity của leaderboard.
 
 ## Export
 
@@ -83,7 +83,19 @@ Advisory transaction lock theo user/topic đặt trước `submittedAt`; atomic 
 
 ## Admin Name Search
 
-Quiz gọi `GET /internal/users/search?q=...&page=...` của Profiles bằng Basic client credentials hiện có. Profiles chỉ trả user ACTIVE có `fullName` chứa chuỗi tìm kiếm (trim, không phân biệt hoa/thường), tối đa 100 user/trang; Quiz lấy các ID theo trang rồi lọc `userId IN (...)` **sau** CTE đã tính rank. Không có fallback tìm trực tiếp theo User ID; không có kết quả tên khớp thì trả bảng rỗng. Vì vậy Daily/Weekly đều giữ global rank. Frontend trim và debounce 350 ms; xóa search trả về bảng gốc. Profile hiển thị được resolve theo lô tối đa 100 ID. `GET /internal/users/eligible` dùng Basic credentials và quyền `quiz.question.read` của app QUIZ cho daily reminder. Phải deploy hai endpoint Profiles trước backend Quiz mới.
+Quiz gọi `GET /internal/users/search?q=...&page=...` của Profiles bằng Basic client credentials hiện có. Profiles chỉ trả ID của user ACTIVE có `fullName` chứa chuỗi tìm kiếm (trim, không phân biệt hoa/thường), tối đa 100 user/trang; Quiz lấy các ID theo trang rồi lọc `userId IN (...)` **sau** CTE đã tính rank. Không có fallback tìm trực tiếp theo User ID; không có kết quả tên khớp thì trả bảng rỗng. Vì vậy Daily/Weekly đều giữ global rank. Frontend trim và debounce 350 ms; xóa search trả về bảng gốc. Khi search upstream lỗi, UI giữ dữ liệu vừa tải và báo lỗi có nút thử lại. Profile hiển thị được resolve theo lô tối đa 100 ID. `GET /internal/users/eligible` dùng Basic credentials và quyền `quiz.question.read` của app QUIZ cho daily reminder.
+
+## Profiles Production Integration
+
+Quiz dùng cùng Basic header `Authorization: Basic base64(BCN_OAUTH_CLIENT_ID:PROFILES_CLIENT_SECRET)` cho search và batch resolve. Profiles không đọc secret này từ env: nó tìm `Application.clientId` và so secret với hash của `ApplicationClientSecret` đang `ACTIVE`. Endpoint thực tế có tiền tố `/api`: `/api/internal/users/search` và `/api/internal/users`.
+
+| Mục đích | Quiz env | Profiles đối chiếu | Định dạng | Production 2026-10-17 |
+| --- | --- | --- | --- | --- |
+| Base URL | `PROFILES_API_BASE_URL` | Profiles `APP_PORT` | `http://bcn_profiles:3000/api` | GitHub env khớp; runtime chưa đọc |
+| Basic username | `BCN_OAUTH_CLIENT_ID` | `Application.clientId` | `bcn-quiz` | GitHub env có; DB chưa đối chiếu |
+| Basic password | `PROFILES_CLIENT_SECRET` | `ApplicationClientSecret.secretHash` ACTIVE | server key do Profiles cấp một lần | GitHub secret có; **401 cho thấy giá trị runtime chưa được Profiles chấp nhận** |
+
+Production log đã xác nhận Quiz nhận 401 ở cả `searchUserIds` và `resolveUsers`. Cần đối chiếu runtime env/key status qua kênh quản trị đã xác thực; không ghi secret ra log hoặc tài liệu. Code hiện phân loại `AuthFailed`, `Timeout`, `UpstreamError` trong server log, giữ lỗi client an toàn. `resolveUsers` vẫn fallback tên `Người dùng` để leaderboard không gián đoạn. Việc sửa hoặc xoay vòng server key trên production cần phê duyệt riêng; sau đó gọi trực tiếp internal search/batch với Basic auth và kiểm tra Admin search trước khi kết luận đã sửa.
 
 ## Notification Architecture
 
@@ -111,7 +123,7 @@ Tất cả route cần auth user hiện tại: `GET /api/notifications?page=1&li
 
 ## Notification UI
 
-AppShell có bell, unread badge tối đa `99+`, panel 20 mục mới nhất và toast 5 giây. Click mục/toast mới đánh dấu đã đọc; click mục có Topic mở `/topics/:id#topic-leaderboard`. Frontend chống thêm trùng theo notification ID và tải lại list/unread count lúc mở SSE hoặc quay lại tab.
+AppShell có bell, unread badge tối đa `99+`, panel 20 mục mới nhất và toast 5 giây. Click mục/toast mới đánh dấu đã đọc; notification leaderboard mở `/topics/:id/leaderboard`, reminder/weekly mở trang Topic. Frontend chống thêm trùng theo notification ID và tải lại list/unread count lúc mở SSE hoặc quay lại tab.
 
 ## Notification Realtime Transport
 

@@ -75,7 +75,7 @@ describe('LeaderboardService', () => {
     );
     expect(result.items[0]?.user).toEqual({
       id: 'user-101',
-      fullName: 'User',
+      fullName: 'Người dùng',
       avatarUrl: null,
     });
     expect(result.items[0]).not.toHaveProperty('email');

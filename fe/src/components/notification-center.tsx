@@ -100,7 +100,7 @@ export function NotificationCenter() {
     }
     setOpen(false);
     setToast(null);
-    if (row.topicId) router.push(`/topics/${row.topicId}#topic-leaderboard`);
+    if (row.topicId) router.push(row.type.startsWith('LEADERBOARD_') ? `/topics/${row.topicId}/leaderboard` : `/topics/${row.topicId}`);
   };
 
   const markAllRead = async () => {

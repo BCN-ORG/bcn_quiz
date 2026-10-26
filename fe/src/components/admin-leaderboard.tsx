@@ -1,26 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CircleNotch } from '@phosphor-icons/react';
 import { downloadFile, request } from '@/lib/api';
 import type { Course, Pagination, Topic } from '@/lib/types';
 import { Empty, ErrorState, Loading, PaginationNav } from './ui';
+import { LeaderboardTable, type LeaderboardRow } from './leaderboard-table';
 
-type Row = {
-  rank: number;
-  user: { id: string; fullName: string };
-  email?: string | null;
-  score?: number;
-  weeklyScore?: number;
-  correctCount?: number;
-  totalQuestions?: number;
-  accuracy?: number;
-  durationMs?: number;
-  submittedAt?: string;
-  completedDays?: number;
-  totalDurationMs?: number;
-  lastSubmittedAt?: string;
-};
-type Data = { items: Row[]; date?: string; weekStart?: string; weekEnd?: string; pagination: Pagination<Row>['pagination'] };
+type Data = { items: LeaderboardRow[]; date?: string; weekStart?: string; weekEnd?: string; pagination: Pagination<LeaderboardRow>['pagination'] };
 
 async function allPages<T>(path: string): Promise<T[]> {
   const first = await request.get<Pagination<T>>(`${path}${path.includes('?') ? '&' : '?'}page=1&limit=100`);
@@ -43,6 +30,8 @@ export function AdminLeaderboard() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
+  const [searchFailed, setSearchFailed] = useState(false);
+  const requestNumber = useRef(0);
 
   useEffect(() => { void allPages<Course>('/course').then(setCourses).catch((reason) => setError(reason instanceof Error ? reason.message : 'Không tải được khóa học')); }, []);
   useEffect(() => {
@@ -61,21 +50,28 @@ export function AdminLeaderboard() {
   }, [query]);
 
   const load = useCallback(async () => {
+    const currentRequest = ++requestNumber.current;
     if (!topicId) { setData(null); return; }
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setSearchFailed(false);
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (date) params.set(mode === 'daily' ? 'date' : 'weekStart', date);
       if (search.trim()) params.set('search', search.trim());
-      setData(await request.get<Data>(`/admin/leaderboards/topics/${topicId}/${mode}?${params}`));
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không tải được bảng xếp hạng'); }
-    finally { setLoading(false); }
+      const next = await request.get<Data>(`/admin/leaderboards/topics/${topicId}/${mode}?${params}`);
+      if (currentRequest === requestNumber.current) setData(next);
+    } catch (reason) {
+      if (currentRequest === requestNumber.current) {
+        setSearchFailed(Boolean(search));
+        setError(search ? 'Bảng xếp hạng vẫn hoạt động. Bạn có thể xóa tìm kiếm để xem toàn bộ.' : reason instanceof Error ? reason.message : 'Không tải được bảng xếp hạng');
+      }
+    }
+    finally { if (currentRequest === requestNumber.current) setLoading(false); }
   }, [topicId, mode, date, search, page]);
   useEffect(() => { void load(); }, [load]);
 
   const exportRows = async () => {
     if (!topicId) return;
-    setExporting(true); setError('');
+    setExporting(true); setError(''); setSearchFailed(false);
     try {
       const selected = date || (mode === 'daily' ? data?.date : data?.weekStart) || '';
       const params = new URLSearchParams({ format: 'xlsx' });
@@ -88,24 +84,18 @@ export function AdminLeaderboard() {
   return <section className="section panel" aria-label="Quản trị bảng xếp hạng">
     <div className="section-title"><h2>Bảng xếp hạng Topic</h2><button className="button" type="button" disabled={!topicId || exporting} onClick={() => void exportRows()}>{exporting ? 'Đang xuất…' : 'Xuất toàn bộ XLSX'}</button></div>
     <div className="grid grid-2">
-      <label className="field"><span>Khóa học</span><select value={courseId} onChange={(event) => { setCourseId(event.target.value); setPage(1); }}><option value="">Tất cả khóa học</option>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label className="field"><span>Chủ đề</span><select value={topicId} onChange={(event) => { setTopicId(event.target.value); setPage(1); }}><option value="">Chọn chủ đề</option>{topics.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label className="field"><span>Chế độ</span><select value={mode} onChange={(event) => { setMode(event.target.value as 'daily' | 'weekly'); setDate(''); setPage(1); }}><option value="daily">Daily</option><option value="weekly">Weekly</option></select></label>
-      <label className="field"><span>{mode === 'daily' ? 'Ngày' : 'Tuần chứa ngày'}</span><input type="date" value={date || (mode === 'daily' ? data?.date : data?.weekStart) || ''} onChange={(event) => { setDate(event.target.value); setPage(1); }} /></label>
-      <label className="field"><span>Tìm theo tên người dùng</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên người dùng" /></label>
+      <label className="field"><span>Khóa học</span><select value={courseId} onChange={(event) => { setCourseId(event.target.value); setData(null); setPage(1); }}><option value="">Tất cả khóa học</option>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label className="field"><span>Chủ đề</span><select value={topicId} onChange={(event) => { setTopicId(event.target.value); setData(null); setPage(1); }}><option value="">Chọn chủ đề</option>{topics.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label className="field"><span>Chế độ</span><select value={mode} onChange={(event) => { setMode(event.target.value as 'daily' | 'weekly'); setDate(''); setData(null); setPage(1); }}><option value="daily">Hôm nay</option><option value="weekly">Tuần này</option></select></label>
+      <label className="field"><span>{mode === 'daily' ? 'Ngày' : 'Tuần chứa ngày'}</span><input type="date" value={date || (mode === 'daily' ? data?.date : data?.weekStart) || ''} onChange={(event) => { setDate(event.target.value); setData(null); setPage(1); }} /></label>
+      <label className="field"><span>Tìm theo tên người dùng</span><span className="leaderboard-search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên người dùng" />{query.trim() && (query.trim() !== search || loading) ? <CircleNotch className="spin" aria-label="Đang tìm kiếm" /> : null}</span></label>
     </div>
-    {error ? <ErrorState message={error} retry={() => void load()} /> : null}
+    {error ? <ErrorState title={searchFailed ? 'Không thể tìm kiếm người dùng lúc này.' : undefined} message={error} retry={() => void load()} /> : null}
     {!topicId ? <Empty title="Chọn một chủ đề" description="Mỗi Topic có bảng xếp hạng riêng." /> : null}
-    {loading && !data ? <Loading /> : null}
+    {loading && !data ? <Loading label="Đang tải bảng xếp hạng" /> : null}
     {data && topicId ? <>
-      <p>{mode === 'daily' ? `Ngày ${data.date}` : `Tuần ${data.weekStart} → ${data.weekEnd}`} · {data.pagination.total} người</p>
-      {data.items.length ? <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 800, borderCollapse: 'collapse' }}><thead><tr>
-        {(mode === 'daily' ? ['Hạng', 'User', 'Điểm', 'Đúng', 'Tổng câu', 'Chính xác', 'Thời gian', 'Nộp lúc'] : ['Hạng', 'User', 'Điểm tuần', 'Số ngày', 'Tổng thời gian', 'Nộp gần nhất']).map((label) => <th key={label} scope="col" style={{ textAlign: 'left', padding: 8 }}>{label}</th>)}
-      </tr></thead><tbody>{data.items.map((row) => <tr key={row.user.id}>
-        <td style={{ padding: 8 }}>#{row.rank}</td><td style={{ padding: 8 }}><strong>{row.user.fullName}</strong><br /><small>{row.user.id}{row.email ? ` · ${row.email}` : ''}</small></td>
-        {mode === 'daily' ? <><td>{row.score}</td><td>{row.correctCount}</td><td>{row.totalQuestions}</td><td>{Math.round((row.accuracy ?? 0) * 100)}%</td><td>{Math.round((row.durationMs ?? 0) / 1000)}s</td><td>{row.submittedAt ? new Date(row.submittedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—'}</td></>
-          : <><td>{row.weeklyScore}</td><td>{row.completedDays}</td><td>{Math.round((row.totalDurationMs ?? 0) / 1000)}s</td><td>{row.lastSubmittedAt ? new Date(row.lastSubmittedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—'}</td></>}
-      </tr>)}</tbody></table></div> : <Empty title="Chưa có kết quả" description="Chọn ngày hoặc tuần khác để xem." />}
+      <p aria-live="polite">{searchFailed ? 'Kết quả tải lần cuối' : mode === 'daily' ? `Ngày ${data.date}` : `Tuần ${data.weekStart} → ${data.weekEnd}`} · {data.pagination.total} người</p>
+      {data.items.length ? <LeaderboardTable rows={data.items} mode={mode} /> : <Empty title={search ? 'Chưa có kết quả phù hợp.' : 'Chưa có kết quả trong kỳ này.'} description={search ? 'Thử tên khác hoặc xóa ô tìm kiếm.' : 'Chọn ngày hoặc tuần khác để xem.'} />}
       <PaginationNav {...data.pagination} disabled={loading} onChange={setPage} />
     </> : null}
   </section>;

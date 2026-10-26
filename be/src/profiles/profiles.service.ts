@@ -114,7 +114,7 @@ export class ProfilesService {
     } catch (error) {
       if (error instanceof AxiosError) {
         this.logger.warn(
-          `[resolveUsers] Profiles status=${error.response?.status ?? 'network'}`,
+          `[ProfilesResolve${this.failureKind(error)}] status=${error.response?.status ?? 'network'}`,
         );
         return out;
       }
@@ -134,8 +134,8 @@ export class ProfilesService {
           }),
         );
         const payload = response.data as {
-          data?: { users: ProfilesUserSummary[]; total: number };
-          users?: ProfilesUserSummary[];
+          data?: { users: Array<{ id: string }>; total: number };
+          users?: Array<{ id: string }>;
           total?: number;
         };
         const result = payload.data ?? payload;
@@ -144,7 +144,9 @@ export class ProfilesService {
         if (!users.length || ids.length >= (result.total ?? 0)) return ids;
       } catch (error) {
         this.logger.warn(
-          `[searchUserIds] Profiles search failed: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof AxiosError
+            ? `[ProfilesSearch${this.failureKind(error)}] status=${error.response?.status ?? 'network'}`
+            : '[ProfilesSearchUpstreamError] unexpected error',
         );
         throw new BadGatewayException('Profiles user search is unavailable');
       }
@@ -171,6 +173,16 @@ export class ProfilesService {
 
   private basicAuthHeader(): string {
     return `Basic ${Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64')}`;
+  }
+
+  private failureKind(
+    error: AxiosError,
+  ): 'AuthFailed' | 'Timeout' | 'UpstreamError' {
+    if (error.response?.status === 401 || error.response?.status === 403)
+      return 'AuthFailed';
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT')
+      return 'Timeout';
+    return 'UpstreamError';
   }
 
   private userId(req?: ExpressRequest): string | undefined {

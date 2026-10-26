@@ -178,6 +178,35 @@ img { display: block; max-width: 100%; }
 .list-row small { color: var(--muted); }
 .list-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+.leaderboard-back { display: inline-flex; margin-bottom: 20px; color: var(--accent-strong); font-weight: 700; }
+.leaderboard-period { color: var(--muted); }
+.leaderboard-search { position: relative; display: block; }
+.leaderboard-search input { width: 100%; padding-right: 40px; }
+.leaderboard-search svg { position: absolute; right: 12px; top: calc(50% - 9px); width: 18px; height: 18px; color: var(--accent-strong); }
+.leaderboard-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+.leaderboard-top { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.leaderboard-top > strong { grid-column: 2; }
+.leaderboard-top-1 { border-color: color-mix(in srgb, var(--warning) 45%, var(--line)); }
+.leaderboard-rank { align-self: start; color: var(--accent-strong); font-weight: 800; }
+.leaderboard-player { display: inline-flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+.leaderboard-player img, .leaderboard-initials { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+.leaderboard-initials { display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-strong); font-size: 12px; font-weight: 800; }
+.leaderboard-player-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.leaderboard-player-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard-you { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-strong); font-size: 11px; font-weight: 700; }
+.leaderboard-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.leaderboard-table th, .leaderboard-table td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+.leaderboard-table th { color: var(--muted); font-size: 13px; font-weight: 700; }
+.leaderboard-table th:first-child { width: 76px; }
+.leaderboard-table th:nth-child(2) { width: 42%; }
+.leaderboard-table tbody tr:hover { background: var(--surface-2); }
+.leaderboard-table tbody tr.leaderboard-current { background: var(--accent-soft); }
+.leaderboard-mobile-detail { display: none; color: var(--muted); }
+.leaderboard-skeleton { display: grid; gap: 10px; margin-top: 16px; }
+.leaderboard-skeleton span { height: 62px; border-radius: 12px; background: var(--surface-2); animation: leaderboard-pulse 1.4s ease-in-out infinite alternate; }
+@keyframes leaderboard-pulse { to { opacity: .45; } }
+.notification-row > span:last-child, .notification-toast > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+
 .dialog-backdrop {
   position: fixed; inset: 0; z-index: 40;
   display: grid; place-items: center; padding: 20px;
@@ -383,6 +412,21 @@ img { display: block; max-width: 100%; }
   .topic-row > .button { grid-column: 1 / -1; }
   .verify-form { grid-template-columns: 1fr; }
   .landing-actions .text-link { display: none; }
+  .leaderboard-section { padding: 18px; }
+  .leaderboard-section .section-title { align-items: flex-start; flex-direction: column; }
+  .leaderboard-podium { grid-template-columns: 1fr; }
+  .leaderboard-top { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .leaderboard-top > strong { grid-column: 3; font-size: 13px; }
+  .leaderboard-table th, .leaderboard-table td { padding: 12px 5px; }
+  .leaderboard-table th:first-child { width: 48px; }
+  .leaderboard-table th:nth-child(2) { width: auto; }
+  .leaderboard-table th:nth-child(3) { width: 65px; text-align: right; }
+  .leaderboard-table td:nth-child(3) { text-align: right; }
+  .leaderboard-table .leaderboard-detail { display: none; }
+  .leaderboard-mobile-detail { display: block; font-size: 11px; }
+  .leaderboard-player img, .leaderboard-initials { flex-basis: 30px; width: 30px; height: 30px; }
+  .leaderboard-player-name { display: flex; }
+  .leaderboard-you { font-size: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

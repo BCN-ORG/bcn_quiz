@@ -11,12 +11,12 @@ export function Loading({ label = 'Đang tải dữ liệu' }: { label?: string 
   );
 }
 
-export function ErrorState({ message, retry }: { message: string; retry?: () => void }) {
+export function ErrorState({ title = 'Không tải được dữ liệu', message, retry }: { title?: string; message: string; retry?: () => void }) {
   return (
     <div className="state-panel error" role="alert">
       <Warning aria-hidden="true" />
       <div>
-        <strong>Không tải được dữ liệu</strong>
+        <strong>{title}</strong>
         <p>{message}</p>
       </div>
       {retry ? <button onClick={retry}>Thử lại</button> : null}

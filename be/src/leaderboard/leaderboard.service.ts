@@ -294,7 +294,7 @@ export class LeaderboardService {
       const profile = profiles.get(row.userId);
       const user = {
         id: row.userId,
-        fullName: profile?.fullName ?? 'User',
+        fullName: profile?.fullName?.trim() || 'Người dùng',
         avatarUrl: profile?.avatarUrl ?? null,
       };
       return row.completedDays === undefined
