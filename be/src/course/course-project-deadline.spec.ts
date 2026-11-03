@@ -78,12 +78,15 @@ describe('UpsertCourseProjectDto validation', () => {
       0,
     );
     expect(await check({ ...base, dueAt: '2026-12-01T10:00:00.123Z' })).toBe(0);
+    // matches the pattern but is absurdly long
+    const huge = `2026-12-01T10:00:00.${'0'.repeat(100_000)}Z`;
     for (const bad of [
       '2026-12-01',
       '2026-12-01T10:00:00',
       '2026-02-30T10:00:00Z',
       '0001-01-01T00:00:00Z',
       '',
+      huge,
     ]) {
       expect(await check({ ...base, dueAt: bad })).toBeGreaterThan(0);
     }

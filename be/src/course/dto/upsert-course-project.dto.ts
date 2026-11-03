@@ -55,6 +55,7 @@ export class UpsertCourseProjectDto {
    */
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
+  @MaxLength(40)
   @IsDateString({ strict: true })
   @Matches(DUE_AT_PATTERN, {
     message: 'dueAt must be a full ISO 8601 timestamp with a timezone',

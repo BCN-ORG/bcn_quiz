@@ -48,6 +48,10 @@ curl --fail http://127.0.0.1:18088/
 
 Ứng dụng chỉ bind host port trên `127.0.0.1`; Nginx proxy đến port này. Không mở port DB/Redis/MinIO từ Compose app. Entrypoint không tự migration mỗi restart; stack local dùng `RUN_MIGRATIONS=true`.
 
+## Siết chặt upload file project (presigned POST)
+
+Thứ tự rollout: (1) deploy BE; (2) deploy FE, FE gửi `method: "POST"` khi xin chữ ký; (3) kiểm tra upload project trên production qua proxy thật (CORS của bucket hoặc proxy phải cho phép `POST`); (4) đặt `UPLOAD_ALLOW_LEGACY_PUT=false` (cũng nhận `0`, `off`, `no`, không phân biệt hoa thường) rồi deploy lại BE. Giá trị khác, kể cả `disabled` hay `n`, vẫn để PUT mở. Từ bước 4, upload project chỉ dùng presigned POST: storage giới hạn 1 B đến 20 MiB, ép `Content-Type: application/octet-stream` và `Content-Disposition: attachment`. Upload ảnh và file đề bài của admin vẫn dùng PUT. Migration `project_requirement_due_at` chỉ thêm cột `dueAt` nullable, chạy bằng `prisma migrate deploy` như các migration khác.
+
 ## Frontend upload/download MinIO
 
 Giữ route xin chữ ký hiện có. Response trả `provider`, `method=PUT`, `uploadUrl`, `downloadUrl`, `publicId`, `secureUrl`, `maxBytes`, `expiresAt`. PUT và GET được ký trực tiếp bằng `https://storage.bcn.id.vn`, có hiệu lực 5 phút; frontend dùng nguyên URL, không thay hostname/path/query. `MINIO_FORCE_PATH_STYLE=true` ánh xạ sang `pathStyle: true` của SDK.
