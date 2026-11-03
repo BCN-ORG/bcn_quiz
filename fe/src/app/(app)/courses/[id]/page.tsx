@@ -55,6 +55,8 @@ export default function CourseDetailPage() {
   const [topicPage, setTopicPage] = useState(1);
   const [topicPagination, setTopicPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [error, setError] = useState('');
+  const [topicsError, setTopicsError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selected, setSelected] = useState<File[]>([]);
@@ -115,8 +117,8 @@ export default function CourseDetailPage() {
 
   useEffect(() => {
     void request.get<Pagination<CourseTopic>>(`/course/${id}/topics?page=${topicPage}&limit=10`)
-      .then((data) => { setTopics(data.items); setTopicPagination(data.pagination); })
-      .catch((reason) => setError(reason instanceof Error ? reason.message : 'Không tải được chủ đề'));
+      .then((data) => { setTopics(data.items); setTopicPagination(data.pagination); setTopicsError(''); })
+      .catch((reason) => setTopicsError(reason instanceof Error ? reason.message : 'Không tải được chủ đề'));
   }, [id, topicPage]);
 
   const canResubmit = !submission || submission.status === 'REJECTED' || submission.status === 'PENDING_REVIEW';
@@ -139,7 +141,7 @@ export default function CourseDetailPage() {
     }
     const controller = new AbortController();
     abortRef.current = controller;
-    setSubmitting(true); setError(''); setSuccess(''); setUploadPct(0);
+    setSubmitting(true); setSubmitError(''); setSuccess(''); setUploadPct(0);
     const total = selected.reduce((sum, file) => sum + file.size, 0);
     let finished = 0;
     try {
@@ -179,10 +181,10 @@ export default function CourseDetailPage() {
       setSuccess(`Đã nộp bài lúc ${new Date().toLocaleString('vi-VN')}. Bài đang chờ giảng viên duyệt.`);
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === 'AbortError') {
-        setError('Đã hủy tải lên. File bạn chọn vẫn được giữ; bấm Nộp khi muốn tải lại.');
+        setSubmitError('Đã hủy tải lên. File bạn chọn vẫn được giữ; bấm Nộp khi muốn tải lại.');
       } else {
         logUploadStageError(reason);
-        setError(describeSubmitError(reason));
+        setSubmitError(describeSubmitError(reason));
       }
     } finally {
       abortRef.current = null;
@@ -206,6 +208,7 @@ export default function CourseDetailPage() {
       </div>
       <section className="section">
         <div className="section-title"><h2>Nội dung khóa học</h2><span>{topicPagination.total} chủ đề</span></div>
+        {topicsError ? <p className="form-error" role="alert">{topicsError}</p> : null}
         <div className="topic-list">
           {topics.map((link, index) => {
             const topic = link.topic as Topic;
@@ -293,10 +296,10 @@ export default function CourseDetailPage() {
                   <progress max={100} value={uploadPct} aria-label="Tiến trình tải lên" />
                 </div>
               ) : null}
-              {error ? <p className="form-error" role="alert">{error}</p> : null}
+              {submitError ? <p className="form-error" role="alert">{submitError}</p> : null}
               <div className="list-actions">
                 <button className="button" disabled={submitting}>
-                  <UploadSimple /> {submitting ? 'Đang tải lên…' : error ? 'Thử lại' : submission?.status === 'REJECTED' ? 'Nộp lại project' : submission ? 'Cập nhật bài nộp' : 'Nộp project'}
+                  <UploadSimple /> {submitting ? 'Đang tải lên…' : submitError ? 'Thử lại' : submission?.status === 'REJECTED' ? 'Nộp lại project' : submission ? 'Cập nhật bài nộp' : 'Nộp project'}
                 </button>
                 {submitting ? <button type="button" className="button secondary" onClick={() => abortRef.current?.abort()}>Hủy tải lên</button> : null}
               </div>
