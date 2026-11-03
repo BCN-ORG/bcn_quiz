@@ -1,13 +1,16 @@
 'use client';
 
-import { CircleNotch, Warning } from '@phosphor-icons/react';
+import { Warning } from '@phosphor-icons/react';
 import { useEffect, useRef } from 'react';
 
 export function Loading({ label = 'Đang tải dữ liệu' }: { label?: string }) {
   return (
-    <div className="state-panel" role="status">
-      <CircleNotch className="spin" aria-hidden="true" />
-      <span>{label}</span>
+    <div className="skeleton-panel" role="status" aria-live="polite">
+      <p className="skeleton-label">{label}…</p>
+      <div className="skeleton skeleton-title" aria-hidden="true" />
+      <div className="skeleton skeleton-line" aria-hidden="true" />
+      <div className="skeleton skeleton-line short" aria-hidden="true" />
+      <div className="skeleton skeleton-block" aria-hidden="true" />
     </div>
   );
 }

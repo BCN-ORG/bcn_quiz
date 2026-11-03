@@ -68,7 +68,7 @@ test('quiz mobile 375px: bảng câu hỏi gọn một hàng, câu hỏi nằm t
   await startQuiz(page, 7);
   const nav = await page.locator('.quiz-nav').boundingBox();
   const question = await page.locator('#question-text').boundingBox();
-  expect(nav!.height).toBeLessThan(90);
+  expect(nav!.height).toBeLessThan(110); // dải câu hỏi + chú giải một dòng; trước khi gọn lại cao khoảng 190px
   expect(question!.y).toBeLessThan(500);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const target = await page.getByRole('radio').first().boundingBox();
@@ -97,4 +97,12 @@ test('quiz: mũi tên đổi đáp án theo radiogroup, PageDown/PageUp đổi c
   await expect(page.getByText(/Câu 2 \/ 2/).first()).toBeVisible();
   await page.keyboard.press('PageUp');
   await expect(page.getByText(/Câu 1 \/ 2/).first()).toBeVisible();
+});
+
+test('quiz mobile 375px: chú giải ✓ ⚑ vẫn hiển thị cạnh dải câu hỏi', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await startQuiz(page, 9);
+  await expect(page.locator('.map-legend')).toBeVisible();
+  await expect(page.locator('.map-legend')).toContainText('đánh dấu xem lại');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
