@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, CheckCircle, PaperPlaneTilt } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle, Flag, PaperPlaneTilt } from '@phosphor-icons/react';
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QuizReview } from '@/components/quiz-review';
 import { Empty, ErrorState, Loading, Status, ConfirmDialog } from '@/components/ui';
-import { request } from '@/lib/api';
+import { ApiError, request } from '@/lib/api';
 import { topicOpen } from '@/lib/format';
 import type { Pagination, Quiz, QuizSession, SessionResult, Topic } from '@/lib/types';
 
@@ -45,6 +45,10 @@ function TopicQuizPage() {
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [error, setError] = useState('');
+  const [savingCount, setSavingCount] = useState(0);
+  const [failedSave, setFailedSave] = useState<{ quizId: string; optionId: string } | null>(null);
+  const [sessionLost, setSessionLost] = useState(false);
+  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
 
   const startFresh = useCallback(async () => {
     const active = await request.post<QuizSession>(`/topic/${id}/session/start`, {
@@ -57,6 +61,8 @@ function TopicQuizPage() {
     setCurrent(0);
     setResult(null);
     setError('');
+    setSessionLost(false);
+    setFailedSave(null);
   }, [id]);
 
   const restartFresh = async () => {
@@ -114,20 +120,70 @@ function TopicQuizPage() {
   const quiz = quizzes[current];
   const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
   const unansweredCount = Math.max(0, quizzes.length - answeredCount);
-  const choose = async (optionId: string, label: string) => {
-    if (!quiz || !session || result) return;
-    const next = { ...answers, [quiz.id]: label };
-    setAnswers(next); setSaving(true);
-    try { await request.post(`/attempt/session/${session.id}/save`, { currentQuizId: quiz.id, selectedAnswer: optionId }); }
-    catch (reason) {
-      const message = reason instanceof Error ? reason.message : 'Không lưu được đáp án';
-      setError(message);
-      if (/not in progress|expired/i.test(message)) {
-        try { await startFresh(); } catch { /* keep original error */ }
-      }
-    }
-    finally { setSaving(false); }
+  const flaggedCount = quizzes.filter((item) => flagged[item.id]).length;
+  const sessionId = session?.id;
+  const flagKey = sessionId ? `bcn-quiz-flags:${sessionId}` : '';
+  useEffect(() => {
+    if (!flagKey) return;
+    try { setFlagged(JSON.parse(sessionStorage.getItem(flagKey) || '{}')); } catch { setFlagged({}); }
+  }, [flagKey]);
+  const toggleFlag = () => {
+    if (!quiz) return;
+    const next = { ...flagged, [quiz.id]: !flagged[quiz.id] };
+    if (!next[quiz.id]) delete next[quiz.id];
+    setFlagged(next);
+    try { sessionStorage.setItem(flagKey, JSON.stringify(next)); } catch { /* đánh dấu chỉ là tiện ích, bỏ qua nếu không lưu được */ }
   };
+
+  const save = useCallback(async (quizId: string, optionId: string) => {
+    if (!sessionId) return;
+    setSavingCount((count) => count + 1);
+    try {
+      await request.post(`/attempt/session/${sessionId}/save`, { currentQuizId: quizId, selectedAnswer: optionId });
+      setFailedSave((value) => (value?.quizId === quizId ? null : value));
+    } catch (reason) {
+      if (reason instanceof ApiError && /not in progress|expired/i.test(reason.message)) setSessionLost(true);
+      else setFailedSave({ quizId, optionId });
+    } finally {
+      setSavingCount((count) => count - 1);
+    }
+  }, [sessionId]);
+
+  // Mất mạng hoặc server lỗi tạm thời: tự thử lại sau 5 giây hoặc ngay khi mạng quay lại.
+  useEffect(() => {
+    if (!failedSave || sessionLost) return;
+    const retry = () => void save(failedSave.quizId, failedSave.optionId);
+    const timer = window.setTimeout(retry, 5000);
+    window.addEventListener('online', retry);
+    return () => { window.clearTimeout(timer); window.removeEventListener('online', retry); };
+  }, [failedSave, sessionLost, save]);
+
+  const choose = useCallback((optionId: string, label: string) => {
+    if (!quiz || !session || result || sessionLost) return;
+    setAnswers((value) => ({ ...value, [quiz.id]: label }));
+    void save(quiz.id, optionId);
+  }, [quiz, session, result, sessionLost, save]);
+
+  useEffect(() => {
+    if (!session || result || confirmSubmit || confirmRestart || !quiz) return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === 'ArrowRight' && current < quizzes.length - 1) { setCurrent(current + 1); return; }
+      if (event.key === 'ArrowLeft' && current > 0) { setCurrent(current - 1); return; }
+      const options = optionsOf(quiz);
+      const index = /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : options.findIndex(([, label]) => label.toLowerCase() === event.key.toLowerCase());
+      if (event.key.length === 1 && index >= 0 && index < options.length) { event.preventDefault(); choose(options[index][0], options[index][1]); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [session, result, confirmSubmit, confirmRestart, quiz, quizzes.length, current, choose]);
+
+  useEffect(() => {
+    document.querySelector('.question-map button.current')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [current, session]);
+
+  const saveLabel = failedSave ? 'Chưa lưu được đáp án' : savingCount > 0 ? 'Đang lưu…' : answeredCount > 0 ? 'Đã lưu' : '';
   const submitting = useRef(false);
   const submit = async () => {
     if (!session || submitting.current) return;
@@ -195,27 +251,51 @@ function TopicQuizPage() {
   return (
     <>
       <header className="page-heading">
-        <div><p className="eyebrow">{topic.name}</p><h1>Câu {current + 1} / {quizzes.length}</h1><p>≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu · {answeredCount} câu đã trả lời{saving ? ', đang lưu' : ''}</p></div>
+        <div><p className="eyebrow">{topic.name}</p><h1>Câu {current + 1} / {quizzes.length}</h1><p>≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu · {answeredCount}/{quizzes.length} câu đã trả lời</p><p className={`save-status ${failedSave ? 'is-error' : ''}`} role="status" aria-live="polite">{saveLabel}</p></div>
         <div className="list-actions"><Link className="button secondary" href={leaderboardHref} target="_blank" rel="noopener noreferrer">Xem bảng xếp hạng</Link><button type="button" className="button secondary" disabled={saving} onClick={() => setConfirmRestart(true)}>Bỏ bài dở & làm lại</button></div>
       </header>
       {error ? <p className="form-error">{error}</p> : null}
+      {failedSave ? (
+        <div className="notice notice-danger" role="alert">
+          <strong>Chưa lưu được đáp án câu {quizzes.findIndex((item) => item.id === failedSave.quizId) + 1}.</strong>
+          <p>Kiểm tra kết nối mạng. Hệ thống tự thử lại sau vài giây; bạn cũng có thể thử ngay. Đừng đóng trang cho tới khi báo &quot;Đã lưu&quot;.</p>
+          <button type="button" className="button secondary" onClick={() => void save(failedSave.quizId, failedSave.optionId)}>Thử lại ngay</button>
+        </div>
+      ) : null}
+      {sessionLost ? (
+        <div className="notice notice-danger" role="alert">
+          <strong>Phiên làm bài này không còn hiệu lực.</strong>
+          <p>Không thể lưu thêm đáp án vào phiên này. Bạn có thể bắt đầu một phiên mới.</p>
+          <button type="button" className="button secondary" disabled={saving} onClick={() => { setSaving(true); void startFresh().catch((reason) => setError(reason instanceof Error ? reason.message : 'Không thể bắt đầu phiên mới')).finally(() => setSaving(false)); }}>Bắt đầu phiên mới</button>
+        </div>
+      ) : null}
       <div className="quiz-layout">
         <section className="panel quiz-question">
-          <h1>{content.text}</h1>
+          <h2 id="question-text">{content.text}</h2>
           {content.code ? <pre className="code-block"><code>{content.code}</code></pre> : null}
           {content.image ? <Image src={content.image} alt="Minh họa cho câu hỏi" width={960} height={540} style={{ width: '100%', height: 'auto', borderRadius: 12 }} /> : null}
-          <div className="answer-list">{optionsOf(quiz).map(([optionId, label, text]) => <button key={optionId} className={`answer ${answers[quiz.id] === label ? 'selected' : ''}`} disabled={saving} onClick={() => void choose(optionId, label)}><span>{label}</span><span>{text}</span></button>)}</div>
+          <div className="answer-list" role="radiogroup" aria-labelledby="question-text">{optionsOf(quiz).map(([optionId, label, text]) => {
+            const selected = answers[quiz.id] === label;
+            return <button key={optionId} type="button" role="radio" aria-checked={selected} className={`answer ${selected ? 'selected' : ''}`} disabled={saving || sessionLost} onClick={() => choose(optionId, label)}><span>{label}</span><span>{text}</span>{selected ? <Check weight="bold" aria-hidden="true" /> : null}</button>;
+          })}</div>
+          <p className="answer-hint">Chọn một đáp án. Phím tắt: bấm A–D hoặc 1–4 để chọn, phím ← → để đổi câu.</p>
+          <button type="button" className={`button secondary quiz-flag ${flagged[quiz.id] ? 'is-flagged' : ''}`} aria-pressed={Boolean(flagged[quiz.id])} onClick={toggleFlag}><Flag weight={flagged[quiz.id] ? 'fill' : 'regular'} /> {flagged[quiz.id] ? 'Bỏ đánh dấu xem lại' : 'Đánh dấu xem lại'}</button>
           <div className="list-actions" style={{ justifyContent: 'space-between', marginTop: 24 }}>
             <button className="button secondary" disabled={current === 0} onClick={() => setCurrent((value) => value - 1)}><ArrowLeft /> Câu trước</button>
             {current < quizzes.length - 1 ? <button className="button" onClick={() => setCurrent((value) => value + 1)}>Câu tiếp <ArrowRight /></button> : <button className="button" disabled={saving} onClick={() => setConfirmSubmit(true)}><PaperPlaneTilt /> Nộp bài</button>}
           </div>
+          {current < quizzes.length - 1 ? <button type="button" className="button secondary quiz-submit-inline" disabled={saving} onClick={() => setConfirmSubmit(true)}><PaperPlaneTilt /> Nộp bài</button> : null}
         </section>
-        <aside className="panel quiz-nav"><h3>Danh sách câu</h3><div className="question-map">{quizzes.map((item, index) => <button key={item.id} className={`${index === current ? 'current' : ''} ${answers[item.id] ? 'answered' : ''}`} onClick={() => setCurrent(index)} aria-label={`Câu ${index + 1}`}>{index + 1}</button>)}</div><button className="button" style={{ width: '100%', marginTop: 20 }} disabled={saving} onClick={() => setConfirmSubmit(true)}><PaperPlaneTilt /> Nộp bài</button></aside>
+        <aside className="panel quiz-nav"><h3>Danh sách câu</h3><div className="question-map">{quizzes.map((item, index) => {
+          const done = Boolean(answers[item.id]);
+          const flag = Boolean(flagged[item.id]);
+          return <button key={item.id} type="button" className={`${index === current ? 'current' : ''} ${done ? 'answered' : ''} ${flag ? 'flagged' : ''}`} aria-current={index === current ? 'step' : undefined} aria-label={`Câu ${index + 1}: ${done ? 'đã làm' : 'chưa làm'}${flag ? ', đánh dấu xem lại' : ''}${index === current ? ', đang xem' : ''}`} onClick={() => setCurrent(index)}>{index + 1}</button>;
+        })}</div><p className="map-legend">✓ đã làm · ⚑ đánh dấu xem lại · khung đậm: câu đang xem</p><button className="button quiz-nav-submit" disabled={saving} onClick={() => setConfirmSubmit(true)}><PaperPlaneTilt /> Nộp bài</button></aside>
       </div>
       <ConfirmDialog
         open={confirmSubmit}
         title="Nộp bài?"
-        message={`${unansweredCount ? `Còn ${unansweredCount} câu chưa làm` : 'Bạn đã trả lời tất cả các câu'}. Sau khi nộp bạn sẽ xem kết quả và không sửa được đáp án lần này. Câu bỏ trống được tính sai.`}
+        message={`${unansweredCount ? `Còn ${unansweredCount} câu chưa làm` : 'Bạn đã trả lời tất cả các câu'}${flaggedCount ? `, ${flaggedCount} câu đang đánh dấu xem lại` : ''}. Sau khi nộp bạn sẽ xem kết quả và không sửa được đáp án lần này. Câu bỏ trống được tính sai.`}
         confirmLabel="Nộp bài"
         cancelLabel="Quay lại làm tiếp"
         cancelPrimary
