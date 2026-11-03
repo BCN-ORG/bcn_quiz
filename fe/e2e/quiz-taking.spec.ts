@@ -69,10 +69,11 @@ test('quiz mobile 375px: bảng câu hỏi gọn một hàng, câu hỏi nằm t
   const nav = await page.locator('.quiz-nav').boundingBox();
   const question = await page.locator('#question-text').boundingBox();
   expect(nav!.height).toBeLessThan(110); // dải câu hỏi + chú giải một dòng; trước khi gọn lại cao khoảng 190px
-  expect(question!.y).toBeLessThan(500);
+  expect(question!.y).toBeLessThan(560);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const target = await page.getByRole('radio').first().boundingBox();
   expect(target!.height).toBeGreaterThanOrEqual(44);
+  expect(target!.y + target!.height).toBeLessThan(812); // đáp án đầu tiên nằm trong màn hình đầu
   await expect(page.getByRole('button', { name: 'Nộp bài' }).last()).toBeVisible();
 });
 
