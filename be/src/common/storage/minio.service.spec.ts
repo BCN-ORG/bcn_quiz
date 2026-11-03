@@ -73,6 +73,31 @@ describe('MinioService', () => {
     expect(new Date(result.expiresAt).getTime()).toBeGreaterThan(Date.now());
   });
 
+  it('createPostSignature also returns a short-lived signed GET so the stored object can be read back', async () => {
+    const service = new MinioService();
+    const result = await service.createPostSignature({
+      folder: 'project-submissions/course-1/user-1',
+    });
+    const url = new URL(result.downloadUrl);
+    expect(url.origin).toBe('https://storage.bcn.id.vn');
+    expect(url.pathname).toBe(`/profiles/${result.publicId}`);
+    expect(url.searchParams.get('X-Amz-Expires')).toBe('300');
+  });
+
+  it('browser CORS rule allows POST so the multipart upload is not blocked in production', async () => {
+    const service = new MinioService();
+    const spy = jest.fn().mockResolvedValue(undefined);
+    const client = (service as unknown as { client: Record<string, unknown> })
+      .client;
+    client.makeRequestAsyncOmit = spy;
+    await (
+      service as unknown as { ensureBrowserCors: (c: unknown) => Promise<void> }
+    ).ensureBrowserCors(client);
+    const body = String(spy.mock.calls[0][1]);
+    for (const method of ['GET', 'HEAD', 'PUT', 'POST'])
+      expect(body).toContain(`<AllowedMethod>${method}</AllowedMethod>`);
+  });
+
   it('rejects lookalike hosts, another bucket, mismatched keys and path traversal', () => {
     const service = new MinioService();
     expect(() =>

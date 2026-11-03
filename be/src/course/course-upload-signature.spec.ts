@@ -75,6 +75,54 @@ describe('CourseService.createUploadSignature method selection', () => {
   });
 });
 
+describe('UPLOAD_ALLOW_LEGACY_PUT parsing', () => {
+  const minio = {
+    createUploadSignature: jest.fn().mockResolvedValue({ method: 'PUT' }),
+    createPostSignature: jest.fn(),
+  };
+  const prisma = {
+    course: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ id: 'course-1', hasProject: true }),
+    },
+  };
+  const previous = process.env.UPLOAD_ALLOW_LEGACY_PUT;
+  afterAll(() => {
+    if (previous === undefined) delete process.env.UPLOAD_ALLOW_LEGACY_PUT;
+    else process.env.UPLOAD_ALLOW_LEGACY_PUT = previous;
+  });
+
+  it.each(['false', 'FALSE', ' False ', '0', 'off', 'no'])(
+    'treats %p as "legacy PUT disabled"',
+    async (value) => {
+      process.env.UPLOAD_ALLOW_LEGACY_PUT = value;
+      const service = new CourseService(
+        prisma as never,
+        {} as never,
+        minio as never,
+        {} as never,
+      );
+      await expect(
+        service.createUploadSignature('course-1', req, {}),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    },
+  );
+
+  it.each(['true', '1', 'on', ''])('keeps legacy PUT for %p', async (value) => {
+    process.env.UPLOAD_ALLOW_LEGACY_PUT = value;
+    const service = new CourseService(
+      prisma as never,
+      {} as never,
+      minio as never,
+      {} as never,
+    );
+    await expect(
+      service.createUploadSignature('course-1', req, {}),
+    ).resolves.toEqual({ method: 'PUT' });
+  });
+});
+
 describe('CreateUploadSignatureDto validation', () => {
   const check = async (plain: object) =>
     (

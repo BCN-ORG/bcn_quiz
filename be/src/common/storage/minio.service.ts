@@ -161,6 +161,7 @@ ${allowedOrigins}
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>HEAD</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>POST</AllowedMethod>
     <AllowedHeader>*</AllowedHeader>
     <ExposeHeader>ETag</ExposeHeader>
     <ExposeHeader>Content-Length</ExposeHeader>
@@ -281,11 +282,13 @@ ${allowedOrigins}
     policy.setContentType('application/octet-stream');
     policy.setContentDisposition('attachment');
     const { postURL, formData } = await client.presignedPostPolicy(policy);
+    const downloadUrl = await this.createDownloadUrl(publicId);
     return {
       provider: 'minio',
       method: 'POST' as const,
       postUrl: postURL,
       fields: formData,
+      downloadUrl,
       publicId,
       secureUrl: this.objectUrl(publicId),
       maxBytes,

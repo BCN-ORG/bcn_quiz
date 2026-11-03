@@ -38,6 +38,8 @@ import { ProfilesService } from '../profiles/profiles.service';
 import { withTopicAvailability } from '../topic/topic-schedule';
 
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.zip', '.rar', '.pdf', '.docx']);
+/** Values of UPLOAD_ALLOW_LEGACY_PUT that switch the legacy presigned PUT off. */
+const LEGACY_PUT_OFF = new Set(['false', '0', 'off', 'no']);
 const MAX_PROJECT_FILES = 5;
 const MAX_PROJECT_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -688,7 +690,11 @@ export class CourseService {
       return this.minioService.createPostSignature({ folder, publicId });
     }
     // A presigned PUT cannot limit object size; ops turn this off once the FE uses POST.
-    if (process.env.UPLOAD_ALLOW_LEGACY_PUT === 'false') {
+    if (
+      LEGACY_PUT_OFF.has(
+        (process.env.UPLOAD_ALLOW_LEGACY_PUT ?? '').trim().toLowerCase(),
+      )
+    ) {
       throw new BadRequestException('Use method=POST for project uploads');
     }
 

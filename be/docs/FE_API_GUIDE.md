@@ -898,7 +898,7 @@ Body `POST /course/:id/upload/signature`:
 }
 ```
 
-`method` (optional): `POST` tra presigned POST policy duoc MinIO thuc thi (1 B den 20 MB, `Content-Type` co dinh `application/octet-stream`, `Content-Disposition: attachment`, key co dinh). Bo qua hoac `PUT` giu presigned PUT cu (khong gioi han dung luong o phia storage). Khi ops dat `UPLOAD_ALLOW_LEGACY_PUT=false`, request khong co `method=POST` bi `400`. Thu tu rollout: deploy BE, deploy FE (gui `method: "POST"`), roi dat `UPLOAD_ALLOW_LEGACY_PUT=false`. Chi endpoint nay ho tro `POST`; cac endpoint upload admin van dung PUT.
+`method` (optional): `POST` tra presigned POST policy duoc MinIO thuc thi (1 B den 20 MB, `Content-Type` co dinh `application/octet-stream`, `Content-Disposition: attachment`, key co dinh). Bo qua hoac `PUT` giu presigned PUT cu (khong gioi han dung luong o phia storage). Khi ops dat `UPLOAD_ALLOW_LEGACY_PUT` thanh `false`, `0`, `off` hoac `no` (khong phan biet hoa thuong), request khong co `method=POST` bi `400`. CORS cua bucket phai cho phep `POST` (backend tu dat khi khoi dong neu storage ho tro CORS theo bucket; neu storage la proxy khac thi cau hinh `POST` o do) — smoke-test upload POST tren production truoc khi tat PUT. Thu tu rollout: deploy BE, deploy FE (gui `method: "POST"`), roi dat `UPLOAD_ALLOW_LEGACY_PUT=false`. Chi endpoint nay ho tro `POST`; cac endpoint upload admin van dung PUT.
 
 Response `data`:
 
@@ -924,6 +924,7 @@ Response `data` khi `method: "POST"`:
   "method": "POST",
   "postUrl": "https://storage.bcn.id.vn/quizzes",
   "fields": { "key": "...", "Content-Type": "application/octet-stream", "Content-Disposition": "attachment", "policy": "...", "x-amz-signature": "..." },
+  "downloadUrl": "https://storage.bcn.id.vn/quizzes/<object-key>?<GET-signature>",
   "publicId": "project-submissions/<courseId>/<userId>/upload-<uuid>",
   "secureUrl": "https://storage.bcn.id.vn/quizzes/project-submissions/<courseId>/<userId>/upload-<uuid>",
   "maxBytes": 20971520,
@@ -1035,7 +1036,7 @@ Luu y project requirement:
 }
 ```
 
-`dueAt` (optional, ISO 8601): han nop hien thi cho hoc vien. **Khong chan** nop muon; bai nop co `submittedAt > dueAt` duoc FE gan nhan "Nop muon". Bo qua field khi `PUT` de giu han cu, gui `"dueAt": null` de xoa.
+`dueAt` (optional, ISO 8601 day du gio va mui gio, vi du `2026-12-01T17:00:00+07:00` hoac `...Z`; ngay don le hoac thieu mui gio bi `400`): han nop hien thi cho hoc vien. **Khong chan** nop muon; bai nop co `submittedAt > dueAt` duoc FE gan nhan "Nop muon". Bo qua field khi `PUT` de giu han cu, gui `"dueAt": null` de xoa.
 
 **Body `PUT /course/:id/project-requirement`:**
 

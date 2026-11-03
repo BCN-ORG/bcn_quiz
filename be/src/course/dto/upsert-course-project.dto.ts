@@ -5,10 +5,15 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
 import { OBJECT_STORAGE_URL_OPTIONS } from '../../common/validation/object-storage-url';
+
+/** Full timestamp with a timezone and a plausible year; date-only or zoneless values are ambiguous. */
+const DUE_AT_PATTERN =
+  /^(19|20)\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
 
 export class UpsertCourseProjectDto {
   @IsString()
@@ -50,6 +55,9 @@ export class UpsertCourseProjectDto {
    */
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
-  @IsDateString()
+  @IsDateString({ strict: true })
+  @Matches(DUE_AT_PATTERN, {
+    message: 'dueAt must be a full ISO 8601 timestamp with a timezone',
+  })
   dueAt?: string | null;
 }
