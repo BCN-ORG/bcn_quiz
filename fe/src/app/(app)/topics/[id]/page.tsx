@@ -46,7 +46,9 @@ function TopicQuizPage() {
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [error, setError] = useState('');
   const [savingCount, setSavingCount] = useState(0);
-  const [failedSave, setFailedSave] = useState<{ quizId: string; optionId: string } | null>(null);
+  const [failedSave, setFailedSave] = useState<{ quizId: string } | null>(null);
+  const latestChoice = useRef<Record<string, string>>({});
+  const inFlight = useRef(new Set<string>());
   const [sessionLost, setSessionLost] = useState(false);
   const [flagged, setFlagged] = useState<Record<string, boolean>>({});
 
@@ -135,16 +137,27 @@ function TopicQuizPage() {
     try { sessionStorage.setItem(flagKey, JSON.stringify(next)); } catch { /* đánh dấu chỉ là tiện ích, bỏ qua nếu không lưu được */ }
   };
 
-  const save = useCallback(async (quizId: string, optionId: string) => {
-    if (!sessionId) return;
+  // Mỗi câu chỉ có một request lưu bay cùng lúc và đáp án mới nhất luôn thắng, để đáp án cũ không ghi đè đáp án mới trên server.
+  useEffect(() => { latestChoice.current = {}; inFlight.current.clear(); }, [sessionId]);
+  const save = useCallback(async (quizId: string) => {
+    if (!sessionId || inFlight.current.has(quizId)) return;
+    inFlight.current.add(quizId);
     setSavingCount((count) => count + 1);
     try {
-      await request.post(`/attempt/session/${sessionId}/save`, { currentQuizId: quizId, selectedAnswer: optionId });
+      let sent: string | undefined;
+      while (latestChoice.current[quizId] !== sent) {
+        sent = latestChoice.current[quizId];
+        try {
+          await request.post(`/attempt/session/${sessionId}/save`, { currentQuizId: quizId, selectedAnswer: sent });
+        } catch (reason) {
+          if (reason instanceof ApiError && /not in progress|expired/i.test(reason.message)) setSessionLost(true);
+          else setFailedSave({ quizId });
+          return;
+        }
+      }
       setFailedSave((value) => (value?.quizId === quizId ? null : value));
-    } catch (reason) {
-      if (reason instanceof ApiError && /not in progress|expired/i.test(reason.message)) setSessionLost(true);
-      else setFailedSave({ quizId, optionId });
     } finally {
+      inFlight.current.delete(quizId);
       setSavingCount((count) => count - 1);
     }
   }, [sessionId]);
@@ -152,7 +165,7 @@ function TopicQuizPage() {
   // Mất mạng hoặc server lỗi tạm thời: tự thử lại sau 5 giây hoặc ngay khi mạng quay lại.
   useEffect(() => {
     if (!failedSave || sessionLost) return;
-    const retry = () => void save(failedSave.quizId, failedSave.optionId);
+    const retry = () => void save(failedSave.quizId);
     const timer = window.setTimeout(retry, 5000);
     window.addEventListener('online', retry);
     return () => { window.clearTimeout(timer); window.removeEventListener('online', retry); };
@@ -161,7 +174,8 @@ function TopicQuizPage() {
   const choose = useCallback((optionId: string, label: string) => {
     if (!quiz || !session || result || sessionLost) return;
     setAnswers((value) => ({ ...value, [quiz.id]: label }));
-    void save(quiz.id, optionId);
+    latestChoice.current[quiz.id] = optionId;
+    void save(quiz.id);
   }, [quiz, session, result, sessionLost, save]);
 
   useEffect(() => {
@@ -259,7 +273,7 @@ function TopicQuizPage() {
         <div className="notice notice-danger" role="alert">
           <strong>Chưa lưu được đáp án câu {quizzes.findIndex((item) => item.id === failedSave.quizId) + 1}.</strong>
           <p>Kiểm tra kết nối mạng. Hệ thống tự thử lại sau vài giây; bạn cũng có thể thử ngay. Đừng đóng trang cho tới khi báo &quot;Đã lưu&quot;.</p>
-          <button type="button" className="button secondary" onClick={() => void save(failedSave.quizId, failedSave.optionId)}>Thử lại ngay</button>
+          <button type="button" className="button secondary" onClick={() => void save(failedSave.quizId)}>Thử lại ngay</button>
         </div>
       ) : null}
       {sessionLost ? (
