@@ -47,14 +47,20 @@ async function refresh(): Promise<boolean> {
 }
 
 export async function api<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      credentials: 'include',
+      headers: {
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...init.headers,
+      },
+    });
+  } catch (error) {
+    if (error instanceof TypeError) throw new TypeError('Mất kết nối mạng. Kiểm tra kết nối rồi thử lại.');
+    throw error;
+  }
   const body = (await response.json().catch(() => null)) as Envelope<T> | T | null;
 
   if (response.status === 401 && !retried && !path.startsWith('/auth/')) {
@@ -62,8 +68,13 @@ export async function api<T>(path: string, init: RequestInit = {}, retried = fal
   }
   if (!response.ok) {
     const message = body && typeof body === 'object' && 'message' in body ? body.message : undefined;
+    const friendly = response.status === 429
+      ? 'Bạn thao tác quá nhanh. Hãy chờ vài giây rồi thử lại.'
+      : response.status >= 502 && response.status <= 504
+        ? 'Máy chủ đang bận. Hãy thử lại sau ít phút.'
+        : undefined;
     throw new ApiError(
-      Array.isArray(message) ? message.join(', ') : message || 'Không thể xử lý yêu cầu',
+      friendly ?? (Array.isArray(message) ? message.join(', ') : message || 'Không thể xử lý yêu cầu'),
       response.status,
       response.headers.get('x-request-id'),
     );
