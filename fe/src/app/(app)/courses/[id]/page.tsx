@@ -107,12 +107,26 @@ export default function CourseDetailPage() {
   }, [id]);
   useEffect(() => { void load(); }, [load]);
 
-  // Đang tải lên hoặc còn file chưa nộp: nhắc trước khi đóng/tải lại tab.
+  // Đang tải lên hoặc còn file chưa nộp: nhắc trước khi đóng/tải lại tab và khi bấm link nội bộ.
   useEffect(() => {
     if (!submitting && !selected.length) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    const guardLinks = (event: MouseEvent) => {
+      const anchor = (event.target as HTMLElement).closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === '_blank' || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return;
+      const message = submitting
+        ? 'Bài đang được tải lên. Rời trang bây giờ có thể làm mất bài nộp. Bạn vẫn muốn rời đi?'
+        : 'Bạn đã chọn file nhưng chưa nộp. Rời trang bây giờ sẽ mất danh sách file. Bạn vẫn muốn rời đi?';
+      if (!window.confirm(message)) { event.preventDefault(); event.stopPropagation(); }
+    };
     window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
+    document.addEventListener('click', guardLinks, true);
+    return () => {
+      window.removeEventListener('beforeunload', warn);
+      document.removeEventListener('click', guardLinks, true);
+    };
   }, [submitting, selected.length]);
 
   useEffect(() => {
