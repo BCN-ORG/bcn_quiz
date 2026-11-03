@@ -23,6 +23,9 @@ jobs:
       - run: npm test -- --runInBand --forceExit
       - run: node --test scripts/generate-production-env.test.mjs
       - run: npm run build
+      # Non-blocking until minio/exceljs advisories are resolved
+      - run: npm audit --omit=dev --audit-level high
+        continue-on-error: true
 
   frontend:
     runs-on: ubuntu-latest
