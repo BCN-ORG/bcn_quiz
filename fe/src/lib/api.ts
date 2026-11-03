@@ -101,6 +101,48 @@ export async function uploadFile(signaturePath: string, file: File) {
   return signed;
 }
 
+export async function uploadFileWithProgress(
+  signaturePath: string,
+  file: File,
+  options: { onProgress?: (loadedBytes: number) => void; signal?: AbortSignal } = {},
+) {
+  const signed = await createUploadSignature(signaturePath, file);
+  if (file.size > signed.maxBytes) throw new Error('File vượt quá dung lượng cho phép');
+  await putSignedFileWithProgress(signed.uploadUrl, file, file.type || 'application/octet-stream', options);
+  return signed;
+}
+
+function putSignedFileWithProgress(
+  uploadUrl: string,
+  file: File,
+  contentType: string,
+  { onProgress, signal }: { onProgress?: (loadedBytes: number) => void; signal?: AbortSignal },
+) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Upload cancelled', 'AbortError'));
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    const details = { fileSize: file.size, mime: contentType };
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress?.(event.loaded); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) { resolve(); return; }
+      reject(new UploadStageError('storage', `Unable to upload file to storage. (${xhr.status})`, {
+        ...details,
+        status: xhr.status,
+        code: xhr.responseText.match(/<Code>([^<]+)<\/Code>/)?.[1],
+      }));
+    };
+    xhr.onerror = () => reject(new UploadStageError('storage', 'Network error while uploading file.', details));
+    xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+    signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+    xhr.send(file);
+  });
+}
+
 export async function uploadImageFile(signaturePath: string, file: File) {
   validateImageType(file);
   const signed = await createUploadSignature(signaturePath, file);

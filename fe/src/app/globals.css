@@ -257,7 +257,22 @@ img { display: block; max-width: 100%; }
 .file-links svg { width: 14px; height: 14px; }
 .notice { margin-top: 16px; padding: 16px; border-radius: 13px; }
 .notice-danger { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.notice-success { background: var(--accent-soft); color: var(--accent-strong); }
+.notice-info { margin-top: 0; background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--text); }
 .notice-danger strong, .notice-danger p { display: block; }
+.project-rules { padding: 10px 14px; border-radius: 12px; background: var(--surface-2); }
+.dropzone { display: grid; justify-items: center; gap: 6px; padding: 22px 16px; border: 2px dashed var(--line); border-radius: 14px; background: var(--surface-2); color: var(--muted); text-align: center; }
+.dropzone.is-dragging { border-color: var(--accent); background: var(--accent-soft); }
+.dropzone svg { width: 28px; height: 28px; color: var(--accent-strong); }
+.dropzone p { margin: 0; }
+.dropzone-button { position: relative; cursor: pointer; }
+.dropzone-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; padding: 0; }
+.dropzone-button:focus-within { outline: 3px solid var(--accent); outline-offset: 3px; }
+.selected-files { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.selected-files li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.selected-files li > span { min-width: 0; overflow-wrap: anywhere; }
+.selected-files small { color: var(--muted); }
+.upload-progress progress { width: 100%; height: 10px; accent-color: var(--accent); }
 .notice-danger p { margin: 6px 0 0; }
 .choice-list { display: grid; gap: 4px; max-height: 240px; overflow: auto; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
 .choice-list label { display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 0 10px; border-radius: 10px; }

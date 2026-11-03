@@ -76,6 +76,7 @@ export function Status({ value }: { value?: string | null }) {
     PROJECT_PENDING_APPROVAL: 'Chờ duyệt project',
     COMPLETED: 'Hoàn thành',
     PENDING_REVIEW: 'Chờ duyệt',
+    NOT_SUBMITTED: 'Chưa nộp',
     APPROVED: 'Đã duyệt',
     REJECTED: 'Cần chỉnh sửa',
     OPEN: 'Đang mở',
