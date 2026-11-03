@@ -83,11 +83,12 @@ test('đồng hồ: thiếu header Date thì dùng đồng hồ máy, không hi�
 
 test('đồng hồ: header Date sai định dạng ("1", "12") bị bỏ qua thay vì lệch hàng chục năm', async ({ page }) => {
   const { courseId, topicId } = await pickCourse(page.request, 14);
-  for (const rawDate of ['1', '12', 'tomorrow']) {
+  // Date đúng định dạng nhưng lệch quá xa (proxy sai hoặc bị làm giả) cũng bị bỏ qua: giới hạn độ lệch 24 giờ.
+  const yearAhead = new Date(Date.now() + 365 * 24 * 3600_000).toUTCString();
+  for (const rawDate of ['1', '12', 'tomorrow', 'Thu, 01 Jan 1970 00:00:00 GMT', yearAhead]) {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await skewServer(page, topicId, { skewMs: 0, endsInMs: 3 * 60_000 + 500, rawDate });
     await page.goto(`/topics/${topicId}?courseId=${courseId}`);
     await expect(page.locator('.topic-clock')).toContainText(/Còn 00:0[23]:\d\d/);
   }
 });
-

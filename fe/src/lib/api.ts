@@ -35,13 +35,15 @@ let refreshPromise: Promise<boolean> | null = null;
 // Offset to the server clock taken from the Date response header (1 s resolution, display only).
 let serverOffsetMs = 0;
 export const serverNow = () => Date.now() + serverOffsetMs;
+const MAX_CLOCK_OFFSET_MS = 24 * 3600_000;
 const HTTP_DATE = /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/;
 function noteServerTime(response: Response) {
   // Only a well-formed HTTP-date counts: Date.parse('1') would otherwise read as the year 2001.
   const raw = response.headers.get('date');
   if (!raw || !HTTP_DATE.test(raw)) return;
   const parsed = Date.parse(raw);
-  if (!Number.isNaN(parsed)) serverOffsetMs = parsed - Date.now();
+  // A well-formed but wildly wrong date (broken or hostile proxy) must not hijack every countdown.
+  if (!Number.isNaN(parsed) && Math.abs(parsed - Date.now()) <= MAX_CLOCK_OFFSET_MS) serverOffsetMs = parsed - Date.now();
 }
 
 async function refresh(): Promise<boolean> {
