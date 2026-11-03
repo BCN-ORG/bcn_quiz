@@ -73,7 +73,8 @@ export default function CourseDetailPage() {
 
   const submitProject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const files = Array.from(form.getAll('files')).filter((item): item is File => item instanceof File && item.size > 0);
     if (!files.length) {
       setError('Chọn ít nhất một file để nộp.');
@@ -102,7 +103,7 @@ export default function CourseDetailPage() {
       } else {
         await request.post(`/course/${id}/project-submission`, body);
       }
-      event.currentTarget.reset();
+      formElement.reset();
       await load();
     } catch (reason) {
       logUploadStageError(reason);
