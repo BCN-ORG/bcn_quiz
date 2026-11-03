@@ -29,7 +29,7 @@ test('quiz: radiogroup, phím tắt, đánh dấu xem lại và trạng thái c�
   await page.reload();
   await expect(page.getByRole('button', { name: /^Câu 1:/ })).toHaveAttribute('aria-label', /đánh dấu xem lại/);
 
-  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('PageDown');
   await expect(page.getByText(/Câu 2 \/ 2/).first()).toBeVisible();
   await expect(page.getByRole('button', { name: /^Câu 2:/ })).toHaveAttribute('aria-label', /chưa làm/);
 });
@@ -74,4 +74,27 @@ test('quiz mobile 375px: bảng câu hỏi gọn một hàng, câu hỏi nằm t
   const target = await page.getByRole('radio').first().boundingBox();
   expect(target!.height).toBeGreaterThanOrEqual(44);
   await expect(page.getByRole('button', { name: 'Nộp bài' }).last()).toBeVisible();
+});
+
+test('quiz: mũi tên đổi đáp án theo radiogroup, PageDown/PageUp đổi câu', async ({ page }) => {
+  await startQuiz(page, 8);
+  const radios = page.getByRole('radio');
+  const count = await radios.count();
+  await radios.first().focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(radios.nth(1)).toHaveAttribute('aria-checked', 'true');
+  await expect(radios.nth(1)).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(radios.nth(2 % count)).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('ArrowUp');
+  await expect(radios.nth(1)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByText(/Câu 1 \/ 2/).first()).toBeVisible();
+
+  await expect(radios.nth(1)).toHaveAttribute('tabindex', '0');
+  await expect(radios.nth(0)).toHaveAttribute('tabindex', '-1');
+
+  await page.keyboard.press('PageDown');
+  await expect(page.getByText(/Câu 2 \/ 2/).first()).toBeVisible();
+  await page.keyboard.press('PageUp');
+  await expect(page.getByText(/Câu 1 \/ 2/).first()).toBeVisible();
 });

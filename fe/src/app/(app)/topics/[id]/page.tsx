@@ -187,8 +187,8 @@ function TopicQuizPage() {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key === 'ArrowRight' && current < quizzes.length - 1) { setCurrent(current + 1); return; }
-      if (event.key === 'ArrowLeft' && current > 0) { setCurrent(current - 1); return; }
+      if (event.key === 'PageDown' && current < quizzes.length - 1) { event.preventDefault(); setCurrent(current + 1); return; }
+      if (event.key === 'PageUp' && current > 0) { event.preventDefault(); setCurrent(current - 1); return; }
       const options = optionsOf(quiz);
       const index = /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : options.findIndex(([, label]) => label.toLowerCase() === event.key.toLowerCase());
       if (event.key.length === 1 && index >= 0 && index < options.length) { event.preventDefault(); choose(options[index][0], options[index][1]); }
@@ -292,11 +292,20 @@ function TopicQuizPage() {
           <h2 id="question-text">{content.text}</h2>
           {content.code ? <pre className="code-block"><code>{content.code}</code></pre> : null}
           {content.image ? <Image src={content.image} alt="Minh họa cho câu hỏi" width={960} height={540} style={{ width: '100%', height: 'auto', borderRadius: 12 }} /> : null}
-          <div className="answer-list" role="radiogroup" aria-labelledby="question-text">{optionsOf(quiz).map(([optionId, label, text]) => {
+          <div className="answer-list" role="radiogroup" aria-labelledby="question-text">{optionsOf(quiz).map(([optionId, label, text], index, options) => {
             const selected = answers[quiz.id] === label;
-            return <button key={optionId} type="button" role="radio" aria-checked={selected} className={`answer ${selected ? 'selected' : ''}`} disabled={saving || sessionLost} onClick={() => choose(optionId, label)}><span>{label}</span><span>{text}</span>{selected ? <Check weight="bold" aria-hidden="true" /> : null}</button>;
+            const tabbable = selected || (!answers[quiz.id] && index === 0);
+            const onArrow = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+              const step = ({ ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 } as Record<string, number>)[event.key];
+              if (!step || saving || sessionLost) return;
+              event.preventDefault();
+              const next = (index + step + options.length) % options.length;
+              choose(options[next][0], options[next][1]);
+              (event.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
+            };
+            return <button key={optionId} type="button" role="radio" aria-checked={selected} tabIndex={tabbable ? 0 : -1} className={`answer ${selected ? 'selected' : ''}`} disabled={saving || sessionLost} onKeyDown={onArrow} onClick={() => choose(optionId, label)}><span>{label}</span><span>{text}</span>{selected ? <Check weight="bold" aria-hidden="true" /> : null}</button>;
           })}</div>
-          <p className="answer-hint">Chọn một đáp án. Phím tắt: bấm A–D hoặc 1–4 để chọn, phím ← → để đổi câu.</p>
+          <p className="answer-hint">Chọn một đáp án. Phím tắt: bấm A–D hoặc 1–4 để chọn, phím mũi tên để đổi đáp án, PageUp/PageDown để đổi câu.</p>
           <button type="button" className={`button secondary quiz-flag ${flagged[quiz.id] ? 'is-flagged' : ''}`} aria-pressed={Boolean(flagged[quiz.id])} onClick={toggleFlag}><Flag weight={flagged[quiz.id] ? 'fill' : 'regular'} /> {flagged[quiz.id] ? 'Bỏ đánh dấu xem lại' : 'Đánh dấu xem lại'}</button>
           <div className="list-actions" style={{ justifyContent: 'space-between', marginTop: 24 }}>
             <button className="button secondary" disabled={current === 0} onClick={() => setCurrent((value) => value - 1)}><ArrowLeft /> Câu trước</button>
