@@ -4,7 +4,7 @@ import { abandonOpenSession, pickCourse } from './helpers';
 
 // Chủ đề E2E không có hạn đóng nên ta chỉ đổi `endsAt` trong phản hồi của chính chủ đề đó
 // (và lệch đồng hồ server qua header Date) để kiểm chứng logic phía giao diện.
-async function skewServer(page: Page, topicId: string, opts: { skewMs: number; endsInMs: number; dropDate?: boolean }) {
+async function skewServer(page: Page, topicId: string, opts: { skewMs: number; endsInMs: number; dropDate?: boolean; rawDate?: string }) {
   const serverNow = () => Date.now() + opts.skewMs;
   await page.route('**/api/**', async (route) => {
     const url = route.request().url();
@@ -13,6 +13,7 @@ async function skewServer(page: Page, topicId: string, opts: { skewMs: number; e
     const headers = { ...response.headers() };
     delete headers['content-length'];
     if (opts.dropDate) delete headers.date;
+    else if (opts.rawDate !== undefined) headers.date = opts.rawDate;
     else headers.date = new Date(serverNow()).toUTCString();
     if (new URL(url).pathname.endsWith(`/api/topic/${topicId}`) && route.request().method() === 'GET') {
       const json = await response.json();
@@ -79,3 +80,14 @@ test('đồng hồ: thiếu header Date thì dùng đồng hồ máy, không hi�
   await expect(page.locator('.topic-clock')).toContainText(/Còn 00:0[23]:\d\d/);
   await expect(page.locator('.topic-clock')).not.toContainText('NaN');
 });
+
+test('đồng hồ: header Date sai định dạng ("1", "12") bị bỏ qua thay vì lệch hàng chục năm', async ({ page }) => {
+  const { courseId, topicId } = await pickCourse(page.request, 14);
+  for (const rawDate of ['1', '12', 'tomorrow']) {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await skewServer(page, topicId, { skewMs: 0, endsInMs: 3 * 60_000 + 500, rawDate });
+    await page.goto(`/topics/${topicId}?courseId=${courseId}`);
+    await expect(page.locator('.topic-clock')).toContainText(/Còn 00:0[23]:\d\d/);
+  }
+});
+

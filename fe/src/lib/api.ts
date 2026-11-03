@@ -35,8 +35,12 @@ let refreshPromise: Promise<boolean> | null = null;
 // Offset to the server clock taken from the Date response header (1 s resolution, display only).
 let serverOffsetMs = 0;
 export const serverNow = () => Date.now() + serverOffsetMs;
+const HTTP_DATE = /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/;
 function noteServerTime(response: Response) {
-  const parsed = Date.parse(response.headers.get('date') ?? '');
+  // Only a well-formed HTTP-date counts: Date.parse('1') would otherwise read as the year 2001.
+  const raw = response.headers.get('date');
+  if (!raw || !HTTP_DATE.test(raw)) return;
+  const parsed = Date.parse(raw);
   if (!Number.isNaN(parsed)) serverOffsetMs = parsed - Date.now();
 }
 
@@ -121,7 +125,6 @@ export async function uploadFile(signaturePath: string, file: File) {
   return signed;
 }
 
-type PutSignature = { method?: 'PUT'; uploadUrl: string; secureUrl: string; publicId: string; maxBytes: number };
 type PostSignature = { method: 'POST'; postUrl: string; fields: Record<string, string>; secureUrl: string; publicId: string; maxBytes: number };
 
 export async function uploadFileWithProgress(
@@ -129,26 +132,19 @@ export async function uploadFileWithProgress(
   file: File,
   options: { onProgress?: (loadedBytes: number) => void; signal?: AbortSignal } = {},
 ) {
-  // Ask for a presigned POST: the storage server enforces size, type and key, unlike a presigned PUT.
-  const signed = await createUploadSignature<PutSignature | PostSignature>(signaturePath, file, { method: 'POST' });
+  // A presigned POST: the storage server enforces size, type and key (a presigned PUT could not limit size).
+  const signed = await createUploadSignature<PostSignature>(signaturePath, file, { method: 'POST' });
   if (file.size > signed.maxBytes) throw new Error('File vượt quá dung lượng cho phép');
-  if (signed.method === 'POST') {
-    const form = new FormData();
-    for (const [name, value] of Object.entries(signed.fields)) form.append(name, value);
-    form.append('file', file); // must be the last part
-    await xhrUpload('POST', signed.postUrl, form, {}, file, options);
-  } else {
-    const contentType = file.type || 'application/octet-stream';
-    await xhrUpload('PUT', signed.uploadUrl, file, { 'Content-Type': contentType }, file, options);
-  }
+  const form = new FormData();
+  for (const [name, value] of Object.entries(signed.fields)) form.append(name, value);
+  form.append('file', file); // must be the last part
+  await xhrPost(signed.postUrl, form, file, options);
   return signed;
 }
 
-function xhrUpload(
-  method: 'PUT' | 'POST',
+function xhrPost(
   url: string,
-  body: Blob | FormData,
-  headers: Record<string, string>,
+  body: FormData,
   file: File,
   { onProgress, signal }: { onProgress?: (loadedBytes: number) => void; signal?: AbortSignal },
 ) {
@@ -158,9 +154,8 @@ function xhrUpload(
       return;
     }
     const xhr = new XMLHttpRequest();
-    const details = { fileSize: file.size, mime: headers['Content-Type'] ?? file.type };
-    xhr.open(method, url);
-    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+    const details = { fileSize: file.size, mime: file.type };
+    xhr.open('POST', url);
     xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress?.(event.loaded); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) { resolve(); return; }

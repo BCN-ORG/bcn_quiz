@@ -3,7 +3,7 @@ import { pickCourse } from './helpers';
 
 const API = 'http://localhost:3001/api';
 
-type PostSignature = { method: 'POST'; postUrl: string; fields: Record<string, string>; publicId: string; maxBytes: number };
+type PostSignature = { method: 'POST'; postUrl: string; fields: Record<string, string>; downloadUrl: string; publicId: string; maxBytes: number };
 
 // Kiểm chứng chính sách ở phía MinIO thật: kích thước, Content-Type và key do server quyết định, không phải client.
 test('upload: presigned POST được MinIO thực thi (kích thước, Content-Type, key)', async ({ page }) => {
@@ -24,6 +24,12 @@ test('upload: presigned POST được MinIO thực thi (kích thước, Content-
 
   const ok = await post(sig.fields, 1024);
   expect(ok.status()).toBeLessThan(300);
+
+  // Đọc lại object đã lưu: MinIO phải phục vụ nó như tệp tải xuống, không phải nội dung chạy được.
+  const stored = await page.request.get(sig.downloadUrl);
+  expect(stored.status()).toBe(200);
+  expect(stored.headers()['content-type']).toBe('application/octet-stream');
+  expect(stored.headers()['content-disposition']).toBe('attachment');
 });
 
 test('upload: không có method thì vẫn nhận chữ ký PUT như cũ (tương thích ngược)', async ({ page }) => {
