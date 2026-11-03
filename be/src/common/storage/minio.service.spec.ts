@@ -41,6 +41,38 @@ describe('MinioService', () => {
     expect(JSON.stringify(result)).not.toContain('http://minio');
   });
 
+  it('createPostSignature pins key, size range, content type and disposition in the policy', async () => {
+    const service = new MinioService();
+    const result = await service.createPostSignature({
+      folder: 'project-submissions/course-1/user-1',
+      publicId: 'report.pdf',
+    });
+    expect(result.method).toBe('POST');
+    expect(result.maxBytes).toBe(20 * 1024 * 1024);
+    expect(result.publicId).toMatch(
+      /^project-submissions\/course-1\/user-1\/report\.pdf-/,
+    );
+    const url = new URL(result.postUrl);
+    expect(url.origin).toBe('https://storage.bcn.id.vn');
+    expect(url.pathname).toBe('/profiles');
+    const policy = JSON.parse(
+      Buffer.from(result.fields.policy, 'base64').toString('utf8'),
+    ) as { expiration: string; conditions: unknown[] };
+    expect(policy.conditions).toEqual(
+      expect.arrayContaining([
+        ['content-length-range', 1, 20 * 1024 * 1024],
+        ['eq', '$Content-Type', 'application/octet-stream'],
+        ['eq', '$Content-Disposition', 'attachment'],
+        ['eq', '$key', result.publicId],
+      ]),
+    );
+    expect(result.fields['Content-Type']).toBe('application/octet-stream');
+    expect(result.fields['Content-Disposition']).toBe('attachment');
+    expect(result.fields.key).toBe(result.publicId);
+    expect(JSON.stringify(result)).not.toContain('test-secret');
+    expect(new Date(result.expiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
   it('rejects lookalike hosts, another bucket, mismatched keys and path traversal', () => {
     const service = new MinioService();
     expect(() =>

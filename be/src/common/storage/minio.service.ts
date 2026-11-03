@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { Client } from 'minio';
+import { Client, PostPolicy } from 'minio';
 
 @Injectable()
 export class MinioService implements OnModuleInit {
@@ -254,6 +254,38 @@ ${allowedOrigins}
       method: 'PUT',
       uploadUrl,
       downloadUrl,
+      publicId,
+      secureUrl: this.objectUrl(publicId),
+      maxBytes,
+      maxFileSizeMb: maxBytes / 1024 / 1024,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  /**
+   * Presigned POST for project submissions. Unlike a presigned PUT, the policy is enforced by
+   * the storage server: 1 B..20 MiB, a fixed object key, and fixed Content-Type/Content-Disposition
+   * so an uploaded file is never served as active content.
+   */
+  async createPostSignature(params: { folder: string; publicId?: string }) {
+    const client = this.ensureConfigured();
+    const publicId = `${params.folder}/${params.publicId || 'upload'}-${randomUUID()}`;
+    this.validateKey(publicId);
+    const maxBytes = 20 * 1024 * 1024;
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const policy = new PostPolicy();
+    policy.setBucket(this.bucket);
+    policy.setKey(publicId);
+    policy.setExpires(expiresAt);
+    policy.setContentLengthRange(1, maxBytes);
+    policy.setContentType('application/octet-stream');
+    policy.setContentDisposition('attachment');
+    const { postURL, formData } = await client.presignedPostPolicy(policy);
+    return {
+      provider: 'minio',
+      method: 'POST' as const,
+      postUrl: postURL,
+      fields: formData,
       publicId,
       secureUrl: this.objectUrl(publicId),
       maxBytes,

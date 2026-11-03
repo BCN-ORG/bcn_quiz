@@ -684,6 +684,14 @@ export class CourseService {
       ? this.sanitizePublicId(dto.publicId)
       : undefined;
 
+    if (dto.method === 'POST') {
+      return this.minioService.createPostSignature({ folder, publicId });
+    }
+    // A presigned PUT cannot limit object size; ops turn this off once the FE uses POST.
+    if (process.env.UPLOAD_ALLOW_LEGACY_PUT === 'false') {
+      throw new BadRequestException('Use method=POST for project uploads');
+    }
+
     return this.minioService.createUploadSignature({
       timestamp,
       folder,

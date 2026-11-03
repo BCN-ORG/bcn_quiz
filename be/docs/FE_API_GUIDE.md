@@ -893,9 +893,12 @@ Body `POST /course/:id/upload/signature`:
 
 ```json
 {
-  "publicId": "my_project_v2"
+  "publicId": "my_project_v2",
+  "method": "POST"
 }
 ```
+
+`method` (optional): `POST` tra presigned POST policy duoc MinIO thuc thi (1 B den 20 MB, `Content-Type` co dinh `application/octet-stream`, `Content-Disposition: attachment`, key co dinh). Bo qua hoac `PUT` giu presigned PUT cu (khong gioi han dung luong o phia storage). Khi ops dat `UPLOAD_ALLOW_LEGACY_PUT=false`, request khong co `method=POST` bi `400`. Thu tu rollout: deploy BE, deploy FE (gui `method: "POST"`), roi dat `UPLOAD_ALLOW_LEGACY_PUT=false`. Chi endpoint nay ho tro `POST`; cac endpoint upload admin van dung PUT.
 
 Response `data`:
 
@@ -912,6 +915,24 @@ Response `data`:
   "expiresAt": "<ISO timestamp>"
 }
 ```
+
+Response `data` khi `method: "POST"`:
+
+```json
+{
+  "provider": "minio",
+  "method": "POST",
+  "postUrl": "https://storage.bcn.id.vn/quizzes",
+  "fields": { "key": "...", "Content-Type": "application/octet-stream", "Content-Disposition": "attachment", "policy": "...", "x-amz-signature": "..." },
+  "publicId": "project-submissions/<courseId>/<userId>/upload-<uuid>",
+  "secureUrl": "https://storage.bcn.id.vn/quizzes/project-submissions/<courseId>/<userId>/upload-<uuid>",
+  "maxBytes": 20971520,
+  "maxFileSizeMb": 20,
+  "expiresAt": "<ISO timestamp>"
+}
+```
+
+Upload bang `multipart/form-data` POST toi `postUrl`: them **moi** cap trong `fields` truoc, phan `file` phai la phan **cuoi cung**. MinIO tra `204` khi thanh cong; sai kich thuoc/Content-Type/key bi tu choi (`4xx`).
 
 Body `POST /course/:id/project-submission`:
 
@@ -1008,10 +1029,13 @@ Luu y project requirement:
   "attachmentUrl": "https://storage.bcn.id.vn/quizzes/project-requirements/<courseId>/brief",
   "attachmentPublicId": "project-requirements/<courseId>/brief",
   "attachmentOriginalName": "de-bai-project.pdf",
+  "dueAt": "2026-12-01T10:00:00.000Z",
   "createdAt": "...",
   "updatedAt": "..."
 }
 ```
+
+`dueAt` (optional, ISO 8601): han nop hien thi cho hoc vien. **Khong chan** nop muon; bai nop co `submittedAt > dueAt` duoc FE gan nhan "Nop muon". Bo qua field khi `PUT` de giu han cu, gui `"dueAt": null` de xoa.
 
 **Body `PUT /course/:id/project-requirement`:**
 
