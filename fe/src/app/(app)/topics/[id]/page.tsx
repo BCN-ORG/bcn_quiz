@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowRight, CheckCircle, PaperPlaneTilt } from '@phosphor-icons/react';
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QuizReview } from '@/components/quiz-review';
 import { Empty, ErrorState, Loading, Status, ConfirmDialog } from '@/components/ui';
 import { request } from '@/lib/api';
@@ -113,6 +113,7 @@ function TopicQuizPage() {
 
   const quiz = quizzes[current];
   const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
+  const unansweredCount = Math.max(0, quizzes.length - answeredCount);
   const choose = async (optionId: string, label: string) => {
     if (!quiz || !session || result) return;
     const next = { ...answers, [quiz.id]: label };
@@ -127,13 +128,15 @@ function TopicQuizPage() {
     }
     finally { setSaving(false); }
   };
+  const submitting = useRef(false);
   const submit = async () => {
-    if (!session) return;
+    if (!session || submitting.current) return;
+    submitting.current = true;
     setConfirmSubmit(false);
     setSaving(true); setError('');
     try { setResult(await request.post<SessionResult>(`/attempt/session/${session.id}/submit`)); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể nộp bài'); }
-    finally { setSaving(false); }
+    finally { setSaving(false); submitting.current = false; }
   };
 
   if (loading) return <Loading label="Đang chuẩn bị bài quiz" />;
@@ -212,8 +215,10 @@ function TopicQuizPage() {
       <ConfirmDialog
         open={confirmSubmit}
         title="Nộp bài?"
-        message="Sau khi nộp bạn sẽ xem kết quả và không sửa được đáp án lần này. Câu bỏ trống được tính sai."
+        message={`${unansweredCount ? `Còn ${unansweredCount} câu chưa làm` : 'Bạn đã trả lời tất cả các câu'}. Sau khi nộp bạn sẽ xem kết quả và không sửa được đáp án lần này. Câu bỏ trống được tính sai.`}
         confirmLabel="Nộp bài"
+        cancelLabel="Quay lại làm tiếp"
+        cancelPrimary
         busy={saving}
         onCancel={() => setConfirmSubmit(false)}
         onConfirm={() => void submit()}

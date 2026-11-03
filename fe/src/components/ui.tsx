@@ -1,6 +1,7 @@
 'use client';
 
 import { CircleNotch, Warning } from '@phosphor-icons/react';
+import { useEffect, useRef } from 'react';
 
 export function Loading({ label = 'Đang tải dữ liệu' }: { label?: string }) {
   return (
@@ -92,6 +93,7 @@ export function ConfirmDialog({
   confirmLabel = 'Xác nhận',
   cancelLabel = 'Hủy',
   danger = false,
+  cancelPrimary = false,
   busy = false,
   noteLabel,
   noteValue,
@@ -107,6 +109,8 @@ export function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  /** Nút quay lại nổi bật hơn nút xác nhận, và nhận focus đầu tiên (dùng cho hành động khó hoàn tác). */
+  cancelPrimary?: boolean;
   busy?: boolean;
   noteLabel?: string;
   noteValue?: string;
@@ -116,11 +120,36 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const latest = useRef({ busy, onCancel });
+  useEffect(() => { latest.current = { busy, onCancel }; });
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const focusable = () => dialogRef.current?.querySelectorAll<HTMLElement>('textarea, button:not(:disabled)');
+    (cancelPrimary ? cancelRef.current : focusable()?.[0])?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !latest.current.busy) { latest.current.onCancel(); return; }
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (!items?.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('keydown', onKey); previous?.focus(); };
+  }, [open, cancelPrimary]);
+
   if (!open) return null;
   const noteBlocked = Boolean(noteRequired && !(noteValue || '').trim());
   return (
     <div className="dialog-backdrop" role="presentation" onClick={busy ? undefined : onCancel}>
       <div
+        ref={dialogRef}
         className="dialog"
         role="alertdialog"
         aria-modal="true"
@@ -143,10 +172,10 @@ export function ConfirmDialog({
           </label>
         ) : null}
         <div className="list-actions" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" className="button secondary" disabled={busy} onClick={onCancel}>{cancelLabel}</button>
+          <button ref={cancelRef} type="button" className={`button ${cancelPrimary ? '' : 'secondary'}`} disabled={busy} onClick={onCancel}>{cancelLabel}</button>
           <button
             type="button"
-            className={`button ${danger ? 'danger' : ''}`}
+            className={`button ${danger ? 'danger' : cancelPrimary ? 'secondary' : ''}`}
             disabled={busy || noteBlocked}
             onClick={onConfirm}
           >
