@@ -10,8 +10,10 @@ test('project: chọn PDF và nộp bài thấy trạng thái chờ duyệt', as
     await expect(page.getByRole('heading', { name: 'Project cuối khóa' })).toBeVisible();
 
     await page.locator('input[type=file]').setInputFiles(path.join(__dirname, 'fixtures/sample.pdf'));
+    const storageRequest = page.waitForRequest((req) => new URL(req.url()).port === '9010');
     await page.getByRole('button', { name: /Nộp project|Cập nhật bài nộp|Nộp lại project/ }).click();
     await expect(page.getByText('Chờ duyệt').first()).toBeVisible({ timeout: 30_000 });
+    expect((await storageRequest).method()).toBe('POST'); // tải lên bằng presigned POST do MinIO thực thi chính sách
     await expect(page.getByRole('link', { name: 'sample.pdf' })).toBeVisible();
   } finally {
     await clearSubmission(page.request, courseId);

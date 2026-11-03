@@ -28,7 +28,7 @@ test('project: rời trang bằng link nội bộ bị hỏi khi có file chưa 
     await expect(page).toHaveURL(courseUrl);
 
     let held: Route | undefined;
-    await page.route((url) => url.port === '9010', (route) => { if (route.request().method() === 'PUT') held = route; else void route.continue(); });
+    await page.route((url) => url.port === '9010', (route) => { if (['PUT', 'POST'].includes(route.request().method())) held = route; else void route.continue(); });
     await page.getByRole('button', { name: 'Nộp project' }).click();
     await expect.poll(() => Boolean(held)).toBe(true);
     await page.getByRole('link', { name: 'Tổng quan' }).click();

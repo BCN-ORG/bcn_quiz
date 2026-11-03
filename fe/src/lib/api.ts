@@ -32,6 +32,14 @@ export class UploadStageError extends Error {
 
 let refreshPromise: Promise<boolean> | null = null;
 
+// Offset to the server clock taken from the Date response header (1 s resolution, display only).
+let serverOffsetMs = 0;
+export const serverNow = () => Date.now() + serverOffsetMs;
+function noteServerTime(response: Response) {
+  const parsed = Date.parse(response.headers.get('date') ?? '');
+  if (!Number.isNaN(parsed)) serverOffsetMs = parsed - Date.now();
+}
+
 async function refresh(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = fetch(`${API_URL}/auth/refresh`, {
@@ -61,6 +69,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retried = fal
     if (error instanceof TypeError) throw new TypeError('Mất kết nối mạng. Kiểm tra kết nối rồi thử lại.');
     throw error;
   }
+  noteServerTime(response);
   const body = (await response.json().catch(() => null)) as Envelope<T> | T | null;
 
   if (response.status === 401 && !retried && !path.startsWith('/auth/')) {
@@ -112,21 +121,35 @@ export async function uploadFile(signaturePath: string, file: File) {
   return signed;
 }
 
+type PutSignature = { method?: 'PUT'; uploadUrl: string; secureUrl: string; publicId: string; maxBytes: number };
+type PostSignature = { method: 'POST'; postUrl: string; fields: Record<string, string>; secureUrl: string; publicId: string; maxBytes: number };
+
 export async function uploadFileWithProgress(
   signaturePath: string,
   file: File,
   options: { onProgress?: (loadedBytes: number) => void; signal?: AbortSignal } = {},
 ) {
-  const signed = await createUploadSignature(signaturePath, file);
+  // Ask for a presigned POST: the storage server enforces size, type and key, unlike a presigned PUT.
+  const signed = await createUploadSignature<PutSignature | PostSignature>(signaturePath, file, { method: 'POST' });
   if (file.size > signed.maxBytes) throw new Error('File vượt quá dung lượng cho phép');
-  await putSignedFileWithProgress(signed.uploadUrl, file, file.type || 'application/octet-stream', options);
+  if (signed.method === 'POST') {
+    const form = new FormData();
+    for (const [name, value] of Object.entries(signed.fields)) form.append(name, value);
+    form.append('file', file); // must be the last part
+    await xhrUpload('POST', signed.postUrl, form, {}, file, options);
+  } else {
+    const contentType = file.type || 'application/octet-stream';
+    await xhrUpload('PUT', signed.uploadUrl, file, { 'Content-Type': contentType }, file, options);
+  }
   return signed;
 }
 
-function putSignedFileWithProgress(
-  uploadUrl: string,
+function xhrUpload(
+  method: 'PUT' | 'POST',
+  url: string,
+  body: Blob | FormData,
+  headers: Record<string, string>,
   file: File,
-  contentType: string,
   { onProgress, signal }: { onProgress?: (loadedBytes: number) => void; signal?: AbortSignal },
 ) {
   return new Promise<void>((resolve, reject) => {
@@ -135,9 +158,9 @@ function putSignedFileWithProgress(
       return;
     }
     const xhr = new XMLHttpRequest();
-    const details = { fileSize: file.size, mime: contentType };
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', contentType);
+    const details = { fileSize: file.size, mime: headers['Content-Type'] ?? file.type };
+    xhr.open(method, url);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress?.(event.loaded); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) { resolve(); return; }
@@ -150,7 +173,7 @@ function putSignedFileWithProgress(
     xhr.onerror = () => reject(new UploadStageError('storage', 'Network error while uploading file.', details));
     xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
     signal?.addEventListener('abort', () => xhr.abort(), { once: true });
-    xhr.send(file);
+    xhr.send(body);
   });
 }
 
@@ -187,14 +210,11 @@ export function logUploadStageError(error: unknown) {
   });
 }
 
-async function createUploadSignature(signaturePath: string, file: File) {
+async function createUploadSignature<
+  T = { uploadUrl: string; secureUrl: string; publicId: string; maxBytes: number },
+>(signaturePath: string, file: File, body: object = {}) {
   try {
-    return await request.post<{
-      uploadUrl: string;
-      secureUrl: string;
-      publicId: string;
-      maxBytes: number;
-    }>(signaturePath, {});
+    return await request.post<T>(signaturePath, body);
   } catch (error) {
     if (error instanceof ApiError) {
       throw new UploadStageError('signature', `Unable to prepare upload. ${error.message}`, {

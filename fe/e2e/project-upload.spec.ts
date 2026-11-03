@@ -40,7 +40,7 @@ test('project: quy định nộp và trạng thái "Chưa nộp" hiện trước
 test('project: có tiến trình tải lên, hủy được và giữ file; rời trang bị cảnh báo', async ({ page }) => {
   await openProject(page);
   let held: import('@playwright/test').Route | undefined;
-  await page.route(isStorage, (route) => { if (route.request().method() === 'PUT') held = route; else void route.continue(); });
+  await page.route(isStorage, (route) => { if (['PUT', 'POST'].includes(route.request().method())) held = route; else void route.continue(); });
   await page.locator('input[type=file]').setInputFiles(PDF);
   await page.getByRole('button', { name: 'Nộp project' }).click();
   await expect(page.getByRole('progressbar', { name: 'Tiến trình tải lên' })).toBeVisible();
@@ -61,7 +61,7 @@ test('project: có tiến trình tải lên, hủy được và giữ file; rờ
 test('project: mất mạng khi tải lên giữ nguyên file, thử lại thành công và hiện xác nhận có giờ nộp', async ({ page }) => {
   const courseId = await openProject(page);
   try {
-  await page.route(isStorage, (route) => (route.request().method() === 'PUT' ? route.abort('failed') : route.continue()));
+  await page.route(isStorage, (route) => (['PUT', 'POST'].includes(route.request().method()) ? route.abort('failed') : route.continue()));
   await page.locator('input[type=file]').setInputFiles(PDF);
   await page.getByRole('button', { name: 'Nộp project' }).click();
   await expect(page.locator('.form-error[role=alert]')).toContainText('Không tải được file lên kho lưu trữ');
