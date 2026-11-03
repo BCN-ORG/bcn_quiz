@@ -90,10 +90,10 @@ jobs:
         run: npm test -- --runInBand --forceExit
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/audit-gate.mjs
 
       - name: Test production environment and compose
-        run: node --test scripts/generate-production-env.test.mjs
+        run: node --test scripts/generate-production-env.test.mjs scripts/audit-gate.test.mjs
 
       - name: Build
         run: npm run build

@@ -21,11 +21,9 @@ jobs:
       - run: npx prisma generate
       - run: npx eslint "{src,apps,libs,test}/**/*.ts"
       - run: npm test -- --runInBand --forceExit
-      - run: node --test scripts/generate-production-env.test.mjs
+      - run: node --test scripts/generate-production-env.test.mjs scripts/audit-gate.test.mjs
       - run: npm run build
-      # Non-blocking until minio/exceljs advisories are resolved
-      - run: npm audit --omit=dev --audit-level high
-        continue-on-error: true
+      - run: node scripts/audit-gate.mjs
 
   frontend:
     runs-on: ubuntu-latest
