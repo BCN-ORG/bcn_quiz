@@ -66,3 +66,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Test / tool artifacts
 **/playwright-report/
 **/test-results/
+.agent/
+.forge/
+.cursor/
+.vscode/

@@ -1,0 +1,1 @@
+For work in this BCN Quiz project, read and follow `AGENTS.md` at the repository root. When opened from `bcn_system`, also follow the parent workspace `AGENTS.md`. Keep the user's global engineering principles as the baseline; these project instructions are additive.

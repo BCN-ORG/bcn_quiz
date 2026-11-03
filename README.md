@@ -26,7 +26,7 @@ MINIO_FORCE_PATH_STYLE=true
 ```
 
 ```bash
-cd /Users/trantuanhung/Documents/learning_it/nestjs/bcn_quiz/be
+cd /Users/trantuanhung/Documents/learning_it/bcn_system/bcn_quiz/be
 cp .env.example .env   # lần đầu, rồi giữ secret SSO nếu đã có
 npm install
 npx prisma generate
@@ -39,7 +39,7 @@ Lần đầu API sẽ tạo bucket `quizzes` trên MinIO đang chạy (Profiles 
 Terminal 2, frontend:
 
 ```bash
-cd /Users/trantuanhung/Documents/learning_it/nestjs/bcn_quiz/fe
+cd /Users/trantuanhung/Documents/learning_it/bcn_system/bcn_quiz/fe
 cp .env.example .env
 pnpm install
 pnpm dev
