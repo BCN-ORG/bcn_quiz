@@ -19,10 +19,30 @@ test('quiz: màn xác nhận nộp nêu số câu chưa làm, ưu tiên quay l�
   await expect(dialog).toBeHidden();
   await expect(page.getByText(/Câu 1 \/ 2/).first()).toBeVisible();
 
+  // Giữ request nộp bài lại để có khoảng thời gian "đang nộp", rồi thử nộp thêm bằng mọi đường có thể.
   let submits = 0;
-  page.on('request', (req) => { if (req.method() === 'POST' && req.url().endsWith('/submit')) submits += 1; });
+  let release: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/attempt/session/*/submit', async (route) => {
+    submits += 1;
+    await gate;
+    await route.continue();
+  });
   await page.getByRole('button', { name: /Nộp bài/ }).first().click();
-  await dialog.getByRole('button', { name: 'Nộp bài' }).dblclick();
+  await dialog.getByRole('button', { name: 'Nộp bài' }).click();
+  await expect.poll(() => submits).toBe(1);
+  await expect(dialog).toBeHidden();
+
+  // Trong lúc đang nộp: mọi nút "Nộp bài" bị khóa và ép bấm cũng không tạo thêm request.
+  for (const button of await page.getByRole('button', { name: /Nộp bài/ }).all()) {
+    await expect(button).toBeDisabled();
+    await button.click({ force: true, noWaitAfter: true }).catch(() => {});
+  }
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  expect(submits).toBe(1);
+
+  release?.();
   await expect(page.getByText('Kết quả').first()).toBeVisible();
   expect(submits).toBe(1);
 });
