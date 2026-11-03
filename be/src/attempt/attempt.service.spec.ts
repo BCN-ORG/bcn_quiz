@@ -761,4 +761,138 @@ describe('AttemptService', () => {
       });
     });
   });
+
+  describe('startTopicSession', () => {
+    const session = (overrides: Record<string, unknown> = {}) => ({
+      id: 'session-1',
+      topicId: 'topic-1',
+      currentQuizId: null,
+      status: AttemptSessionStatus.IN_PROGRESS,
+      answers: {},
+      startedAt: new Date('2026-10-01T00:00:00Z'),
+      lastSeenAt: new Date('2026-10-01T00:00:00Z'),
+      expiresAt: new Date(Date.now() + 60_000),
+      submittedAt: null,
+      ...overrides,
+    });
+
+    it('returns the live in-progress session without creating another', async () => {
+      prisma.attemptSession.findFirst.mockResolvedValue(session());
+
+      const result = await service.startTopicSession('topic-1', {}, req);
+
+      expect(result).toMatchObject({ id: 'session-1' });
+      expect(prisma.attemptSession.create).not.toHaveBeenCalled();
+      expect(prisma.attemptSession.update).not.toHaveBeenCalled();
+    });
+
+    it('expires an overdue session and starts a fresh one', async () => {
+      prisma.attemptSession.findFirst.mockResolvedValue(
+        session({ id: 'old', expiresAt: new Date(Date.now() - 1_000) }),
+      );
+      prisma.attemptSession.update.mockResolvedValue({});
+      prisma.attemptSession.create.mockResolvedValue(session({ id: 'new' }));
+
+      const result = await service.startTopicSession('topic-1', {}, req);
+
+      expect(prisma.attemptSession.update).toHaveBeenCalledWith({
+        where: { id: 'old' },
+        data: expect.objectContaining({
+          status: AttemptSessionStatus.EXPIRED,
+        }) as unknown,
+      });
+      expect(result).toMatchObject({ id: 'new' });
+    });
+
+    it('returns the session that won a concurrent start', async () => {
+      prisma.attemptSession.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(session({ id: 'raced' }));
+      prisma.attemptSession.create.mockRejectedValue(new Error('unique'));
+
+      const result = await service.startTopicSession('topic-1', {}, req);
+
+      expect(result).toMatchObject({ id: 'raced' });
+    });
+
+    it('rethrows the create error when no concurrent session exists', async () => {
+      const failure = new Error('db down');
+      prisma.attemptSession.findFirst.mockResolvedValue(null);
+      prisma.attemptSession.create.mockRejectedValue(failure);
+
+      await expect(service.startTopicSession('topic-1', {}, req)).rejects.toBe(
+        failure,
+      );
+    });
+
+    it('rethrows when the raced session is already overdue', async () => {
+      const failure = new Error('unique');
+      prisma.attemptSession.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(
+          session({ expiresAt: new Date(Date.now() - 1_000) }),
+        );
+      prisma.attemptSession.update.mockResolvedValue({});
+      prisma.attemptSession.create.mockRejectedValue(failure);
+
+      await expect(service.startTopicSession('topic-1', {}, req)).rejects.toBe(
+        failure,
+      );
+    });
+  });
+
+  describe('expireSessionIfNeeded (current behavior, not a fix)', () => {
+    const expire = (id: string, expiresAt: Date) =>
+      (
+        service as unknown as {
+          expireSessionIfNeeded: (
+            id: string,
+            expiresAt: Date,
+          ) => Promise<boolean>;
+        }
+      ).expireSessionIfNeeded(id, expiresAt);
+
+    it('does not write while the session is still live', async () => {
+      await expect(expire('s', new Date(Date.now() + 60_000))).resolves.toBe(
+        false,
+      );
+      expect(prisma.attemptSession.update).not.toHaveBeenCalled();
+    });
+
+    it('updates by id only, with no status guard (see prior audit section 11)', async () => {
+      prisma.attemptSession.update.mockResolvedValue({});
+
+      await expect(expire('s', new Date(Date.now() - 1))).resolves.toBe(true);
+      expect(prisma.attemptSession.update).toHaveBeenCalledWith({
+        where: { id: 's' },
+        data: expect.objectContaining({
+          status: AttemptSessionStatus.EXPIRED,
+        }) as unknown,
+      });
+    });
+  });
+
+  describe('getMyProgress', () => {
+    it('computes accuracy from totals', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        { total_attempts: 4, correct_attempts: 3, by_topic: [] },
+      ]);
+
+      await expect(service.getMyProgress(req)).resolves.toMatchObject({
+        totalAttempts: 4,
+        correctAttempts: 3,
+        accuracy: 0.75,
+      });
+    });
+
+    it('returns zero accuracy with no attempts', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
+
+      await expect(service.getMyProgress(req)).resolves.toMatchObject({
+        totalAttempts: 0,
+        correctAttempts: 0,
+        accuracy: 0,
+      });
+    });
+  });
 });

@@ -341,10 +341,11 @@ export class AuthService implements OnModuleInit {
   private unwrapList(
     payload: unknown,
   ): Array<{ code?: string; roles?: unknown }> {
-    if (Array.isArray(payload)) return payload;
+    type Item = { code?: string; roles?: unknown };
+    if (Array.isArray(payload)) return payload as Item[];
     if (payload && typeof payload === 'object') {
       const data = (payload as { data?: unknown }).data;
-      if (Array.isArray(data)) return data;
+      if (Array.isArray(data)) return data as Item[];
     }
     return [];
   }

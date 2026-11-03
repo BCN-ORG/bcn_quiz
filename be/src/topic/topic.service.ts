@@ -96,7 +96,24 @@ function mapQuizPublic(raw: RawQuiz, sessionId?: string) {
   };
 }
 
-function toRawQuiz(quiz: any): RawQuiz {
+type QuizSource = {
+  id: string;
+  quizCode: string;
+  question: string;
+  code: string | null;
+  imageUrl: string | null;
+  answer: string;
+  explanation: string | null;
+  imagePublicId: string | null;
+  options?: Array<{
+    id: string;
+    label: string;
+    content: string;
+    isCode: boolean;
+  }> | null;
+};
+
+function toRawQuiz(quiz: QuizSource): RawQuiz {
   return {
     id: quiz.id,
     quizCode: quiz.quizCode,
@@ -108,14 +125,11 @@ function toRawQuiz(quiz: any): RawQuiz {
       has_image: Boolean(quiz.imageUrl),
     },
     options: {
-      is_code: (quiz.options ?? []).some((option: any) => option.isCode),
+      is_code: (quiz.options ?? []).some((option) => option.isCode),
       data: Object.fromEntries(
-        (quiz.options ?? []).map((option: any) => [
-          option.label,
-          option.content,
-        ]),
+        (quiz.options ?? []).map((option) => [option.label, option.content]),
       ),
-      items: (quiz.options ?? []).map((option: any) => ({
+      items: (quiz.options ?? []).map((option) => ({
         id: option.id,
         label: option.label,
         content: option.content,

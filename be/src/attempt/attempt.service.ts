@@ -1309,7 +1309,16 @@ export class AttemptService {
   }
 
   private extractUserId(req: ExpressRequest): string {
-    const user = (req as ExpressRequest & { user?: any }).user;
+    const user = (
+      req as ExpressRequest & {
+        user?: {
+          id?: unknown;
+          sub?: unknown;
+          user?: { id?: unknown };
+          data?: { id?: unknown; user?: { id?: unknown } };
+        };
+      }
+    ).user;
 
     const candidates = [
       user?.id,

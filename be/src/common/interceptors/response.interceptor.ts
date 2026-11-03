@@ -16,7 +16,10 @@ export class ResponseInterceptor implements NestInterceptor {
       url?: string;
       path?: string;
     }>();
-    const res = context.switchToHttp().getResponse();
+    const res = context.switchToHttp().getResponse<{
+      statusCode: number;
+      setHeader(name: string, value: string): void;
+    }>();
     const url = req.originalUrl ?? req.url ?? req.path ?? '';
     const path = pathWithoutApiPrefix(url);
 
@@ -43,7 +46,7 @@ export class ResponseInterceptor implements NestInterceptor {
     }
 
     return next.handle().pipe(
-      map((data) => ({
+      map((data: unknown) => ({
         statusCode: res.statusCode,
         message: 'Success',
         data,

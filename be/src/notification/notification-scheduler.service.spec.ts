@@ -9,8 +9,8 @@ describe('NotificationSchedulerService', () => {
     const topics = ['one', 'two', 'three'].map((id) => ({
       id,
       name: id,
-      startsAt: null,
-      endsAt: null,
+      startsAt: null as Date | null,
+      endsAt: null as Date | null,
       _count: { quizzes: 1 },
     }));
     topics.push({

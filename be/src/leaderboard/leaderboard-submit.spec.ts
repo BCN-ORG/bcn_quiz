@@ -16,7 +16,7 @@ describe('official topic leaderboard submit', () => {
           id,
           userId: 'user-1',
           topicId: id === 'd' ? 'topic-2' : 'topic-1',
-          status: AttemptSessionStatus.IN_PROGRESS,
+          status: AttemptSessionStatus.IN_PROGRESS as AttemptSessionStatus,
           answers: Object.fromEntries(
             Array.from({ length: id === 'a' ? 4 : 5 }, (_, i) => [
               `q${i}`,

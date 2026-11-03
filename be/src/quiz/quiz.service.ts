@@ -87,7 +87,24 @@ function mapQuizPublic(raw: RawQuiz) {
   };
 }
 
-function toRawQuiz(quiz: any): RawQuiz {
+type QuizSource = {
+  id: string;
+  quizCode: string;
+  question: string;
+  code: string | null;
+  imageUrl: string | null;
+  answer?: string;
+  explanation?: string | null;
+  imagePublicId: string | null;
+  options?: Array<{
+    id: string;
+    label: string;
+    content: string;
+    isCode: boolean;
+  }> | null;
+};
+
+function toRawQuiz(quiz: QuizSource): RawQuiz {
   return {
     id: quiz.id,
     quizCode: quiz.quizCode,
@@ -99,35 +116,68 @@ function toRawQuiz(quiz: any): RawQuiz {
       has_image: Boolean(quiz.imageUrl),
     },
     options: {
-      is_code: (quiz.options ?? []).some((option: any) => option.isCode),
+      is_code: (quiz.options ?? []).some((option) => option.isCode),
       data: Object.fromEntries(
-        (quiz.options ?? []).map((option: any) => [
-          option.label,
-          option.content,
-        ]),
+        (quiz.options ?? []).map((option) => [option.label, option.content]),
       ),
-      items: (quiz.options ?? []).map((option: any) => ({
+      items: (quiz.options ?? []).map((option) => ({
         id: option.id,
         label: option.label,
         content: option.content,
         isCode: option.isCode,
       })),
     },
-    answer: quiz.answer,
+    answer: quiz.answer ?? '',
     explanation: quiz.explanation ?? '',
     imagePublicId: quiz.imagePublicId ?? null,
   };
 }
 
-function normalizeQuizInput(data: any) {
+type NormalizedQuizInput = {
+  quizCode: string | undefined;
+  question: string;
+  code: string | null;
+  explanation: string | null;
+  answer: string;
+  topicId: string;
+  imageUrl: string | null;
+  imagePublicId: string | null;
+  options: Array<{ label: string; content: string; isCode: boolean }>;
+};
+
+type QuizInputOption = { label: string; content: string; isCode?: boolean };
+
+/**
+ * Accepted request shapes: flat (`question`, `options: [...]`) or legacy
+ * (`content.text`, `options: { is_code, data }`). The shape is asserted, not
+ * validated, here: `options` may also be an array, handled via `rawOptions`.
+ */
+type QuizInputPayload = {
+  quizCode?: unknown;
+  question: string;
+  code: string | null;
+  content?: {
+    text: string;
+    code: string | null;
+    has_code?: boolean;
+    image?: string | null;
+  };
+  explanation?: string | null;
+  answer: string;
+  topicId: string;
+  imageUrl?: string | null;
+  imagePublicId?: string | null;
+  options?: { is_code?: boolean; data?: Record<string, unknown> } | null;
+};
+
+function normalizeQuizInput(data: unknown): NormalizedQuizInput;
+function normalizeQuizInput(data: QuizInputPayload): NormalizedQuizInput {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new BadRequestException('Each quiz item must be a non-null object');
   }
 
   if (data?.content && data?.options?.data) {
-    const optionEntries = Object.entries(
-      data.options.data as Record<string, unknown>,
-    );
+    const optionEntries = Object.entries(data.options.data);
     return {
       quizCode:
         typeof data.quizCode === 'string' && data.quizCode.trim()
@@ -142,13 +192,15 @@ function normalizeQuizInput(data: any) {
       imagePublicId: data.imagePublicId ?? null,
       options: optionEntries.map(([label, content]) => ({
         label,
-        content,
-        isCode: Boolean(data.options.is_code),
+        content: content as string,
+        isCode: Boolean(data.options!.is_code),
       })),
     };
   }
 
-  const rawOptions = Array.isArray(data.options) ? data.options : null;
+  const rawOptions = Array.isArray(data.options)
+    ? (data.options as unknown as QuizInputOption[])
+    : null;
   if (data.options != null && rawOptions === null) {
     throw new BadRequestException(
       'options must be an array of { label, content, isCode } or { is_code, data }',
@@ -167,7 +219,7 @@ function normalizeQuizInput(data: any) {
     topicId: data.topicId,
     imageUrl: data.imageUrl ?? null,
     imagePublicId: data.imagePublicId ?? null,
-    options: (rawOptions ?? []).map((option: any, optionIndex: number) => {
+    options: (rawOptions ?? []).map((option, optionIndex) => {
       if (!option || typeof option !== 'object') {
         throw new BadRequestException(
           `options[${optionIndex}] must be a non-null object`,
@@ -348,7 +400,7 @@ export class QuizService {
 
     const quizCode =
       input.quizCode ?? (await this.generateQuizCode(input.topicId));
-    const optionLabels = input.options.map((o: any) => o.label);
+    const optionLabels = input.options.map((o) => o.label);
     await this.validateQuizInput(
       quizCode,
       input.topicId,
@@ -373,7 +425,7 @@ export class QuizService {
           },
         },
         options: {
-          create: input.options.map((option: any) => ({
+          create: input.options.map((option) => ({
             label: option.label,
             content: option.content,
             isCode: option.isCode ?? false,
@@ -497,7 +549,7 @@ export class QuizService {
         quizCode = this.allocateNextQuizCode(used);
       }
 
-      const optionLabels = item.input.options.map((o: any) => o.label);
+      const optionLabels = item.input.options.map((o) => o.label);
       if (item.input.answer && optionLabels.length > 0) {
         if (!optionLabels.includes(item.input.answer)) {
           throw new BadRequestException(
@@ -516,7 +568,7 @@ export class QuizService {
     const now = new Date();
     const quizRows = resolved.map((input) => ({
       id: randomUUID(),
-      quizCode: input.quizCode as string,
+      quizCode: input.quizCode,
       question: input.question,
       code: input.code,
       explanation: input.explanation,
@@ -596,7 +648,7 @@ export class QuizService {
 
   async updateQuiz(id: string, data: UpdateQuizDto) {
     const input = normalizeQuizInput(data);
-    const optionLabels = input.options.map((o: any) => o.label);
+    const optionLabels = input.options.map((o) => o.label);
 
     const existing = await this.prisma.quiz.findUnique({
       where: { id },
@@ -636,7 +688,7 @@ export class QuizService {
         },
         options: {
           deleteMany: {},
-          create: input.options.map((option: any) => ({
+          create: input.options.map((option) => ({
             label: option.label,
             content: option.content,
             isCode: option.isCode ?? false,

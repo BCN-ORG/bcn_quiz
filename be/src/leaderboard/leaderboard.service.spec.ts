@@ -57,7 +57,12 @@ describe('LeaderboardService', () => {
         .mockResolvedValueOnce([{ total: 220 }])
         .mockResolvedValueOnce(top),
     };
-    const profiles = { resolveUsers: jest.fn(async () => new Map()) };
+    const profiles = {
+      resolveUsers: jest.fn((ids: string[]) => {
+        void ids;
+        return Promise.resolve(new Map());
+      }),
+    };
     const service = new LeaderboardService(prisma as never, profiles as never);
     const result = await service.list(
       'topic-1',
@@ -177,7 +182,7 @@ describe('LeaderboardService', () => {
     const service = new LeaderboardService(prisma as never, profiles as never);
     const result = await service.export('topic-1', 'daily', '2026-10-11');
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(result.buffer);
+    await workbook.xlsx.load(result.buffer as never);
     const sheet = workbook.worksheets[0];
 
     expect(sheet.rowCount).toBe(121);
@@ -212,7 +217,7 @@ describe('LeaderboardService', () => {
     );
     const result = await service.export('topic-1', 'weekly', '2026-10-07');
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(result.buffer);
+    await workbook.xlsx.load(result.buffer as never);
     const sheet = workbook.worksheets[0];
 
     expect((sheet.getRow(2).values as unknown[]).slice(1)).toEqual([
