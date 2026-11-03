@@ -95,6 +95,7 @@ export class CourseService {
       req_attachment_url: string | null;
       req_attachment_public_id: string | null;
       req_attachment_original_name: string | null;
+      req_due_at: Date | null;
       req_created_at: Date | null;
       req_updated_at: Date | null;
       total_count: number;
@@ -123,6 +124,7 @@ export class CourseService {
         pr."attachmentUrl" AS req_attachment_url,
         pr."attachmentPublicId" AS req_attachment_public_id,
         pr."attachmentOriginalName" AS req_attachment_original_name,
+        pr."dueAt" AS req_due_at,
         pr."createdAt" AS req_created_at,
         pr."updatedAt" AS req_updated_at,
         COUNT(*) OVER()::int AS total_count
@@ -165,6 +167,7 @@ export class CourseService {
               attachmentUrl: row.req_attachment_url,
               attachmentPublicId: row.req_attachment_public_id,
               attachmentOriginalName: row.req_attachment_original_name,
+              dueAt: row.req_due_at,
               createdAt: row.req_created_at,
               updatedAt: row.req_updated_at,
             }
@@ -599,6 +602,10 @@ export class CourseService {
         description: normalizedDescription,
         isRequired: data.isRequired ?? true,
         ...attachmentPatch.data,
+        // undefined keeps the stored deadline, null clears it
+        ...(data.dueAt === undefined
+          ? {}
+          : { dueAt: data.dueAt ? new Date(data.dueAt) : null }),
       },
       create: {
         courseId,
@@ -609,6 +616,7 @@ export class CourseService {
         attachmentPublicId: attachmentPatch.data.attachmentPublicId ?? null,
         attachmentOriginalName:
           attachmentPatch.data.attachmentOriginalName ?? null,
+        dueAt: data.dueAt ? new Date(data.dueAt) : null,
       },
     });
 

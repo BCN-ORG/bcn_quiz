@@ -63,10 +63,12 @@ async function bootstrap() {
       }
     },
     credentials: true,
+    // Date lets the FE derive a server-time offset for deadlines and countdowns.
     exposedHeaders: [
       'X-Request-Id',
       'X-Response-Time-Ms',
       'Content-Disposition',
+      'Date',
     ],
   });
 

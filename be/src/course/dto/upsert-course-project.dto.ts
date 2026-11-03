@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsDateString,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -42,4 +43,13 @@ export class UpsertCourseProjectDto {
   @IsString()
   @MaxLength(255)
   attachmentOriginalName?: string | null;
+
+  /**
+   * Optional deadline (ISO 8601). Late submissions are labelled, never blocked.
+   * Omit to keep the stored value, send `null` to clear it.
+   */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsDateString()
+  dueAt?: string | null;
 }

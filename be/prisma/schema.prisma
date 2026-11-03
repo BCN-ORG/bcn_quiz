@@ -184,6 +184,8 @@ model CourseProjectRequirement {
   attachmentUrl          String?
   attachmentPublicId     String?
   attachmentOriginalName String?
+  /// Optional deadline shown to learners; late submissions are labelled, never blocked
+  dueAt                  DateTime?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
