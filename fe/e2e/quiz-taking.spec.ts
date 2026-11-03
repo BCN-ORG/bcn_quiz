@@ -1,17 +1,18 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { abandonOpenSession, pickCourse } from './helpers';
 
-async function startQuiz(page: Page, request: Parameters<typeof pickCourse>[0], index: number) {
-  const { courseId, topicId } = await pickCourse(request, index);
-  await abandonOpenSession(request, topicId);
+async function startQuiz(page: Page, index: number) {
+  const { courseId, topicId } = await pickCourse(page.request, index);
+  await abandonOpenSession(page.request, topicId);
   await page.goto(`/topics/${topicId}?courseId=${courseId}`);
   await page.getByRole('button', { name: /Bắt đầu làm bài/ }).click();
   await expect(page.getByRole('radiogroup')).toBeVisible();
   return topicId;
 }
 
-test('quiz: radiogroup, phím tắt, đánh dấu xem lại và trạng thái câu không chỉ dựa vào màu', async ({ page, request }) => {
-  await startQuiz(page, request, 4);
+test('quiz: radiogroup, phím tắt, đánh dấu xem lại và trạng thái câu không chỉ dựa vào màu', async ({ page }) => {
+  await startQuiz(page, 4);
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
   expect(await page.getByRole('radio').count()).toBeGreaterThanOrEqual(2);
 
@@ -33,8 +34,8 @@ test('quiz: radiogroup, phím tắt, đánh dấu xem lại và trạng thái c�
   await expect(page.getByRole('button', { name: /^Câu 2:/ })).toHaveAttribute('aria-label', /chưa làm/);
 });
 
-test('quiz: lỗi lưu hiện cảnh báo, tự thử lại khi có mạng và đáp án còn sau khi tải lại', async ({ page, request }) => {
-  await startQuiz(page, request, 5);
+test('quiz: lỗi lưu hiện cảnh báo, tự thử lại khi có mạng và đáp án còn sau khi tải lại', async ({ page }) => {
+  await startQuiz(page, 5);
   await page.route('**/attempt/session/*/save', (route) => route.abort('failed'));
   await page.getByRole('radio').first().click();
   await expect(page.locator('.notice[role=alert]')).toContainText('Chưa lưu được đáp án câu 1');
@@ -49,8 +50,8 @@ test('quiz: lỗi lưu hiện cảnh báo, tự thử lại khi có mạng và �
   await expect(page.getByRole('radio').first()).toHaveAttribute('aria-checked', 'true');
 });
 
-test('quiz: phiên không còn hiệu lực thì báo rõ, không tự mở phiên mới', async ({ page, request }) => {
-  await startQuiz(page, request, 6);
+test('quiz: phiên không còn hiệu lực thì báo rõ, không tự mở phiên mới', async ({ page }) => {
+  await startQuiz(page, 6);
   let starts = 0;
   page.on('request', (req) => { if (req.url().endsWith('/session/start')) starts += 1; });
   await page.route('**/attempt/session/*/save', (route) => route.fulfill({
@@ -62,9 +63,9 @@ test('quiz: phiên không còn hiệu lực thì báo rõ, không tự mở phi�
   expect(starts).toBe(0);
 });
 
-test('quiz mobile 375px: bảng câu hỏi gọn một hàng, câu hỏi nằm trên màn đầu, không cuộn ngang', async ({ page, request }) => {
+test('quiz mobile 375px: bảng câu hỏi gọn một hàng, câu hỏi nằm trên màn đầu, không cuộn ngang', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await startQuiz(page, request, 7);
+  await startQuiz(page, 7);
   const nav = await page.locator('.quiz-nav').boundingBox();
   const question = await page.locator('#question-text').boundingBox();
   expect(nav!.height).toBeLessThan(90);

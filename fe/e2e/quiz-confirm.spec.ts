@@ -1,9 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { abandonOpenSession, pickCourse } from './helpers';
 
-test('quiz: màn xác nhận nộp nêu số câu chưa làm, ưu tiên quay lại, chống bấm đúp', async ({ page, request }) => {
-  const { courseId, topicId } = await pickCourse(request, 3);
-  await abandonOpenSession(request, topicId);
+test('quiz: màn xác nhận nộp nêu số câu chưa làm, ưu tiên quay lại, chống bấm đúp', async ({ page }) => {
+  const { courseId, topicId } = await pickCourse(page.request, 3);
+  await abandonOpenSession(page.request, topicId);
   await page.goto(`/topics/${topicId}?courseId=${courseId}`);
   await page.getByRole('button', { name: /Bắt đầu làm bài/ }).click();
   await page.locator('.answer').first().click();

@@ -1,10 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { abandonOpenSession, pickCourse } from './helpers';
 
 // Baseline: làm bài → tự lưu → tải lại vẫn còn → nộp → xem kết quả.
-test('quiz: chọn đáp án, tải lại vẫn còn, nộp bài ra kết quả', async ({ page, request }) => {
-  const { courseId, topicId } = await pickCourse(request, 0);
-  await abandonOpenSession(request, topicId);
+test('quiz: chọn đáp án, tải lại vẫn còn, nộp bài ra kết quả', async ({ page }) => {
+  const { courseId, topicId } = await pickCourse(page.request, 0);
+  await abandonOpenSession(page.request, topicId);
 
   await page.goto(`/topics/${topicId}?courseId=${courseId}`);
   await page.getByRole('button', { name: /Bắt đầu làm bài/ }).click();
