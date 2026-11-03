@@ -166,6 +166,7 @@ img { display: block; max-width: 100%; }
 .progress-track span { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .3s ease; }
 .status { display: inline-flex; align-items: center; min-height: 27px; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 750; }
 .status-completed, .status-approved, .status-submitted { background: var(--accent-soft); color: var(--accent-strong); }
+.status-late { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning); }
 .status-rejected, .status-expired { background: color-mix(in srgb, var(--danger) 13%, transparent); color: var(--danger); }
 .status-pending_review, .status-project_pending_approval, .status-in_progress { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
 
@@ -268,6 +269,9 @@ img { display: block; max-width: 100%; }
 .notice-success { background: var(--accent-soft); color: var(--accent-strong); }
 .notice-info { margin-top: 0; background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--text); }
 .notice-danger strong, .notice-danger p { display: block; }
+.project-due { margin: 10px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); }
+.project-due.is-soon { color: var(--warning); }
+.project-due.is-overdue { color: var(--danger); font-weight: 650; }
 .project-rules { padding: 10px 14px; border-radius: 12px; background: var(--surface-2); }
 .dropzone { display: grid; justify-items: center; gap: 6px; padding: 22px 16px; border: 2px dashed var(--line); border-radius: 14px; background: var(--surface-2); color: var(--muted); text-align: center; }
 .dropzone.is-dragging { border-color: var(--accent); background: var(--accent-soft); }

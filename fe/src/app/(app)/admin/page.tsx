@@ -225,7 +225,9 @@ export default function AdminPage() {
         await request.put(`/course/${saved.id}/topics`, { topicIds: selectedTopicIds });
       }
       if (hasProject) {
-        const requirement: Record<string, unknown> = { title: projectTitle, description: projectDescription, isRequired: true };
+        const projectDueAt = String(form.get('projectDueAt') || '');
+        // Always explicit: empty clears the deadline, a value sets it (late submissions are labelled, never blocked).
+        const requirement: Record<string, unknown> = { title: projectTitle, description: projectDescription, isRequired: true, dueAt: projectDueAt ? new Date(projectDueAt).toISOString() : null };
         const attachment = form.get('projectAttachment');
         if (attachment instanceof File && attachment.size) {
           const uploaded = await uploadFile(`/course/${saved.id}/project-requirement/upload/signature`, attachment);
@@ -462,6 +464,7 @@ export default function AdminPage() {
               <legend>Đề project</legend>
               <label className="field"><span>Tên đề bài</span><input name="projectTitle" defaultValue={editingCourse?.projectRequirement?.title || ''} required={hasProject} /></label>
               <label className="field"><span>Mô tả yêu cầu</span><textarea name="projectDescription" defaultValue={editingCourse?.projectRequirement?.description || ''} required={hasProject} /></label>
+              <label className="field"><span>Hạn nộp (không bắt buộc)</span><input name="projectDueAt" type="datetime-local" defaultValue={toDatetimeLocal(editingCourse?.projectRequirement?.dueAt)} /><small>Bài nộp sau hạn vẫn được nhận và gắn nhãn &quot;Nộp muộn&quot;. Để trống nếu không có hạn.</small></label>
               <label className="field"><span>File đề bài</span><input name="projectAttachment" type="file" accept=".pdf,.docx,.zip,.rar" /><small>{editingCourse?.projectRequirement?.attachmentOriginalName || 'PDF, DOCX, ZIP hoặc RAR. Không bắt buộc.'}</small></label>
             </fieldset>
           ) : null}

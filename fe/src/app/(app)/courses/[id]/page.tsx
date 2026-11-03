@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { ArrowRight, BookOpen, FolderSimple, UploadSimple } from '@phosphor-icons/react';
 import { useParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { ProjectDue } from '@/components/project-due';
 import { Empty, ErrorState, Loading, PaginationNav, Progress, Status } from '@/components/ui';
 import { ApiError, UploadStageError, logUploadStageError, request, uploadFileWithProgress } from '@/lib/api';
-import { topicOpen } from '@/lib/format';
+import { isLateSubmission, topicOpen } from '@/lib/format';
 import type { Course, CourseProgress, Pagination, ProjectRequirement, Submission, Topic } from '@/lib/types';
 
 type CourseTopic = NonNullable<Course['topics']>[number];
@@ -247,6 +248,7 @@ export default function CourseDetailPage() {
           <h3>{requirement?.title || 'Bài project'}</h3>
           <p className="project-rules"><strong>Quy định nộp bài:</strong> định dạng ZIP, RAR, PDF hoặc DOCX · tối đa {MAX_FILES} file · mỗi file không quá 20 MB.</p>
           <p>{requirement?.description || 'Xem yêu cầu từ giảng viên và nộp file hoàn chỉnh.'}</p>
+          {requirement?.dueAt ? <ProjectDue dueAt={requirement.dueAt} /> : null}
           {requirement?.attachmentUrl ? <a className="button secondary" href={requirement.attachmentUrl} target="_blank" rel="noreferrer"><FolderSimple /> Tải đề bài{requirement.attachmentOriginalName ? `: ${requirement.attachmentOriginalName}` : ''}</a> : null}
           {success ? <div className="notice notice-success" role="status"><strong>{success}</strong></div> : null}
           {submission ? (
@@ -256,7 +258,7 @@ export default function CourseDetailPage() {
                 <small>{submission.note || `${submission.files.length} file`}</small>
                 <div className="file-links">{submission.files.map((file) => <a key={file.id} href={file.secureUrl} target="_blank" rel="noreferrer">{file.originalName}</a>)}</div>
               </div>
-              <Status value={submission.status} />
+              <div className="list-actions"><Status value={submission.status} />{isLateSubmission(submission.submittedAt, requirement?.dueAt) ? <span className="status status-late">Nộp muộn</span> : null}</div>
             </div>
           ) : <p><Status value="NOT_SUBMITTED" /> Bạn chưa nộp bài cho project này.</p>}
           {submission?.status === 'REJECTED' ? (

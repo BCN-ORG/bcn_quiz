@@ -15,3 +15,22 @@ export function optionContent(quiz: { options: Array<{ label: string; content: s
 export function topicOpen(availability?: string) {
   return !availability || availability === 'OPEN';
 }
+
+/** "2 giờ 10 phút", "1 ngày 3 giờ", "dưới 1 phút": khoảng thời gian dễ đọc, làm tròn xuống theo phút. */
+export function formatSpan(ms: number) {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000);
+  if (minutes < 1) return 'dưới 1 phút';
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+  const parts: string[] = [];
+  if (days) parts.push(`${days} ngày`);
+  if (hours) parts.push(`${hours} giờ`);
+  if (rest && !days) parts.push(`${rest} phút`);
+  return parts.join(' ');
+}
+
+/** Bài nộp sau hạn chỉ bị gắn nhãn; hệ thống không chặn nộp muộn. */
+export function isLateSubmission(submittedAt: string, dueAt?: string | null) {
+  return Boolean(dueAt) && new Date(submittedAt).getTime() > new Date(dueAt as string).getTime();
+}

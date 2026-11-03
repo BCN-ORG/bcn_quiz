@@ -100,6 +100,7 @@ export type ProjectRequirement = {
   attachmentUrl?: string | null;
   attachmentPublicId?: string | null;
   attachmentOriginalName?: string | null;
+  dueAt?: string | null;
 };
 
 export type Submission = {
