@@ -32,3 +32,32 @@ test('quiz: chọn A rồi B nhanh trên cùng một câu thì server giữ B sa
   expect((await checked.innerText()).trim()).toBe(labelB);
   expect(labelA).not.toBe(labelB);
 });
+
+// Kết quả của lần lưu thuộc phiên cũ không được rò sang phiên mới sau khi làm lại.
+test('quiz: lần lưu còn bay của phiên cũ không làm hỏng phiên mới sau "Làm lại"', async ({ page }) => {
+  const { courseId, topicId } = await pickCourse(page.request, 3);
+  await abandonOpenSession(page.request, topicId);
+  await page.goto(`/topics/${topicId}?courseId=${courseId}`);
+  await page.getByRole('button', { name: /Bắt đầu làm bài/ }).click();
+  await expect(page.getByRole('radiogroup')).toBeVisible();
+
+  let held: Route | undefined;
+  const bodies: string[] = [];
+  await page.route('**/attempt/session/*/save', (route) => {
+    bodies.push(route.request().postData() ?? '');
+    if (!held) held = route;
+    else void route.continue();
+  });
+  await page.getByRole('radio').first().click();
+  await expect.poll(() => Boolean(held)).toBe(true);
+
+  await page.getByRole('button', { name: 'Bỏ bài dở & làm lại' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Làm lại từ đầu' }).click();
+  await expect(page.getByRole('radio', { checked: true })).toHaveCount(0);
+
+  await held!.continue();
+  await page.waitForTimeout(800);
+  await expect(page.locator('.notice[role=alert]')).toHaveCount(0);
+  expect(bodies.every((body) => body.includes('selectedAnswer'))).toBe(true);
+  expect(bodies).toHaveLength(1);
+});

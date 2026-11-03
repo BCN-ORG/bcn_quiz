@@ -138,26 +138,30 @@ function TopicQuizPage() {
   };
 
   // Mỗi câu chỉ có một request lưu bay cùng lúc và đáp án mới nhất luôn thắng, để đáp án cũ không ghi đè đáp án mới trên server.
-  useEffect(() => { latestChoice.current = {}; inFlight.current.clear(); }, [sessionId]);
+  useEffect(() => { latestChoice.current = {}; inFlight.current = new Set(); }, [sessionId]);
   const save = useCallback(async (quizId: string) => {
-    if (!sessionId || inFlight.current.has(quizId)) return;
-    inFlight.current.add(quizId);
+    // Gắn vòng lưu với phiên đã khởi tạo nó: nếu người học làm lại giữa chừng, kết quả của phiên cũ bị bỏ qua.
+    const choices = latestChoice.current;
+    const flight = inFlight.current;
+    if (!sessionId || flight.has(quizId)) return;
+    flight.add(quizId);
     setSavingCount((count) => count + 1);
     try {
       let sent: string | undefined;
-      while (latestChoice.current[quizId] !== sent) {
-        sent = latestChoice.current[quizId];
+      while (choices[quizId] !== sent && latestChoice.current === choices) {
+        sent = choices[quizId];
         try {
           await request.post(`/attempt/session/${sessionId}/save`, { currentQuizId: quizId, selectedAnswer: sent });
         } catch (reason) {
+          if (latestChoice.current !== choices) return;
           if (reason instanceof ApiError && /not in progress|expired/i.test(reason.message)) setSessionLost(true);
           else setFailedSave({ quizId });
           return;
         }
       }
-      setFailedSave((value) => (value?.quizId === quizId ? null : value));
+      if (latestChoice.current === choices) setFailedSave((value) => (value?.quizId === quizId ? null : value));
     } finally {
-      inFlight.current.delete(quizId);
+      flight.delete(quizId);
       setSavingCount((count) => count - 1);
     }
   }, [sessionId]);
