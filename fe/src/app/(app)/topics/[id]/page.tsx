@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QuizReview } from '@/components/quiz-review';
+import { TopicClock } from '@/components/topic-clock';
 import { Empty, ErrorState, Loading, Status, ConfirmDialog } from '@/components/ui';
 import { ApiError, request } from '@/lib/api';
 import { topicOpen } from '@/lib/format';
@@ -251,6 +252,7 @@ function TopicQuizPage() {
             <p>Mỗi câu có trọng số bằng nhau. Mỗi câu đúng {topic.leaderboard?.questionWeight && !Number.isInteger(topic.leaderboard.questionWeight) ? '≈ ' : '= '}{weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm; sai = 0.</p>
             <p>Điểm cuối cùng dựa trên tổng số câu đúng và làm tròn về số nguyên. Lần nộp đầu tiên hôm nay được tính vào bảng xếp hạng.</p>
             <p>Bắt đầu khi sẵn sàng — tiến độ sẽ được lưu nếu bạn thoát giữa chừng.</p>
+            {topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}
           </div>
         </header>
         {error ? <p className="form-error">{error}</p> : null}
@@ -269,7 +271,7 @@ function TopicQuizPage() {
   return (
     <>
       <header className="page-heading">
-        <div><p className="eyebrow">{topic.name}</p><h1>Câu {current + 1} / {quizzes.length}</h1><p>≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu · {answeredCount}/{quizzes.length} câu đã trả lời</p><p className={`save-status ${failedSave ? 'is-error' : ''}`} role="status" aria-live="polite">{saveLabel}</p></div>
+        <div><p className="eyebrow">{topic.name}</p><h1>Câu {current + 1} / {quizzes.length}</h1><p>≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu · {answeredCount}/{quizzes.length} câu đã trả lời</p><p className={`save-status ${failedSave ? 'is-error' : ''}`} role="status" aria-live="polite">{saveLabel}</p>{topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}</div>
         <div className="list-actions"><Link className="button secondary" href={leaderboardHref} target="_blank" rel="noopener noreferrer">Xem bảng xếp hạng</Link><button type="button" className="button secondary" disabled={saving} onClick={() => setConfirmRestart(true)}>Bỏ bài dở & làm lại</button></div>
       </header>
       {error ? <p className="form-error">{error}</p> : null}

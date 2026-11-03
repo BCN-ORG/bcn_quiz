@@ -307,6 +307,10 @@ img { display: block; max-width: 100%; }
 .quiz-flag { margin-top: 14px; }
 .quiz-flag.is-flagged { border-color: var(--warning); color: var(--warning); }
 .quiz-submit-inline { display: none; }
+.topic-clock { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.topic-clock svg { width: 18px; height: 18px; }
+.topic-clock.is-warning { color: var(--warning); font-weight: 800; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .save-status { min-height: 1.4em; margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .save-status.is-error { color: var(--danger); font-weight: 700; }
 .answer > span:first-child { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--surface-2); font: 700 13px/1 var(--font-mono), ui-monospace, monospace; }
