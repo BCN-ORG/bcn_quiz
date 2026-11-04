@@ -10,7 +10,7 @@ export function parseFilters(params: URLSearchParams): LeaderboardFilters {
   const rawDate = params.get('date') ?? '';
   const parsed = new Date(`${rawDate}T00:00:00Z`);
   // toISOString() throws on an invalid Date, so test the time value first.
-  const isDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === rawDate;
+  const isDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === rawDate && parsed.getUTCFullYear() >= 2000 && parsed.getUTCFullYear() <= 2099;
   const rawPage = params.get('page') ?? '';
   const page = /^\d{1,7}$/.test(rawPage) && Number(rawPage) >= 1 && Number(rawPage) <= MAX_PAGE ? Number(rawPage) : 1;
   return { mode: params.get('mode') === 'weekly' ? 'weekly' : 'daily', date: isDate ? rawDate : '', page };

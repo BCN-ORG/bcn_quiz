@@ -25,7 +25,8 @@ const HIDDEN_NAME = 'Người dùng';
 export function LeaderboardPlayer({ row, current = false }: { row: LeaderboardRow; current?: boolean }) {
   const name = row.user.fullName.trim() || HIDDEN_NAME;
   const hidden = name === HIDDEN_NAME;
-  const initials = name.split(/\s+/).slice(-2).map((part) => part[0]).join('').toUpperCase();
+  // Array.from keeps an emoji (a surrogate pair) in one piece; part[0] would cut it in half.
+  const initials = name.split(/\s+/).slice(-2).map((part) => Array.from(part)[0]).join('').toUpperCase();
   return <span className="leaderboard-player">
     {/* Profiles avatar URLs are external and not configured for Next image optimization. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}

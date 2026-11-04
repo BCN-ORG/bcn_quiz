@@ -47,6 +47,12 @@ test('URL giữ bộ lọc: tải lại/chia sẻ khôi phục chế độ, ngà
   expect(bad.searchParams.has('date')).toBe(false);
   expect(bad.searchParams.get('page')).toBe('1');
   await expect(page.getByRole('button', { name: 'Xóa bộ lọc' })).toHaveCount(0);
+
+  // năm ngoài 2000-2099 (ví dụ 0000-01-01) cũng không được gửi đi
+  seen.length = 0;
+  await page.goto(`/topics/${TOPIC}/leaderboard?date=0000-01-01`);
+  await expect(page.getByRole('table', { name: /trang 1 trên 3/ })).toBeVisible();
+  expect(seen.at(-1)!.searchParams.has('date')).toBe(false);
 });
 
 test('hạng của bạn: ngoài trang thì có nút nhảy tới đúng trang; trong trang thì dòng được tô sáng', async ({ page }) => {
@@ -209,3 +215,81 @@ for (const mode of ['daily', 'weekly'] as const) {
     await expect(table.locator('tbody tr').first().locator('td.num').first()).toBeVisible();
   });
 }
+
+const activeText = (page: Page) => page.evaluate(() => (document.activeElement === document.body ? 'BODY' : (document.activeElement?.textContent ?? '').trim().slice(0, 40)));
+
+test('bàn phím: tiêu điểm không rơi về <body> sau Trang sau, Làm mới, Đi tới trang, Xóa bộ lọc', async ({ page }) => {
+  const me = await myUserId(page);
+  await stubBoard(page, async (q) => {
+    await new Promise((r) => setTimeout(r, 300)); // đủ lâu để nút ở trạng thái đang tải
+    return board({ total: 45, myRank: 37, me, page: Number(q.get('page') ?? 1) });
+  });
+  await open(page, '?page=1');
+  await expect(page.getByRole('table', { name: /trang 1 trên 3/ })).toBeVisible();
+
+  const next = page.getByRole('button', { name: 'Trang sau' });
+  await next.focus();
+  await page.keyboard.press('Enter'); // -> trang 2: nút vẫn còn, tiêu điểm ở lại
+  expect(await activeText(page)).toBe('Trang sau');
+  await expect(page.getByRole('table', { name: /trang 2 trên 3/ })).toBeVisible();
+  expect(await activeText(page)).toBe('Trang sau');
+  await page.keyboard.press('Enter'); // -> trang cuối: nút bị khóa, tiêu điểm sang tiêu đề danh sách
+  await expect(page.getByRole('table', { name: /trang 3 trên 3/ })).toBeVisible();
+  await expect.poll(() => activeText(page)).toBe('Tất cả');
+
+  const refresh = page.getByRole('button', { name: 'Làm mới' });
+  await refresh.focus();
+  await page.keyboard.press('Enter');
+  const section = page.locator('#topic-leaderboard');
+  await expect(section).toHaveAttribute('aria-busy', 'true'); // nút đã đi qua trạng thái "đang tải"
+  await expect(section).toHaveAttribute('aria-busy', 'false');
+  await expect.poll(() => activeText(page)).toBe('Làm mới'); // một nút `disabled` sẽ bị trình duyệt bỏ tiêu điểm
+
+  await page.goto(`/topics/${TOPIC}/leaderboard`);
+  await expect(page.getByRole('table', { name: /trang 1 trên 3/ })).toBeVisible();
+  await page.getByRole('button', { name: /Đi tới trang 2/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => activeText(page)).toBe('Tất cả');
+
+  await page.getByRole('button', { name: 'Xóa bộ lọc' }).focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => activeText(page)).toBe('Bảng xếp hạng');
+});
+
+test('Back hoàn tác bộ lọc: đổi chế độ rồi quay lại thì trở về chế độ trước', async ({ page }) => {
+  const me = await myUserId(page);
+  await stubBoard(page, (q, mode) => board({ total: 45, myRank: null, me, mode, page: Number(q.get('page') ?? 1) }));
+  await open(page);
+  await expect(page.getByRole('table', { name: /trang 1 trên 3/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Tuần này' }).click();
+  await expect(page.getByRole('button', { name: 'Tuần này' })).toHaveAttribute('aria-pressed', 'true');
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'Hôm nay' })).toHaveAttribute('aria-pressed', 'true');
+  expect(view(page).searchParams.has('mode')).toBe(false);
+});
+
+test('chữ cái đầu của tên có emoji không bị cắt đôi; trang vượt giới hạn có lối về trang 1 và không có phân trang sai', async ({ page }) => {
+  const me = await myUserId(page);
+  await stubBoard(page, (q) => board({ total: 45, myRank: null, me, page: Number(q.get('page') ?? 1), names: { 1: '😀 Foo', 2: '🎉' } }));
+  await open(page);
+  const table = page.getByRole('table', { name: /trang 1 trên 3/ });
+  await expect(table).toBeVisible();
+  const initials = await table.locator('.leaderboard-initials').allInnerTexts();
+  expect(initials.slice(0, 2)).toEqual(['😀F', '🎉']);
+  expect(initials.join('')).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/);
+
+  await page.goto(`/topics/${TOPIC}/leaderboard?page=9`);
+  await expect(page.getByText('Trang này không có dòng nào.')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Phân trang' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Về trang 1' }).click();
+  await expect(page.getByRole('table', { name: /trang 1 trên 3/ })).toBeVisible();
+});
+
+test('lần tải đầu lỗi: nhãn nói "Chưa cập nhật được", không phải "Đang cập nhật"', async ({ page }) => {
+  await page.route(/\/api\/leaderboards\/topics\/[^/]+\/daily\?/, (route) =>
+    route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ statusCode: 500, message: 'Internal' }) }));
+  await open(page);
+  await expect(page.locator('.state-panel.error')).toBeVisible();
+  await expect(page.getByText('Chưa cập nhật được.')).toBeVisible();
+  await expect(page.getByText('Đang cập nhật…')).toHaveCount(0);
+});
