@@ -301,22 +301,20 @@ describe('LeaderboardService', () => {
     it('is true when Profiles answered but a user has no name', async () => {
       const result = await board(
         {
-          resolveUsersDetailed: jest
-            .fn()
-            .mockResolvedValue({
-              users: new Map([
-                [
-                  'user-1',
-                  {
-                    id: 'user-1',
-                    fullName: null,
-                    email: 'a@b.c',
-                    avatarUrl: null,
-                  },
-                ],
-              ]),
-              failed: false,
-            }),
+          resolveUsersDetailed: jest.fn().mockResolvedValue({
+            users: new Map([
+              [
+                'user-1',
+                {
+                  id: 'user-1',
+                  fullName: null,
+                  email: 'a@b.c',
+                  avatarUrl: null,
+                },
+              ],
+            ]),
+            failed: false,
+          }),
         },
         false,
       );
