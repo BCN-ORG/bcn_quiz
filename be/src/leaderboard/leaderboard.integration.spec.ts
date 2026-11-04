@@ -661,7 +661,7 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
           viewer,
         ),
       );
-        console.log(`PERF 5000 results (ms): ${JSON.stringify(timings)}`);
+      console.log(`PERF 5000 results (ms): ${JSON.stringify(timings)}`);
       for (const [label, ms] of Object.entries(timings))
         expect({ label, ms: ms < 2000 }).toEqual({ label, ms: true });
     },
