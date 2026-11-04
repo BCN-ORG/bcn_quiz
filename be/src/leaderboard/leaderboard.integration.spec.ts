@@ -213,6 +213,207 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
     ).rejects.toMatchObject({ code: 'P2002' });
   });
 
+  const asUser = (id: string) => ({ user: { id } }) as never;
+
+  it('keeps a score of 0 on the board, after every positive score, ordered by duration', async () => {
+    const topicId = await newTopic();
+    const date = '2026-10-14';
+    await insertResult(
+      topicId,
+      'zero-slow',
+      date,
+      0,
+      9000,
+      '2026-10-14T03:00:00Z',
+    );
+    await insertResult(topicId, 'top', date, 100, 9000, '2026-10-14T03:00:00Z');
+    await insertResult(
+      topicId,
+      'zero-fast',
+      date,
+      0,
+      1000,
+      '2026-10-14T04:00:00Z',
+    );
+
+    const board = await service.list(
+      topicId,
+      'daily',
+      { date },
+      asUser('zero-slow'),
+    );
+
+    expect(board.items.map((item) => item?.user.id)).toEqual([
+      'top',
+      'zero-fast',
+      'zero-slow',
+    ]);
+    expect(board.currentUserRank).toBe(3);
+    expect(board.currentUserResult).toMatchObject({ rank: 3, score: 0 });
+    expect(board.top10Cutoff).toBeNull(); // fewer than 10 results
+  });
+
+  it('gives a viewer without a result no rank and no result, while the board still lists everyone', async () => {
+    const topicId = await newTopic();
+    const date = '2026-10-14';
+    await insertResult(topicId, 'a', date, 700, 1000, '2026-10-14T03:00:00Z');
+    await insertResult(topicId, 'b', date, 600, 1000, '2026-10-14T03:00:00Z');
+
+    const board = await service.list(
+      topicId,
+      'daily',
+      { date },
+      asUser('never-played'),
+    );
+
+    expect(board.currentUserRank).toBeNull();
+    expect(board.currentUserResult).toBeNull();
+    expect(board.aroundMe).toEqual([]);
+    expect(board.items.map((item) => item?.rank)).toEqual([1, 2]);
+    expect(board.pagination.total).toBe(2);
+  });
+
+  it('empty day: no items, total 0, no rank', async () => {
+    const topicId = await newTopic();
+    const board = await service.list(
+      topicId,
+      'daily',
+      { date: '2026-10-14' },
+      asUser('x'),
+    );
+    expect(board.items).toEqual([]);
+    expect(board.pagination).toMatchObject({ total: 0, totalPages: 1 });
+    expect(board.currentUserRank).toBeNull();
+    expect(board.top3).toEqual([]);
+  });
+
+  it('pages are contiguous and the viewer is on page ceil(rank/limit); aroundMe is clipped at the top', async () => {
+    const topicId = await newTopic();
+    const date = '2026-10-14';
+    for (let i = 1; i <= 45; i += 1) {
+      await insertResult(
+        topicId,
+        `p${String(i).padStart(2, '0')}`,
+        date,
+        1000 - i * 10,
+        60_000 + i,
+        '2026-10-14T03:00:00Z',
+      );
+    }
+    const limit = 20;
+    const page = (n: number, user: string) =>
+      service.list(topicId, 'daily', { date, page: n, limit }, asUser(user));
+
+    const p1 = await page(1, 'p37');
+    const p2 = await page(2, 'p37');
+    const p3 = await page(3, 'p37');
+    expect(p1.items.map((i) => i?.rank)).toEqual(
+      Array.from({ length: 20 }, (_, i) => i + 1),
+    );
+    expect(p2.items.map((i) => i?.rank)).toEqual(
+      Array.from({ length: 20 }, (_, i) => i + 21),
+    );
+    expect(p3.items.map((i) => i?.rank)).toEqual([41, 42, 43, 44, 45]);
+    expect(p1.pagination).toMatchObject({ total: 45, totalPages: 3 });
+    expect(p1.currentUserRank).toBe(37);
+    expect(p1.top3.map((i) => i?.rank)).toEqual([1, 2, 3]);
+    expect(p1.top10Cutoff).toBe(900); // score of rank 10 (1000 - 10 * 10)
+    expect(p2.items.some((i) => i?.user.id === 'p37')).toBe(true); // ceil(37 / 20) = 2
+    expect(p1.items.some((i) => i?.user.id === 'p37')).toBe(false);
+    expect(p1.aroundMe.map((i) => i?.rank)).toEqual([35, 36, 37, 38, 39]);
+
+    const first = await page(1, 'p01');
+    expect(first.aroundMe.map((i) => i?.rank)).toEqual([1, 2, 3]);
+    const last = await page(3, 'p45');
+    expect(last.aroundMe.map((i) => i?.rank)).toEqual([43, 44, 45]);
+  });
+
+  it('weekly ties: weekly score, completed days, total duration, last submission, then userId', async () => {
+    const topicId = await newTopic();
+    // Monday 2026-10-12 .. Sunday 2026-10-18
+    await insertResult(
+      topicId,
+      'w-b',
+      '2026-10-12',
+      300,
+      5000,
+      '2026-10-12T03:00:00Z',
+    );
+    await insertResult(
+      topicId,
+      'w-b',
+      '2026-10-13',
+      300,
+      5000,
+      '2026-10-13T03:00:00Z',
+    ); // 600, 2 days, 10000ms
+    await insertResult(
+      topicId,
+      'w-a',
+      '2026-10-12',
+      600,
+      9000,
+      '2026-10-12T05:00:00Z',
+    ); // 600, 1 day
+    await insertResult(
+      topicId,
+      'w-c',
+      '2026-10-12',
+      300,
+      4000,
+      '2026-10-12T03:00:00Z',
+    );
+    await insertResult(
+      topicId,
+      'w-c',
+      '2026-10-13',
+      300,
+      4000,
+      '2026-10-13T03:00:00Z',
+    ); // 600, 2 days, 8000ms
+    await insertResult(
+      topicId,
+      'w-d',
+      '2026-10-12',
+      300,
+      4000,
+      '2026-10-12T03:00:00Z',
+    );
+    await insertResult(
+      topicId,
+      'w-d',
+      '2026-10-13',
+      300,
+      4000,
+      '2026-10-13T02:00:00Z',
+    ); // identical to w-c except earlier last submit
+    await insertResult(
+      topicId,
+      'w-e',
+      '2026-10-12',
+      0,
+      1000,
+      '2026-10-12T03:00:00Z',
+    ); // 0 points still ranked
+
+    const board = await service.list(
+      topicId,
+      'weekly',
+      { weekStart: '2026-10-14' },
+      asUser('w-e'),
+    );
+
+    // w-c and w-d tie on score/days/duration; w-d submitted last earlier -> ahead. 2 days beat 1 day at equal score.
+    expect(board.items.map((i) => i?.user.id)).toEqual([
+      'w-d',
+      'w-c',
+      'w-b',
+      'w-a',
+      'w-e',
+    ]);
+    expect(board.currentUserRank).toBe(5);
+  });
+
   it('public quiz list returns options but never answer or explanation', async () => {
     const topicId = await newTopic();
     const quizCode = `Q-${randomUUID()}`;
@@ -382,4 +583,88 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
       ).toBe(2);
     });
   });
+  // 5,000 official results for one topic/day. Gated twice: only on a disposable DB AND with INTEGRATION_PERF=1.
+  const maybePerf = process.env.INTEGRATION_PERF === '1' ? it : it.skip;
+  maybePerf(
+    'serves daily and weekly pages quickly with 5,000 results',
+    async () => {
+      const topicId = await newTopic();
+      const date = '2026-10-14';
+      const total = 5000;
+      await prisma.attemptSession.createMany({
+        data: Array.from({ length: total }, (_, i) => ({
+          id: randomUUID(),
+          userId: `perf-${i}`,
+          topicId,
+          answers: {},
+          expiresAt: new Date(Date.now() + 3_600_000),
+        })),
+      });
+      const sessions = await prisma.attemptSession.findMany({
+        where: { topicId },
+        select: { id: true, userId: true },
+      });
+      await prisma.topicLeaderboardResult.createMany({
+        data: sessions.map((session, i) => ({
+          userId: session.userId,
+          topicId,
+          sessionId: session.id,
+          businessDate: date,
+          score: (i * 7) % 1001,
+          correctCount: i % 11,
+          totalQuestions: 10,
+          durationMs: 10_000 + ((i * 13) % 50_000),
+          submittedAt: new Date(Date.UTC(2026, 9, 14, 3, 0, 0) + i * 1000),
+        })),
+      });
+      const timings: Record<string, number> = {};
+      const time = async (
+        label: string,
+        run: () => Promise<{ pagination: { total: number } }>,
+      ) => {
+        const start = performance.now();
+        const board = await run();
+        timings[label] = Math.round(performance.now() - start);
+        expect(board.pagination.total).toBe(total);
+      };
+      const viewer = asUser('perf-2500');
+      await time('daily page 1', () =>
+        service.list(topicId, 'daily', { date, page: 1, limit: 20 }, viewer),
+      );
+      await time('daily page 125 (middle)', () =>
+        service.list(topicId, 'daily', { date, page: 125, limit: 20 }, viewer),
+      );
+      await time('daily last page', () =>
+        service.list(topicId, 'daily', { date, page: 250, limit: 20 }, viewer),
+      );
+      await time('daily viewer without result', () =>
+        service.list(
+          topicId,
+          'daily',
+          { date, page: 1, limit: 20 },
+          asUser('nobody'),
+        ),
+      );
+      await time('weekly page 1', () =>
+        service.list(
+          topicId,
+          'weekly',
+          { weekStart: date, page: 1, limit: 20 },
+          viewer,
+        ),
+      );
+      await time('weekly page 125 (middle)', () =>
+        service.list(
+          topicId,
+          'weekly',
+          { weekStart: date, page: 125, limit: 20 },
+          viewer,
+        ),
+      );
+        console.log(`PERF 5000 results (ms): ${JSON.stringify(timings)}`);
+      for (const [label, ms] of Object.entries(timings))
+        expect({ label, ms: ms < 2000 }).toEqual({ label, ms: true });
+    },
+    120_000,
+  );
 });
