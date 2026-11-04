@@ -128,7 +128,7 @@ img { display: block; max-width: 100%; }
 .button.secondary:hover { background: var(--surface-2); }
 .button.danger { background: transparent; border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); color: var(--danger); }
 .button svg { width: 18px; height: 18px; }
-.button[disabled] { opacity: .55; cursor: not-allowed; }
+.button[disabled], .button[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 
 .hero-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(280px, .7fr); gap: 22px; }
 .hero-panel { min-height: 310px; padding: clamp(28px, 5vw, 58px); border-radius: 24px; background: #123f36; color: #effbf7; position: relative; overflow: hidden; }

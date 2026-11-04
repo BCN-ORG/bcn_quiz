@@ -242,6 +242,7 @@ test('bàn phím: tiêu điểm không rơi về <body> sau Trang sau, Làm mớ
   await page.keyboard.press('Enter');
   const section = page.locator('#topic-leaderboard');
   await expect(section).toHaveAttribute('aria-busy', 'true'); // nút đã đi qua trạng thái "đang tải"
+  expect(await refresh.evaluate((el) => getComputedStyle(el).opacity)).toBe('0.55'); // trông như bị khóa khi đang tải
   await expect(section).toHaveAttribute('aria-busy', 'false');
   await expect.poll(() => activeText(page)).toBe('Làm mới'); // một nút `disabled` sẽ bị trình duyệt bỏ tiêu điểm
 
@@ -266,6 +267,11 @@ test('Back hoàn tác bộ lọc: đổi chế độ rồi quay lại thì trở
   await page.goBack();
   await expect(page.getByRole('button', { name: 'Hôm nay' })).toHaveAttribute('aria-pressed', 'true');
   expect(view(page).searchParams.has('mode')).toBe(false);
+
+  // bấm lại đúng chế độ đang chọn không thêm mục lịch sử
+  const length = await page.evaluate(() => history.length);
+  await page.getByRole('button', { name: 'Hôm nay' }).click();
+  expect(await page.evaluate(() => history.length)).toBe(length);
 });
 
 test('chữ cái đầu của tên có emoji không bị cắt đôi; trang vượt giới hạn có lối về trang 1 và không có phân trang sai', async ({ page }) => {
@@ -283,6 +289,7 @@ test('chữ cái đầu của tên có emoji không bị cắt đôi; trang vư�
   await expect(page.getByRole('navigation', { name: 'Phân trang' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Về trang 1' }).click();
   await expect(page.getByRole('table', { name: /trang 1 trên 3/ })).toBeVisible();
+  await expect.poll(() => activeText(page)).toBe('Tất cả'); // nút vừa bấm đã biến mất, tiêu điểm không rơi về <body>
 });
 
 test('lần tải đầu lỗi: nhãn nói "Chưa cập nhật được", không phải "Đang cập nhật"', async ({ page }) => {

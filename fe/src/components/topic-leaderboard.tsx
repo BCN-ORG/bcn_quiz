@@ -115,7 +115,7 @@ export function TopicLeaderboard({ topicId }: { topicId: string }) {
           {mode === 'daily' ? <p className="leaderboard-hint">Bảng ngày {data.date} kết thúc lúc {new Date(data.closesAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}.</p> : null}
           {data.aroundMe.length ? <><h3>Quanh bạn</h3><LeaderboardTable rows={data.aroundMe} mode={mode} currentUserId={user?.id} caption="Các hạng quanh bạn" /></> : null}
           <h3 ref={listRef} tabIndex={-1}>Tất cả</h3>
-          {data.items.length ? <LeaderboardTable rows={data.items} mode={mode} currentUserId={user?.id} caption={`${period}, trang ${data.pagination.page} trên ${data.pagination.totalPages}`} /> : <><Empty title="Trang này không có dòng nào." description={`Bảng chỉ có ${data.pagination.totalPages} trang.`} /><button type="button" className="button secondary" onClick={() => go({ mode, date, page: 1 })}>Về trang 1</button></>}
+          {data.items.length ? <LeaderboardTable rows={data.items} mode={mode} currentUserId={user?.id} caption={`${period}, trang ${data.pagination.page} trên ${data.pagination.totalPages}`} /> : <><Empty title="Trang này không có dòng nào." description={`Bảng chỉ có ${data.pagination.totalPages} trang.`} /><button type="button" className="button secondary" onClick={() => { go({ mode, date, page: 1 }); listRef.current?.focus(); }}>Về trang 1</button></>}
           {data.items.length ? <PaginationNav {...data.pagination} onChange={(next) => {
             if (loading) return;
             go({ mode, date, page: next });
