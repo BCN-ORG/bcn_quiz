@@ -5,9 +5,9 @@ import { CircleNotch } from '@phosphor-icons/react';
 import { downloadFile, request } from '@/lib/api';
 import type { Course, Pagination, Topic } from '@/lib/types';
 import { Empty, ErrorState, Loading, PaginationNav } from './ui';
-import { LeaderboardTable, type LeaderboardRow } from './leaderboard-table';
+import { AdminLeaderboardTable, type AdminLeaderboardRow } from './admin-leaderboard-table';
 
-type Data = { items: LeaderboardRow[]; date?: string; weekStart?: string; weekEnd?: string; pagination: Pagination<LeaderboardRow>['pagination'] };
+type Data = { items: AdminLeaderboardRow[]; date?: string; weekStart?: string; weekEnd?: string; profilesAvailable?: boolean; pagination: Pagination<AdminLeaderboardRow>['pagination'] };
 
 async function allPages<T>(path: string): Promise<T[]> {
   const first = await request.get<Pagination<T>>(`${path}${path.includes('?') ? '&' : '?'}page=1&limit=100`);
@@ -94,8 +94,13 @@ export function AdminLeaderboard() {
     {!topicId ? <Empty title="Chọn một chủ đề" description="Mỗi Topic có bảng xếp hạng riêng." /> : null}
     {loading && !data ? <Loading label="Đang tải bảng xếp hạng" /> : null}
     {data && topicId ? <>
+      {data.profilesAvailable === false ? <div className="notice leaderboard-profiles-warning" role="alert">
+        <strong>Chưa lấy được họ tên và email từ BCN Profiles.</strong>
+        <p>Điểm và thứ hạng vẫn đúng. Cột họ tên hiện &quot;Chưa tải được tên&quot;, email để trống, và file Excel xuất lúc này sẽ ghi &quot;Unknown&quot; ở cột Full Name và để trống Email.</p>
+        <p>Thường do khóa server của ứng dụng Quiz bị sai hoặc đã đổi: tạo khóa server mới ở Profiles → Administration → Applications → QUIZ, cập nhật PROFILES_CLIENT_SECRET rồi deploy lại.</p>
+      </div> : null}
       <p aria-live="polite">{searchFailed ? 'Kết quả tải lần cuối' : mode === 'daily' ? `Ngày ${data.date}` : `Tuần ${data.weekStart} → ${data.weekEnd}`} · {data.pagination.total} người</p>
-      {data.items.length ? <LeaderboardTable rows={data.items} mode={mode} /> : <Empty title={search ? 'Chưa có kết quả phù hợp.' : 'Chưa có kết quả trong kỳ này.'} description={search ? 'Thử tên khác hoặc xóa ô tìm kiếm.' : 'Chọn ngày hoặc tuần khác để xem.'} />}
+      {data.items.length ? <AdminLeaderboardTable rows={data.items} mode={mode} namesUnavailable={data.profilesAvailable === false} /> : <Empty title={search ? 'Chưa có kết quả phù hợp.' : 'Chưa có kết quả trong kỳ này.'} description={search ? 'Thử tên khác hoặc xóa ô tìm kiếm.' : 'Chọn ngày hoặc tuần khác để xem.'} />}
       <PaginationNav {...data.pagination} disabled={loading} onChange={setPage} />
     </> : null}
   </section>;

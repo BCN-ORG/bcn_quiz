@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Check, CheckCircle, Flag, PaperPlaneTilt } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle, Flag, ListChecks, PaperPlaneTilt, Target, Trophy } from '@phosphor-icons/react';
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -228,7 +228,20 @@ function TopicQuizPage() {
   if (!topic || !quizzes.length) return <><Empty title="Topic chưa có câu hỏi" description="Quay lại sau khi nội dung được cập nhật." /><Link className="button secondary" href={leaderboardHref}>Xem bảng xếp hạng</Link></>;
   if (result) return (
     <>
-      <header className="page-heading"><div><p className="eyebrow">Kết quả</p><h1>{topic.name}</h1><p>Đúng {result.correctCount}/{result.attemptedQuizCount} câu · sai {result.attemptedQuizCount - result.correctCount} câu · chính xác {Math.round(result.score * 100)}%.</p><p><strong>{result.leaderboard.attemptScore}/{result.leaderboard.maxScore} điểm</strong> · hạng ngày #{result.leaderboard.rank ?? '—'}</p><p>{result.leaderboard.isOfficial ? 'Kết quả này được tính vào bảng xếp hạng hôm nay.' : `Lượt luyện tập. Điểm chính thức hôm nay: ${result.leaderboard.score}.`}</p></div><CheckCircle size={54} color="var(--accent)" /></header>
+      <section className="topic-result" aria-labelledby="topic-result-title">
+        <div className="topic-result-head">
+          <CheckCircle size={44} weight="duotone" aria-hidden="true" />
+          <div><p className="eyebrow">Kết quả</p><h1 id="topic-result-title">{topic.name}</h1></div>
+        </div>
+        <p className="topic-result-score"><strong>{result.leaderboard.attemptScore}</strong><span>/ {result.leaderboard.maxScore} điểm</span></p>
+        <ul className="topic-result-chips">
+          <li>Đúng {result.correctCount}/{result.attemptedQuizCount} câu</li>
+          <li>Sai {result.attemptedQuizCount - result.correctCount} câu</li>
+          <li>Chính xác {Math.round(result.score * 100)}%</li>
+          <li>Xếp hạng ngày #{result.leaderboard.rank ?? '—'}</li>
+        </ul>
+        <p className={`topic-result-note${result.leaderboard.isOfficial ? ' is-official' : ''}`}>{result.leaderboard.isOfficial ? 'Kết quả này được tính vào bảng xếp hạng hôm nay.' : `Lượt luyện tập. Điểm chính thức hôm nay: ${result.leaderboard.score}.`}</p>
+      </section>
       <QuizReview
         items={result.quizResults}
         actions={(
@@ -243,27 +256,46 @@ function TopicQuizPage() {
     </>
   );
   if (!session) {
+    const totalQuestions = topic.leaderboard?.totalQuestions ?? quizzes.length;
+    const weight = topic.leaderboard?.questionWeight ?? 0;
+    const approx = weight && !Number.isInteger(weight) ? '≈ ' : '= ';
     return (
-      <>
-        <header className="page-heading">
-          <div>
-            <p className="eyebrow">{topic.name}</p>
-            <h1>{topic.leaderboard?.totalQuestions ?? quizzes.length} câu hỏi · {topic.leaderboard?.maxScore ?? 0} điểm tối đa</h1>
-            <p>Mỗi câu có trọng số bằng nhau. Mỗi câu đúng {topic.leaderboard?.questionWeight && !Number.isInteger(topic.leaderboard.questionWeight) ? '≈ ' : '= '}{weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm; sai = 0.</p>
-            <p>Điểm cuối cùng dựa trên tổng số câu đúng và làm tròn về số nguyên. Lần nộp đầu tiên hôm nay được tính vào bảng xếp hạng.</p>
-            <p>Bắt đầu khi sẵn sàng — tiến độ sẽ được lưu nếu bạn thoát giữa chừng.</p>
-            {topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}
-          </div>
-        </header>
-        {error ? <p className="form-error">{error}</p> : null}
-        <div className="list-actions">
-          <button type="button" className="button" disabled={saving} onClick={() => void begin()}>
-            Bắt đầu làm bài <ArrowRight />
-          </button>
-          {courseId ? <Link className="button secondary" href={`/courses/${courseId}`}>Về khóa học</Link> : null}
+      <div className="topic-intro">
+        <section className="topic-hero">
+          <p className="eyebrow">Chủ đề</p>
+          <h1>{topic.name}</h1>
+          <p className="topic-lead">Làm trọn bộ câu hỏi trong một lượt. Lần nộp đầu tiên trong ngày được tính vào bảng xếp hạng.</p>
+          {topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}
+        </section>
+        <dl className="topic-stats">
+          <div><dt><ListChecks aria-hidden="true" /> Số câu hỏi</dt><dd>{totalQuestions}</dd></div>
+          <div><dt><Trophy aria-hidden="true" /> Điểm tối đa</dt><dd>{topic.leaderboard?.maxScore ?? 0}</dd></div>
+          <div><dt><Target aria-hidden="true" /> Mỗi câu đúng</dt><dd>{approx}{weightLabel(weight)} <small>điểm</small></dd></div>
+        </dl>
+        <div className="topic-grid">
+          <article className="topic-card">
+            <h2>Cách tính điểm</h2>
+            <ul className="topic-rules">
+              <li>Mỗi câu có trọng số bằng nhau. Mỗi câu đúng {approx}{weightLabel(weight)} điểm; sai = 0.</li>
+              <li>Điểm cuối cùng dựa trên tổng số câu đúng và làm tròn về số nguyên.</li>
+              <li>Lần nộp đầu tiên hôm nay được tính vào bảng xếp hạng; các lần sau là luyện tập.</li>
+              <li>Tiến độ được lưu, bạn có thể thoát giữa chừng rồi làm tiếp.</li>
+            </ul>
+          </article>
+          <aside className="topic-card topic-start">
+            <h2>Sẵn sàng chưa?</h2>
+            <p>Bắt đầu khi sẵn sàng. Bài làm dở vẫn được giữ nếu bạn quay lại.</p>
+            {error ? <p className="form-error">{error}</p> : null}
+            <button type="button" className="button" disabled={saving} onClick={() => void begin()}>
+              Bắt đầu làm bài <ArrowRight />
+            </button>
+            <div className="topic-links">
+              {courseId ? <Link className="button secondary" href={`/courses/${courseId}`}>Về khóa học</Link> : null}
+              <Link className="button secondary" href={leaderboardHref}>Xem bảng xếp hạng</Link>
+            </div>
+          </aside>
         </div>
-        <Link className="button secondary" href={leaderboardHref}>Xem bảng xếp hạng</Link>
-      </>
+      </div>
     );
   }
 
