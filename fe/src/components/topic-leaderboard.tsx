@@ -86,13 +86,12 @@ export function TopicLeaderboard({ topicId }: { topicId: string }) {
         <button type="button" className={`button ${mode === 'weekly' ? '' : 'secondary'}`} aria-pressed={mode === 'weekly'} onClick={() => go({ mode: 'weekly', date: '', page: 1 })}>Tuần này</button>
       </div></div>
 
-
       <div className="leaderboard-toolbar">
-      <label className="field leaderboard-date"><span>{mode === 'daily' ? 'Ngày' : 'Tuần chứa ngày'}</span><input type="date" value={date || (mode === 'daily' ? data?.date : data?.weekStart) || ''} onChange={(event) => go({ mode, date: event.target.value, page: 1 })} /></label>
-      <div className="leaderboard-fresh">
-        <p role="status" aria-live="polite">{loaded?.view === view ? `Cập nhật lúc ${clockLabel(loaded.at)} · không tự động làm mới` : error ? 'Chưa cập nhật được.' : 'Đang cập nhật…'}</p>
-        <button type="button" className="button secondary" aria-disabled={loading} onClick={() => { if (!loading) void load(); }}>Làm mới</button>
-      </div>
+        <label className="field leaderboard-date"><span>{mode === 'daily' ? 'Ngày' : 'Tuần chứa ngày'}</span><input type="date" value={date || (mode === 'daily' ? data?.date : data?.weekStart) || ''} onChange={(event) => go({ mode, date: event.target.value, page: 1 })} /></label>
+        <div className="leaderboard-fresh">
+          <p role="status" aria-live="polite">{loaded?.view === view ? `Cập nhật lúc ${clockLabel(loaded.at)} · không tự động làm mới` : error ? 'Chưa cập nhật được.' : 'Đang cập nhật…'}</p>
+          <button type="button" className="button secondary" aria-disabled={loading} onClick={() => { if (!loading) void load(); }}>Làm mới</button>
+        </div>
       </div>
       <div className="leaderboard-filters" role="group" aria-label="Bộ lọc đang áp dụng">
         <span className="leaderboard-chip">{mode === 'daily' ? 'Theo ngày' : 'Theo tuần'}</span>

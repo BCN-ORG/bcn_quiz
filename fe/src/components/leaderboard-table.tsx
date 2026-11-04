@@ -23,7 +23,8 @@ export function leaderboardDuration(ms?: number) {
 const FALLBACK_NAME = 'Người dùng';
 
 export function LeaderboardPlayer({ row, current = false, large = false, namesUnavailable = false }: { row: LeaderboardRow; current?: boolean; large?: boolean; namesUnavailable?: boolean }) {
-  const name = row.user.fullName.trim() || FALLBACK_NAME;
+  // Zero-width characters survive trim() but show as an empty name.
+  const name = row.user.fullName.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim() || FALLBACK_NAME;
   const nameless = name === FALLBACK_NAME;
   // "Cannot load" (lookup failed) and "has no name" are different problems; neither is a privacy choice.
   const label = namesUnavailable ? 'Chưa tải được tên' : 'Chưa đặt tên';

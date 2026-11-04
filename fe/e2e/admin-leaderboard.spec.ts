@@ -4,12 +4,13 @@ import { asMentorInUi, board, myUserId } from './leaderboard-stub';
 
 // Giao diện admin dựng bằng dữ liệu giả cùng hình dạng API admin: /auth/me được vá để trang cho phép quản trị (chỉ là cổng UI).
 // Quyền thật phía server (member bị 403) nằm ở leaderboard-real.spec.ts và leaderboard-permissions.spec.ts.
-const openAdminBoard = async (page: Page, available: boolean) => {
+const openAdminBoard = async (page: Page, available: boolean, email?: string) => {
   const me = await myUserId(page);
   // Lookup failed on the server: the names fall back to the plain label and the emails are null, exactly like leaderboard.service.ts.
   const payload = (mode: 'daily' | 'weekly') => {
     const data = board({ total: 3, myRank: null, me, mode, admin: true, profilesAvailable: available, names: available ? { 1: 'Trần Thị An' } : { 1: 'Người dùng', 2: 'Người dùng', 3: 'Người dùng' } });
     if (!available) for (const row of data.items) (row as { email?: string | null }).email = null;
+    if (email) (data.items[0] as { email?: string | null }).email = email;
     return data;
   };
   await asMentorInUi(page);
@@ -58,4 +59,13 @@ test('admin: Profiles không trả lời thì có cảnh báo rõ, cột tên/em
   await expect(first).toContainText('Chưa tải được');
   await expect(first).toContainText('1.000');
   await expect(page.getByText('ẩn tên')).toHaveCount(0);
+});
+
+test('email lạ không thành liên kết mailto có tham số; email hợp lệ vẫn là liên kết', async ({ page }) => {
+  await openAdminBoard(page, true, 'a@b.co?cc=x@evil.com');
+  const table = page.getByRole('table', { name: /đầy đủ thông tin người dùng/ });
+  const first = table.locator('tbody tr').first();
+  await expect(first).toContainText('a@b.co?cc=x@evil.com');
+  await expect(first.locator('a[href^="mailto:"]')).toHaveCount(0);
+  await expect(table.locator('tbody tr').nth(1).locator('a[href^="mailto:"]')).toHaveCount(1);
 });

@@ -19,6 +19,9 @@ describe('ProfilesService internal user lookup', () => {
     process.env.BCN_OAUTH_CLIENT_ID = 'bcn-quiz';
     process.env.PROFILES_CLIENT_SECRET = 'test-server-key';
   });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
   afterAll(() => {
     for (const key of keys) {
       if (previous[key] === undefined) delete process.env[key];
@@ -109,6 +112,15 @@ describe('ProfilesService internal user lookup', () => {
         });
         expect(await service(get).resolveUsers(['u1'])).toEqual(new Map());
       }
+    });
+
+    it('warns about a missing server key once, not on every call', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      delete process.env.PROFILES_CLIENT_SECRET;
+      const instance = service(jest.fn());
+      await instance.resolveUsersDetailed(['u1']);
+      await instance.resolveUsersDetailed(['u2']);
+      expect(warn).toHaveBeenCalledTimes(1);
     });
 
     it('is failed when the server key is not configured (outside production) and makes no request', async () => {

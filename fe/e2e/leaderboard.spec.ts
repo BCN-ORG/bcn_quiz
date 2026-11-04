@@ -179,11 +179,11 @@ test('không polling: không có request khi thời gian trôi; "Làm mới" g�
 
 test('tên trống được gọi đúng tên: "Chưa đặt tên" khi Profiles trả lời, "Chưa tải được tên" khi không hỏi được; không còn chữ "ẩn tên"', async ({ page }) => {
   const me = await myUserId(page);
-  const names = { 2: 'Người dùng', 4: '   ' };
+  const names = { 2: 'Người dùng', 4: '   ', 5: '\u200B' };
   await stubBoard(page, () => board({ total: 5, myRank: null, me, names, profilesAvailable: true }));
   await open(page);
   const table = page.getByRole('table', { name: /trang 1 trên 1/ });
-  await expect(table.getByText('Chưa đặt tên')).toHaveCount(2);
+  await expect(table.getByText('Chưa đặt tên')).toHaveCount(3);
   await expect(page.getByText(/Chưa tải được tên người chơi/)).toHaveCount(0);
   await expect(page.getByText('ẩn tên')).toHaveCount(0);
 
@@ -191,7 +191,7 @@ test('tên trống được gọi đúng tên: "Chưa đặt tên" khi Profiles 
   await stubBoard(page, () => board({ total: 5, myRank: null, me, names, profilesAvailable: false }));
   await page.getByRole('button', { name: 'Làm mới' }).click();
   await expect(page.getByText(/Chưa tải được tên người chơi từ BCN/)).toBeVisible();
-  await expect(table.getByText('Chưa tải được tên')).toHaveCount(2);
+  await expect(table.getByText('Chưa tải được tên')).toHaveCount(3);
   await expect(table.getByText('Chưa đặt tên')).toHaveCount(0);
   await expect(page.getByText('ẩn tên')).toHaveCount(0);
 });

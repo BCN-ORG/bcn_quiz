@@ -17,6 +17,7 @@ export class ProfilesService {
   private readonly baseUrl: string;
   private readonly clientId: string;
   private readonly clientSecret: string;
+  private warnedMissingSecret = false;
 
   constructor(private readonly httpService: HttpService) {
     this.baseUrl = this.required('PROFILES_API_BASE_URL').replace(/\/$/, '');
@@ -101,7 +102,10 @@ export class ProfilesService {
     const out = new Map<string, ProfilesUserSummary>();
     if (!unique.length) return { users: out, failed: false };
     if (!this.clientSecret) {
-      this.logger.warn('[ProfilesResolve] PROFILES_CLIENT_SECRET is not set');
+      if (!this.warnedMissingSecret) {
+        this.warnedMissingSecret = true;
+        this.logger.warn('[ProfilesResolve] PROFILES_CLIENT_SECRET is not set');
+      }
       return { users: out, failed: true };
     }
 

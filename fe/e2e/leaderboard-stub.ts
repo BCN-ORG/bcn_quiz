@@ -34,7 +34,7 @@ export function board(opts: { total: number; myRank: number | null; me: string; 
   const { total, myRank, me, mode = 'daily' } = opts;
   const page = opts.page ?? 1;
   const row = (rank: number): Row => {
-    const base = { rank, user: { id: rank === myRank ? me : `u${rank}`, fullName: opts.names?.[rank] ?? `Người chơi ${rank}`, avatarUrl: null }, ...(opts.admin ? { email: `nguoi${rank}@example.com`, submittedAt: '2026-11-04T03:15:00.000Z', lastSubmittedAt: '2026-11-04T03:15:00.000Z' } : {}) };
+    const base = { rank, user: { id: rank === myRank ? me : `u${rank}`, fullName: opts.names?.[rank] ?? `Người chơi ${rank}`, avatarUrl: null }, ...(opts.admin ? { email: `nguoi${rank}@example.com`, ...(mode === 'daily' ? { submittedAt: '2026-11-04T03:15:00.000Z' } : { lastSubmittedAt: '2026-11-04T03:15:00.000Z' }) } : {}) };
     const score = Math.max(0, 1000 - (rank - 1) * Math.max(1, Math.floor(1000 / Math.max(total, 1))));
     return mode === 'daily'
       ? { ...base, score, correctCount: Math.round(score / 100), totalQuestions: 10, durationMs: 60_000 + rank * 1000 }

@@ -269,14 +269,14 @@ function TopicQuizPage() {
         </section>
         <dl className="topic-stats">
           <div><dt><ListChecks aria-hidden="true" /> Số câu hỏi</dt><dd>{totalQuestions}</dd></div>
-          <div><dt><Trophy aria-hidden="true" /> Điểm tối đa</dt><dd>{topic.leaderboard?.maxScore ?? 0}</dd></div>
-          <div><dt><Target aria-hidden="true" /> Mỗi câu đúng</dt><dd>{approx}{weightLabel(weight)} <small>điểm</small></dd></div>
+          <div><dt><Trophy aria-hidden="true" /> Điểm tối đa</dt><dd>{topic.leaderboard?.maxScore ?? '—'}</dd></div>
+          <div><dt><Target aria-hidden="true" /> Mỗi câu đúng</dt><dd>{weight ? <>{approx}{weightLabel(weight)} <small>điểm</small></> : '—'}</dd></div>
         </dl>
         <div className="topic-grid">
           <article className="topic-card">
             <h2>Cách tính điểm</h2>
             <ul className="topic-rules">
-              <li>Mỗi câu có trọng số bằng nhau. Mỗi câu đúng {approx}{weightLabel(weight)} điểm; sai = 0.</li>
+              <li>{weight ? <>Mỗi câu có trọng số bằng nhau. Mỗi câu đúng {approx}{weightLabel(weight)} điểm; sai = 0.</> : 'Mỗi câu có trọng số bằng nhau; câu sai không có điểm.'}</li>
               <li>Điểm cuối cùng dựa trên tổng số câu đúng và làm tròn về số nguyên.</li>
               <li>Lần nộp đầu tiên hôm nay được tính vào bảng xếp hạng; các lần sau là luyện tập.</li>
               <li>Tiến độ được lưu, bạn có thể thoát giữa chừng rồi làm tiếp.</li>
