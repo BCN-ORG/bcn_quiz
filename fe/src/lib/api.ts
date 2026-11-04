@@ -46,17 +46,47 @@ function noteServerTime(response: Response) {
   if (!Number.isNaN(parsed) && Math.abs(parsed - Date.now()) <= MAX_CLOCK_OFFSET_MS) serverOffsetMs = parsed - Date.now();
 }
 
+// The access cookie lives 15 minutes, the refresh cookie 30 days. Profiles rotates the refresh token on every use and
+// revokes the whole app session if an old one is replayed, so two refreshes must never run with the same cookie:
+// one lock for every tab, plus a marker so a tab that waited behind the lock does not rotate a second time.
+const REFRESH_LOCK = 'bcn-quiz-refresh';
+const REFRESHED_AT = 'quiz:auth:refreshedAt';
+// Not retried: the refresh call itself and logout (a 401 there is final).
+const NO_REFRESH_RETRY = new Set(['/auth/refresh', '/auth/logout']);
+
+function lastRefreshedAt(): number {
+  try { return Number(localStorage.getItem(REFRESHED_AT)) || 0; } catch { return 0; }
+}
+
+function markRefreshed() {
+  try { localStorage.setItem(REFRESHED_AT, String(Date.now())); } catch { /* private mode: the lock alone still serialises */ }
+}
+
+async function callRefresh(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' });
+    if (response.ok) markRefreshed();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function refresh(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
-  refreshPromise = fetch(`${API_URL}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-  })
-    .then((response) => response.ok)
-    .catch(() => false)
-    .finally(() => {
-      refreshPromise = null;
+  const run = async (): Promise<boolean> => {
+    if (typeof navigator === 'undefined' || !navigator.locks) return callRefresh();
+    const asked = Date.now();
+    const result = await navigator.locks.request(REFRESH_LOCK, async () => {
+      // Another tab finished a refresh after we asked: the shared cookie is already new, rotating again would only add risk.
+      if (lastRefreshedAt() >= asked) return true;
+      return callRefresh();
     });
+    return result === true;
+  };
+  refreshPromise = run().finally(() => {
+    refreshPromise = null;
+  });
   return refreshPromise;
 }
 
@@ -78,7 +108,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retried = fal
   noteServerTime(response);
   const body = (await response.json().catch(() => null)) as Envelope<T> | T | null;
 
-  if (response.status === 401 && !retried && !path.startsWith('/auth/')) {
+  if (response.status === 401 && !retried && !NO_REFRESH_RETRY.has(path)) {
     if (await refresh()) return api<T>(path, init, true);
   }
   if (!response.ok) {

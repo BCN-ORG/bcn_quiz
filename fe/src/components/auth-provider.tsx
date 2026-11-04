@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { apiUrl, request } from '@/lib/api';
+import { ApiError, apiUrl, request } from '@/lib/api';
 import type { User } from '@/lib/types';
 
 type AuthContextValue = {
@@ -60,8 +60,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const reload = useCallback(async () => {
     try {
       setUser(normalizeUser(await request.get<unknown>('/auth/me')));
-    } catch {
-      setUser(null);
+    } catch (error) {
+      // 401 here already survived a token refresh, so the session is really gone. A dropped connection, 429 or 5xx
+      // is not a sign-out: keep the current user instead of bouncing them to the login screen.
+      if (error instanceof ApiError && error.status === 401) setUser(null);
     } finally {
       setLoading(false);
     }
