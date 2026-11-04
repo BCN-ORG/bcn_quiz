@@ -30,7 +30,7 @@ export class UploadStageError extends Error {
   }
 }
 
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<RefreshOutcome> | null = null;
 
 // Offset to the server clock taken from the Date response header (1 s resolution, display only).
 let serverOffsetMs = 0;
@@ -54,35 +54,43 @@ const REFRESHED_AT = 'quiz:auth:refreshedAt';
 // Not retried: the refresh call itself and logout (a 401 there is final).
 const NO_REFRESH_RETRY = new Set(['/auth/refresh', '/auth/logout']);
 
+type RefreshOutcome = 'ok' | 'denied' | 'transient';
+const REFRESH_TIMEOUT_MS = 10_000;
+
 function lastRefreshedAt(): number {
-  try { return Number(localStorage.getItem(REFRESHED_AT)) || 0; } catch { return 0; }
+  // A marker from the future (clock stepped back) must not suppress refreshes forever.
+  try { return Math.min(Number(localStorage.getItem(REFRESHED_AT)) || 0, Date.now()); } catch { return 0; }
 }
 
 function markRefreshed() {
   try { localStorage.setItem(REFRESHED_AT, String(Date.now())); } catch { /* private mode: the lock alone still serialises */ }
 }
 
-async function callRefresh(): Promise<boolean> {
+/** 'denied' = Profiles/Quiz refused the refresh token (really signed out); 'transient' = network, timeout, 429 or 5xx (try again later). */
+async function callRefresh(): Promise<RefreshOutcome> {
   try {
-    const response = await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' });
-    if (response.ok) markRefreshed();
-    return response.ok;
+    const response = await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include', signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS) });
+    if (response.ok) { markRefreshed(); return 'ok'; }
+    return response.status === 401 || response.status === 403 ? 'denied' : 'transient';
   } catch {
-    return false;
+    return 'transient';
   }
 }
 
-async function refresh(): Promise<boolean> {
+/** `sentAt`: when the request that got the 401 was sent. A refresh that finished after that moment already renewed the cookie. */
+async function refresh(sentAt = Date.now()): Promise<RefreshOutcome> {
   if (refreshPromise) return refreshPromise;
-  const run = async (): Promise<boolean> => {
+  const run = async (): Promise<RefreshOutcome> => {
     if (typeof navigator === 'undefined' || !navigator.locks) return callRefresh();
-    const asked = Date.now();
-    const result = await navigator.locks.request(REFRESH_LOCK, async () => {
-      // Another tab finished a refresh after we asked: the shared cookie is already new, rotating again would only add risk.
-      if (lastRefreshedAt() >= asked) return true;
+    try {
+      return await navigator.locks.request(REFRESH_LOCK, async () => {
+        // Another tab finished a refresh after our request went out: the shared cookie is already new, rotating again only adds risk.
+        if (lastRefreshedAt() >= sentAt) return 'ok' as const;
+        return callRefresh();
+      });
+    } catch {
       return callRefresh();
-    });
-    return result === true;
+    }
   };
   refreshPromise = run().finally(() => {
     refreshPromise = null;
@@ -92,6 +100,7 @@ async function refresh(): Promise<boolean> {
 
 export async function api<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
   let response: Response;
+  const sentAt = Date.now();
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...init,
@@ -109,7 +118,10 @@ export async function api<T>(path: string, init: RequestInit = {}, retried = fal
   const body = (await response.json().catch(() => null)) as Envelope<T> | T | null;
 
   if (response.status === 401 && !retried && !NO_REFRESH_RETRY.has(path)) {
-    if (await refresh()) return api<T>(path, init, true);
+    const outcome = await refresh(sentAt);
+    if (outcome === 'ok') return api<T>(path, init, true);
+    // A refresh that failed for a passing reason is not a sign-out: report a retryable error, not a 401.
+    if (outcome === 'transient') throw new ApiError('Chưa làm mới được phiên đăng nhập. Hãy thử lại sau ít phút.', 503, response.headers.get('x-request-id'));
   }
   if (!response.ok) {
     const message = body && typeof body === 'object' && 'message' in body ? body.message : undefined;
@@ -139,8 +151,9 @@ export const request = {
 export const apiUrl = (path = '') => `${API_URL}${path}`;
 
 export async function downloadFile(path: string, filename: string): Promise<void> {
+  const sentAt = Date.now();
   let response = await fetch(apiUrl(path), { credentials: 'include' });
-  if (response.status === 401 && await refresh()) response = await fetch(apiUrl(path), { credentials: 'include' });
+  if (response.status === 401 && await refresh(sentAt) === 'ok') response = await fetch(apiUrl(path), { credentials: 'include' });
   if (!response.ok) throw new ApiError('Không thể tải file', response.status, response.headers.get('x-request-id'));
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement('a');
