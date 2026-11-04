@@ -100,7 +100,7 @@ export class LeaderboardService {
           RankedRow[]
         >`${ranked} SELECT * FROM ranked WHERE rank BETWEEN ${Math.max(1, current.rank - 2)} AND ${current.rank + 2} ORDER BY rank`
       : [];
-    const enriched = await this.withUsers(
+    const { rows: enriched, lookupFailed } = await this.withUsers(
       [...rows, ...topRows, ...aroundRows, ...currentRows],
       admin,
     );
@@ -113,6 +113,8 @@ export class LeaderboardService {
       weekStart: mode === 'weekly' ? start : undefined,
       weekEnd: mode === 'weekly' ? end : undefined,
       closesAt: endOfBusinessDay(end),
+      // false when Profiles could not be asked for names: the UI must not present that as anonymous users.
+      profilesAvailable: !lookupFailed,
       items: rows.map((row) => byRank.get(row.rank)),
       pagination: {
         page,
@@ -204,7 +206,9 @@ export class LeaderboardService {
     const rows = await this.prisma.$queryRaw<
       RankedRow[]
     >`${ranked} SELECT * FROM ranked ORDER BY rank`;
-    const profiles = await this.resolveProfiles(rows.map((row) => row.userId));
+    const { profiles } = await this.resolveProfiles(
+      rows.map((row) => row.userId),
+    );
     for (const row of rows) {
       const profile = profiles.get(row.userId);
       sheet.addRow(
@@ -289,8 +293,10 @@ export class LeaderboardService {
   }
 
   private async withUsers(rows: RankedRow[], admin: boolean) {
-    const profiles = await this.resolveProfiles(rows.map((row) => row.userId));
-    return rows.map((row) => {
+    const { profiles, failed } = await this.resolveProfiles(
+      rows.map((row) => row.userId),
+    );
+    const mapped = rows.map((row) => {
       const profile = profiles.get(row.userId);
       const user = {
         id: row.userId,
@@ -321,16 +327,21 @@ export class LeaderboardService {
             lastSubmittedAt: row.lastSubmittedAt,
           };
     });
+    return { rows: mapped, lookupFailed: failed };
   }
 
   private async resolveProfiles(ids: string[]) {
     const unique = [...new Set(ids)];
     const profiles = new Map<string, ProfilesUserSummary>();
+    let failed = false;
     for (let i = 0; i < unique.length; i += 100) {
-      const batch = await this.profiles.resolveUsers(unique.slice(i, i + 100));
-      for (const [id, profile] of batch) profiles.set(id, profile);
+      const batch = await this.profiles.resolveUsersDetailed(
+        unique.slice(i, i + 100),
+      );
+      if (batch.failed) failed = true;
+      for (const [id, profile] of batch.users) profiles.set(id, profile);
     }
-    return profiles;
+    return { profiles, failed };
   }
 
   private dateOrThrow(value?: string): string {

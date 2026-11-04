@@ -72,4 +72,54 @@ describe('ProfilesService internal user lookup', () => {
     expect(warn).toHaveBeenCalledWith('[ProfilesResolveAuthFailed] status=401');
     warn.mockRestore();
   });
+  describe('resolveUsersDetailed tells a failed lookup from an empty answer', () => {
+    const service = (get: jest.Mock) =>
+      new ProfilesService({ get } as unknown as HttpService);
+
+    it('is not failed when Profiles answers, even without a matching user', async () => {
+      const get = jest.fn().mockReturnValue(of({ data: { users: [] } }));
+      expect(await service(get).resolveUsersDetailed(['ghost'])).toEqual({
+        users: new Map(),
+        failed: false,
+      });
+    });
+
+    it('is not failed for an empty id list and makes no request', async () => {
+      const get = jest.fn();
+      expect(await service(get).resolveUsersDetailed([])).toEqual({
+        users: new Map(),
+        failed: false,
+      });
+      expect(get).not.toHaveBeenCalled();
+    });
+
+    it('is failed on 401 and on a network error, and resolveUsers still returns an empty map', async () => {
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const unauthorized = Object.assign(new AxiosError('Unauthorized'), {
+        response: { status: 401 },
+      });
+      for (const error of [
+        unauthorized,
+        new AxiosError('connect ECONNREFUSED'),
+      ]) {
+        const get = jest.fn().mockReturnValue(throwError(() => error));
+        expect(await service(get).resolveUsersDetailed(['u1'])).toEqual({
+          users: new Map(),
+          failed: true,
+        });
+        expect(await service(get).resolveUsers(['u1'])).toEqual(new Map());
+      }
+    });
+
+    it('is failed when the server key is not configured (outside production) and makes no request', async () => {
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      delete process.env.PROFILES_CLIENT_SECRET;
+      const get = jest.fn();
+      expect(await service(get).resolveUsersDetailed(['u1'])).toEqual({
+        users: new Map(),
+        failed: true,
+      });
+      expect(get).not.toHaveBeenCalled();
+    });
+  });
 });

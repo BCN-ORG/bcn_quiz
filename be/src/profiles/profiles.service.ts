@@ -87,9 +87,23 @@ export class ProfilesService {
 
   /** Resolve display names for review lists. Empty map if Profiles unreachable. */
   async resolveUsers(ids: string[]): Promise<Map<string, ProfilesUserSummary>> {
+    return (await this.resolveUsersDetailed(ids)).users;
+  }
+
+  /**
+   * Same lookup, but says whether it failed (missing secret, 401, network...). An empty map alone cannot tell
+   * "Profiles has no such user" from "Profiles could not be asked", and the UI must not call the second one anonymous.
+   */
+  async resolveUsersDetailed(
+    ids: string[],
+  ): Promise<{ users: Map<string, ProfilesUserSummary>; failed: boolean }> {
     const unique = [...new Set(ids.filter(Boolean))].slice(0, 100);
     const out = new Map<string, ProfilesUserSummary>();
-    if (!unique.length || !this.clientSecret) return out;
+    if (!unique.length) return { users: out, failed: false };
+    if (!this.clientSecret) {
+      this.logger.warn('[ProfilesResolve] PROFILES_CLIENT_SECRET is not set');
+      return { users: out, failed: true };
+    }
 
     try {
       const response = await firstValueFrom(
@@ -111,16 +125,17 @@ export class ProfilesService {
       for (const user of users) {
         if (user?.id) out.set(user.id, user);
       }
+      return { users: out, failed: false };
     } catch (error) {
       if (error instanceof AxiosError) {
         this.logger.warn(
           `[ProfilesResolve${this.failureKind(error)}] status=${error.response?.status ?? 'network'}`,
         );
-        return out;
+      } else {
+        this.logger.error('[resolveUsers] unexpected error', error as Error);
       }
-      this.logger.error('[resolveUsers] unexpected error', error as Error);
+      return { users: out, failed: true };
     }
-    return out;
   }
 
   async searchUserIds(query: string): Promise<string[]> {

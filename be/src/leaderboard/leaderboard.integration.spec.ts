@@ -20,7 +20,9 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
   const topicIds: string[] = [];
 
   const profiles = {
-    resolveUsers: jest.fn().mockResolvedValue(new Map()),
+    resolveUsersDetailed: jest
+      .fn()
+      .mockResolvedValue({ users: new Map(), failed: false }),
     searchUserIds: jest.fn().mockResolvedValue([]),
   };
   const req = { user: { id: 'viewer' } } as never;
