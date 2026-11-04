@@ -26,4 +26,6 @@ test('quiz: chọn đáp án, tải lại vẫn còn, nộp bài ra kết quả'
   await page.getByRole('alertdialog').getByRole('button', { name: 'Nộp bài' }).click();
   await expect(page.getByText('Kết quả').first()).toBeVisible();
   await expect(page.getByText(/Đúng \d+\/2 câu/)).toBeVisible();
+  await expect(page.locator('.topic-result-score strong')).toBeVisible();
+  await expect(page.locator('.topic-result-chips li')).toHaveCount(4);
 });

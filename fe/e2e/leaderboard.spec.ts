@@ -177,12 +177,33 @@ test('không polling: không có request khi thời gian trôi; "Làm mới" g�
   expect(requests).toBe(loaded + 1);
 });
 
-test('tên bị ẩn hiển thị rõ là "ẩn tên", không để trống', async ({ page }) => {
+test('tên trống được gọi đúng tên: "Chưa đặt tên" khi Profiles trả lời, "Chưa tải được tên" khi không hỏi được; không còn chữ "ẩn tên"', async ({ page }) => {
   const me = await myUserId(page);
-  await stubBoard(page, () => board({ total: 5, myRank: null, me, names: { 2: 'Người dùng', 4: '   ' } }));
+  const names = { 2: 'Người dùng', 4: '   ' };
+  await stubBoard(page, () => board({ total: 5, myRank: null, me, names, profilesAvailable: true }));
   await open(page);
   const table = page.getByRole('table', { name: /trang 1 trên 1/ });
-  await expect(table.getByText('Người dùng (ẩn tên)')).toHaveCount(2);
+  await expect(table.getByText('Chưa đặt tên')).toHaveCount(2);
+  await expect(page.getByText(/Chưa tải được tên người chơi/)).toHaveCount(0);
+  await expect(page.getByText('ẩn tên')).toHaveCount(0);
+
+  await page.unroute(/\/api\/leaderboards\/topics\/[^/]+\/(daily|weekly)\?/);
+  await stubBoard(page, () => board({ total: 5, myRank: null, me, names, profilesAvailable: false }));
+  await page.getByRole('button', { name: 'Làm mới' }).click();
+  await expect(page.getByText(/Chưa tải được tên người chơi từ BCN/)).toBeVisible();
+  await expect(table.getByText('Chưa tải được tên')).toHaveCount(2);
+  await expect(table.getByText('Chưa đặt tên')).toHaveCount(0);
+  await expect(page.getByText('ẩn tên')).toHaveCount(0);
+});
+
+test('riêng tư: kể cả khi API lỡ trả thêm email, giao diện thành viên không hiển thị email', async ({ page }) => {
+  const me = await myUserId(page);
+  await stubBoard(page, () => board({ total: 5, myRank: 2, me, admin: true }));
+  await open(page);
+  await expect(page.getByRole('table', { name: /trang 1 trên 1/ })).toBeVisible();
+  const text = await page.locator('#topic-leaderboard').innerText();
+  expect(text).not.toContain('@example.com');
+  expect(await page.locator('#topic-leaderboard a[href^="mailto:"]').count()).toBe(0);
 });
 
 test('kết quả cũ không ghi đè kết quả mới khi đổi bộ lọc nhanh', async ({ page }) => {

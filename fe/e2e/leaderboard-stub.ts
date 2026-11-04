@@ -30,11 +30,11 @@ export async function myUserId(page: Page): Promise<string> {
  * Builds a payload with the same shape as GET /leaderboards/topics/:id/{daily|weekly}. Ranks are unique and
  * strictly ordered, exactly like the server (full tie-break chain), so the UI is tested against values it must not recompute.
  */
-export function board(opts: { total: number; myRank: number | null; me: string; page?: number; mode?: 'daily' | 'weekly'; names?: Record<number, string> }) {
+export function board(opts: { total: number; myRank: number | null; me: string; page?: number; mode?: 'daily' | 'weekly'; names?: Record<number, string>; profilesAvailable?: boolean; admin?: boolean }) {
   const { total, myRank, me, mode = 'daily' } = opts;
   const page = opts.page ?? 1;
   const row = (rank: number): Row => {
-    const base = { rank, user: { id: rank === myRank ? me : `u${rank}`, fullName: opts.names?.[rank] ?? `Người chơi ${rank}`, avatarUrl: null } };
+    const base = { rank, user: { id: rank === myRank ? me : `u${rank}`, fullName: opts.names?.[rank] ?? `Người chơi ${rank}`, avatarUrl: null }, ...(opts.admin ? { email: `nguoi${rank}@example.com`, submittedAt: '2026-11-04T03:15:00.000Z', lastSubmittedAt: '2026-11-04T03:15:00.000Z' } : {}) };
     const score = Math.max(0, 1000 - (rank - 1) * Math.max(1, Math.floor(1000 / Math.max(total, 1))));
     return mode === 'daily'
       ? { ...base, score, correctCount: Math.round(score / 100), totalQuestions: 10, durationMs: 60_000 + rank * 1000 }
@@ -50,6 +50,7 @@ export function board(opts: { total: number; myRank: number | null; me: string; 
     mode,
     ...(mode === 'daily' ? { date: '2026-11-04' } : { weekStart: '2026-11-02', weekEnd: '2026-11-08' }),
     closesAt: '2026-11-04T16:59:59.999Z',
+    profilesAvailable: opts.profilesAvailable ?? true,
     items,
     top3: [1, 2, 3].filter((r) => r <= total).map(row),
     top10Cutoff: total >= 10 ? points(row(10)) : null,
@@ -77,4 +78,21 @@ export const TOPIC = 'e2e-topic';
 export async function stubTopic(page: Page) {
   await page.route(new RegExp(`/api/topic/${TOPIC}$`), (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ statusCode: 200, message: 'Success', data: { id: TOPIC, name: 'Topic mẫu', slug: 'topic-mau' } }) }));
+}
+
+/** Makes the app believe the signed-in user may manage content (UI gate only: the server still decides). */
+export async function asMentorInUi(page: Page) {
+  await page.route('**/api/auth/me', async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    let user = body;
+    for (let depth = 0; depth < 4; depth += 1) {
+      const nested = user.data as Record<string, unknown> | undefined;
+      if (nested && typeof nested === 'object' && ('id' in nested || 'email' in nested)) { user = nested; continue; }
+      break;
+    }
+    user.roles = ['mentor'];
+    user.permissions = ['quiz.question.read', 'quiz.question.create', 'quiz.question.update', 'quiz.result.read'];
+    await route.fulfill({ response, json: body });
+  });
 }
