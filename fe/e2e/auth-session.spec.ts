@@ -94,3 +94,44 @@ test('hết cả access lẫn refresh token: đăng xuất đúng cách, không 
   expect(refreshCalls).toBeLessThanOrEqual(2);
   await context.close();
 });
+
+test('làm mới token bị lỗi thoáng qua (503, mất mạng): giữ phiên, thử lại được khi hết lỗi', async ({ page }) => {
+  await openDashboard(page);
+  await page.context().clearCookies({ name: ACCESS });
+
+  for (const failure of ['503', 'abort'] as const) {
+    await page.route('**/api/auth/refresh', (route) => failure === 'abort'
+      ? route.abort()
+      : route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ statusCode: 503, message: 'busy' }) }));
+    await returnToTab(page);
+    await page.waitForTimeout(700);
+    await expect(signedIn(page), failure).toBeVisible();
+    expect(pathOf(page), failure).toBe('/dashboard');
+    await page.unroute('**/api/auth/refresh');
+  }
+
+  // hết lỗi: lần quay lại tab tiếp theo làm mới được thật
+  await returnToTab(page);
+  await expect.poll(async () => cookieNames(page.context())).toContain(ACCESS);
+  await expect(signedIn(page)).toBeVisible();
+});
+
+test('refresh token bị server từ chối: đăng xuất đúng cách, không lặp vô hạn', async ({ browser }) => {
+  const context = await browser.newContext({ storageState: process.env.E2E_AUTH_STATE });
+  const stale = (await context.cookies()).find((cookie) => cookie.name === REFRESH)!;
+  await context.clearCookies({ name: REFRESH });
+  await context.addCookies([{ ...stale, value: 'not-a-real-refresh-token' }]);
+  await context.clearCookies({ name: ACCESS });
+  const page = await context.newPage();
+  await page.route('**/api/notifications**', (route) => route.abort());
+  let refreshCalls = 0;
+  context.on('request', (request) => { if (request.method() === 'POST' && request.url().endsWith('/auth/refresh')) refreshCalls += 1; });
+
+  await page.goto('/dashboard');
+
+  await expect(page.getByRole('button', { name: /Tiếp tục với tài khoản BCN/ })).toBeVisible();
+  expect(pathOf(page)).toBe('/');
+  await page.waitForTimeout(1000);
+  expect(refreshCalls).toBeLessThanOrEqual(2);
+  await context.close();
+});
