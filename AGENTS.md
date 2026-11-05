@@ -15,9 +15,9 @@ This repository follows the user's Global Engineering Rules. Read `~/.ai-guidanc
 
 ## Topic leaderboard invariants
 
-- Scope and unique business identity: `(userId, topicId, businessDate)`. The first successfully submitted AttemptSession for that tuple is official; the same user can have independent official results for different Topics on one day.
+- Scope and unique identity: `(userId, topicId)`. The first successfully submitted AttemptSession of a Topic is the user's one official result, ever; every later submit is practice (stored as a normal attempt and counted for learning progress, but no leaderboard row, no notification, no rank change). The DB enforces it with a unique `(userId, topicId, isCounted)` where `isCounted = true` marks the official row; `NULL` rows are older duplicates kept as history and every ranking query filters `"isCounted" IS TRUE`. Different Topics are independent. The business date of the row is still the VN day of the first submit.
 - Score is `totalQuestions === 0 ? 0 : Math.round(correctCount / totalQuestions * 1000)`. Question weight `1000 / totalQuestions` explains the UI only. Do not sum rounded per-question points or add speed, streak, multiplier, or attempt bonuses.
-- Daily order: `score DESC, durationMs ASC, submittedAt ASC, userId ASC`. Weekly score is the sum of official daily scores; weekly order: `weeklyScore DESC, completedDays DESC, totalDurationMs ASC, lastSubmittedAt ASC, userId ASC`. Search filters displayed users after global rank is computed.
+- Daily order: `score DESC, durationMs ASC, submittedAt ASC, userId ASC`. Weekly score is the sum of the user's official (counted) results inside that business week; weekly order: `weeklyScore DESC, completedDays DESC, totalDurationMs ASC, lastSubmittedAt ASC, userId ASC`. Search filters displayed users after global rank is computed.
 - Business timezone is `Asia/Ho_Chi_Minh`; use business dates and Monday–Sunday business weeks, not raw UTC calendar dates.
 - `TopicLeaderboardResult` is an immutable historical snapshot. Never recalculate score, correctCount, totalQuestions, durationMs or submittedAt from current questions after submit. Admin edits to questions cannot change old results.
 

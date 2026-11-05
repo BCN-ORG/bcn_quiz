@@ -238,9 +238,9 @@ function TopicQuizPage() {
           <li>Đúng {result.correctCount}/{result.attemptedQuizCount} câu</li>
           <li>Sai {result.attemptedQuizCount - result.correctCount} câu</li>
           <li>Chính xác {Math.round(result.score * 100)}%</li>
-          <li>Xếp hạng ngày #{result.leaderboard.rank ?? '—'}</li>
+          <li>{result.leaderboard.isOfficial ? 'Xếp hạng ngày' : 'Hạng chính thức của bạn'} #{result.leaderboard.rank ?? '—'}</li>
         </ul>
-        <p className={`topic-result-note${result.leaderboard.isOfficial ? ' is-official' : ''}`}>{result.leaderboard.isOfficial ? 'Kết quả này được tính vào bảng xếp hạng hôm nay.' : `Lượt luyện tập. Điểm chính thức hôm nay: ${result.leaderboard.score}.`}</p>
+        <p className={`topic-result-note${result.leaderboard.isOfficial ? ' is-official' : ''}`}>{result.leaderboard.isOfficial ? 'Đây là lần làm đầu tiên của bộ câu hỏi này nên được tính vào bảng xếp hạng.' : `Lượt ôn tập: không tính vào bảng xếp hạng. Điểm chính thức của bạn là ${result.leaderboard.score}/${result.leaderboard.maxScore} (lần làm đầu tiên, ngày ${result.leaderboard.businessDate.split('-').reverse().join('/')}).`}</p>
       </section>
       <QuizReview
         items={result.quizResults}
@@ -264,7 +264,7 @@ function TopicQuizPage() {
         <section className="topic-hero">
           <p className="eyebrow">Chủ đề</p>
           <h1>{topic.name}</h1>
-          <p className="topic-lead">Làm trọn bộ câu hỏi trong một lượt. Lần nộp đầu tiên trong ngày được tính vào bảng xếp hạng.</p>
+          <p className="topic-lead">Làm trọn bộ câu hỏi trong một lượt. Chỉ lần nộp đầu tiên của bộ câu hỏi được tính vào bảng xếp hạng.</p>
           {topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}
         </section>
         <dl className="topic-stats">
@@ -278,7 +278,7 @@ function TopicQuizPage() {
             <ul className="topic-rules">
               <li>{weight ? <>Mỗi câu có trọng số bằng nhau. Mỗi câu đúng {approx}{weightLabel(weight)} điểm; sai = 0.</> : 'Mỗi câu có trọng số bằng nhau; câu sai không có điểm.'}</li>
               <li>Điểm cuối cùng dựa trên tổng số câu đúng và làm tròn về số nguyên.</li>
-              <li>Lần nộp đầu tiên hôm nay được tính vào bảng xếp hạng; các lần sau là luyện tập.</li>
+              <li>Chỉ lần nộp đầu tiên của bộ câu hỏi được tính vào bảng xếp hạng; các lần sau là ôn tập, không cộng điểm.</li>
               <li>Tiến độ được lưu, bạn có thể thoát giữa chừng rồi làm tiếp.</li>
             </ul>
           </article>

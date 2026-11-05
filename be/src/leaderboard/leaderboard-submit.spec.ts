@@ -107,16 +107,14 @@ describe('official topic leaderboard submit', () => {
               create: jest.fn(),
             },
             topicLeaderboardResult: {
-              findUniqueOrThrow: jest.fn(async ({ where }) => {
-                const key = `${where.userId_topicId_businessDate.userId}:${where.userId_topicId_businessDate.topicId}:${where.userId_topicId_businessDate.businessDate}`;
-                return {
-                  id: key,
-                  userId: where.userId_topicId_businessDate.userId,
-                  topicId: where.userId_topicId_businessDate.topicId,
-                  businessDate: where.userId_topicId_businessDate.businessDate,
-                  ...official.get(key),
-                };
-              }),
+              findUniqueOrThrow: jest.fn(
+                async ({ where }: { where: { sessionId: string } }) => {
+                  const row = [...official.values()].find(
+                    (item) => item.sessionId === where.sessionId,
+                  )!;
+                  return { id: row.sessionId, ...row };
+                },
+              ),
               createMany: jest.fn(
                 async ({
                   data,
@@ -132,7 +130,8 @@ describe('official topic leaderboard submit', () => {
                   }>;
                 }) => {
                   const row = data[0];
-                  const key = `${row.userId}:${row.topicId}:${row.businessDate}`;
+                  // Mirrors the unique (userId, topicId, isCounted): one counted row per user and topic, ever.
+                  const key = `${row.userId}:${row.topicId}`;
                   if (official.has(key)) return { count: 0 };
                   official.set(key, row);
                   return { count: 1 };
@@ -150,18 +149,13 @@ describe('official topic leaderboard submit', () => {
     };
     const leaderboard = {
       resultForSubmit: jest.fn(
-        async (
-          userId: string,
-          topicId: string,
-          date: string,
-          sessionId: string,
-        ) => {
-          const result = official.get(`${userId}:${topicId}:${date}`)!;
+        async (userId: string, topicId: string, sessionId: string) => {
+          const result = official.get(`${userId}:${topicId}`)!;
           return {
             isOfficial: result.sessionId === sessionId,
             score: result.score,
             rank: 1,
-            businessDate: date,
+            businessDate: result.businessDate,
             maxScore: 1000,
           };
         },
@@ -195,24 +189,29 @@ describe('official topic leaderboard submit', () => {
       score: 800,
       attemptScore: 1000,
     });
-    expect(official.get('user-1:topic-1:2026-10-11')).toMatchObject({
+    expect(official.get('user-1:topic-1')).toMatchObject({
       sessionId: 'a',
       totalQuestions: 5,
     });
 
-    await service.submitSession('c', req);
-    await service.submitSession('d', req);
-    expect(official.get('user-1:topic-1:2026-10-12')).toMatchObject({
-      sessionId: 'c',
-      score: 1000,
+    // The next day: still practice for topic-1, the official row is untouched. Another topic counts on its own.
+    const nextDay = await service.submitSession('c', req);
+    const otherTopic = await service.submitSession('d', req);
+    expect(nextDay.leaderboard).toMatchObject({
+      isOfficial: false,
+      score: 800,
+      attemptScore: 1000,
+      businessDate: '2026-10-11',
     });
-    expect(official.get('user-1:topic-2:2026-10-11')).toMatchObject({
+    expect(official.get('user-1:topic-1')).toMatchObject({
+      sessionId: 'a',
+      score: 800,
+      businessDate: '2026-10-11',
+    });
+    expect(otherTopic.leaderboard).toMatchObject({ isOfficial: true });
+    expect(official.get('user-1:topic-2')).toMatchObject({
       sessionId: 'd',
       score: 1000,
-    });
-    expect(official.get('user-1:topic-1:2026-10-11')).toMatchObject({
-      score: 800,
-      totalQuestions: 5,
     });
     quizzes.push({
       id: 'q5',
@@ -224,7 +223,7 @@ describe('official topic leaderboard submit', () => {
       answer: 'A',
       options: [{ label: 'A', content: 'yes', isCode: false }],
     });
-    expect(official.get('user-1:topic-1:2026-10-11')).toMatchObject({
+    expect(official.get('user-1:topic-1')).toMatchObject({
       score: 800,
       correctCount: 4,
       totalQuestions: 5,

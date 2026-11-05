@@ -59,7 +59,8 @@ export class NotificationSchedulerService {
           where: {
             userId: { in: userIds },
             topicId: { in: topics.map((topic) => topic.id) },
-            businessDate: date,
+            // Any counted result, from any day: a topic can only count once, so a reminder would be pointless.
+            isCounted: true,
           },
           select: { userId: true, topicId: true },
         }),
@@ -145,7 +146,7 @@ export class NotificationSchedulerService {
     const end = businessWeekEnd(start);
     const groups = await this.prisma.topicLeaderboardResult.groupBy({
       by: ['topicId'],
-      where: { businessDate: { gte: start, lte: end } },
+      where: { businessDate: { gte: start, lte: end }, isCounted: true },
     });
     if (!groups.length) return;
     const topics = await this.prisma.topic.findMany({

@@ -132,19 +132,22 @@ export class LeaderboardService {
     };
   }
 
-  async resultForSubmit(
-    userId: string,
-    topicId: string,
-    date: string,
-    sessionId: string,
-  ) {
+  async resultForSubmit(userId: string, topicId: string, sessionId: string) {
+    // The user's one official result for the topic, whatever day it was made on. The current session is practice
+    // when that result belongs to an earlier session.
     const result = await this.prisma.topicLeaderboardResult.findUnique({
       where: {
-        userId_topicId_businessDate: { userId, topicId, businessDate: date },
+        userId_topicId_isCounted: { userId, topicId, isCounted: true },
       },
     });
     if (!result) throw new NotFoundException('Leaderboard result not found');
-    const ranked = this.rankedQuery(topicId, 'daily', date, date);
+    const officialDate = result.businessDate;
+    const ranked = this.rankedQuery(
+      topicId,
+      'daily',
+      officialDate,
+      officialDate,
+    );
     const rows = await this.prisma.$queryRaw<
       Array<{ rank: number }>
     >`${ranked} SELECT rank FROM ranked WHERE "userId" = ${userId}`;
@@ -153,7 +156,7 @@ export class LeaderboardService {
       score: result.score,
       maxScore: 1000,
       rank: rows[0]?.rank ?? null,
-      businessDate: date,
+      businessDate: officialDate,
     };
   }
 
@@ -277,14 +280,14 @@ export class LeaderboardService {
       return Prisma.sql`WITH ranked AS (
         SELECT ROW_NUMBER() OVER (ORDER BY score DESC, "durationMs" ASC, "submittedAt" ASC, "userId" ASC)::int AS rank,
           "userId", score, "correctCount", "totalQuestions", "durationMs", "submittedAt"
-        FROM topic_leaderboard_results WHERE "topicId" = ${topicId} AND "businessDate" = ${start}
+        FROM topic_leaderboard_results WHERE "topicId" = ${topicId} AND "businessDate" = ${start} AND "isCounted" IS TRUE
       )`;
     }
     return Prisma.sql`WITH totals AS (
       SELECT "userId", SUM(score)::int AS score, COUNT(*)::int AS "completedDays",
         SUM("durationMs")::bigint AS "totalDurationMs", MAX("submittedAt") AS "lastSubmittedAt"
       FROM topic_leaderboard_results
-      WHERE "topicId" = ${topicId} AND "businessDate" BETWEEN ${start} AND ${end}
+      WHERE "topicId" = ${topicId} AND "businessDate" BETWEEN ${start} AND ${end} AND "isCounted" IS TRUE
       GROUP BY "userId"
     ), ranked AS (
       SELECT ROW_NUMBER() OVER (ORDER BY score DESC, "completedDays" DESC, "totalDurationMs" ASC, "lastSubmittedAt" ASC, "userId" ASC)::int AS rank,

@@ -63,6 +63,11 @@ describe('NotificationSchedulerService', () => {
     expect(
       [...stored.values()].map((row) => `${row.userId}:${row.topicId}`),
     ).toEqual(['a:three', 'b:one', 'b:two']);
+    // "Done" means a counted result from ANY day (a user whose first try was yesterday gets no reminder today),
+    // so the query must not be limited to today's business date, and must ignore uncounted history.
+    const where = prisma.topicLeaderboardResult.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ isCounted: true });
+    expect(where).not.toHaveProperty('businessDate');
   });
 
   it('uses weekly ranks for progress and closed-week summary once per user/topic/week', async () => {

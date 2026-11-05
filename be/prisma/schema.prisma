@@ -316,11 +316,16 @@ model TopicLeaderboardResult {
   durationMs     Int
   submittedAt    DateTime
   createdAt      DateTime @default(now())
+  // true = the user's one official result for this topic (their first submit ever); NULL = an older duplicate that is
+  // kept as history but never ranked. NULLs are distinct in PostgreSQL, so this unique allows many NULL rows and
+  // exactly one true row per user and topic, whatever the code does.
+  isCounted      Boolean?
 
   topic   Topic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
   session AttemptSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([userId, topicId, businessDate])
+  @@unique([userId, topicId, isCounted])
   @@index([topicId, businessDate, score])
   @@index([submittedAt])
   @@map("topic_leaderboard_results")

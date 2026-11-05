@@ -29,7 +29,7 @@ export class NotificationService {
       SELECT rank, "userId" FROM (
         SELECT ROW_NUMBER() OVER (ORDER BY score DESC, "durationMs" ASC, "submittedAt" ASC, "userId" ASC)::int AS rank, "userId"
         FROM topic_leaderboard_results
-        WHERE "topicId" = ${topicId} AND "businessDate" = ${date}
+        WHERE "topicId" = ${topicId} AND "businessDate" = ${date} AND "isCounted" IS TRUE
       ) ranked WHERE rank IN (3, 10)`;
   }
 
@@ -44,7 +44,7 @@ export class NotificationService {
       SELECT rank, "userId" FROM (
         SELECT ROW_NUMBER() OVER (ORDER BY score DESC, "durationMs" ASC, "submittedAt" ASC, "userId" ASC)::int AS rank, "userId"
         FROM topic_leaderboard_results
-        WHERE "topicId" = ${result.topicId} AND "businessDate" = ${result.businessDate}
+        WHERE "topicId" = ${result.topicId} AND "businessDate" = ${result.businessDate} AND "isCounted" IS TRUE
       ) ranked WHERE "userId" IN (${Prisma.join(watched)})`;
     const ranks = new Map(after.map((row) => [row.userId, row.rank]));
     const rank = ranks.get(result.userId)!;

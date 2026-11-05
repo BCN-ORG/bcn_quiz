@@ -362,7 +362,7 @@ export class AttemptService {
     const totalQuizCount = quizzes.length;
     const score = totalQuizCount > 0 ? correctCount / totalQuizCount : 0;
 
-    const { topicCompleted, submittedAt, leaderboardDate, notifications } =
+    const { topicCompleted, submittedAt, notifications } =
       await this.prisma.$transaction(async (tx) => {
         // Serialize submissions for one user/topic before assigning DB time.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${session.topicId}`}))`;
@@ -433,6 +433,9 @@ export class AttemptService {
               topicId: session.topicId,
               sessionId: session.id,
               businessDate: leaderboardDate,
+              // Only the first submit of a topic counts; the unique (userId, topicId, isCounted) makes every later
+              // one a no-op insert below, so it stays practice (no row, no notification, no rank change).
+              isCounted: true,
               score: calculateTopicLeaderboardScore(
                 correctCount,
                 totalQuizCount,
@@ -451,13 +454,7 @@ export class AttemptService {
 
         const result = inserted.count
           ? await tx.topicLeaderboardResult.findUniqueOrThrow({
-              where: {
-                userId_topicId_businessDate: {
-                  userId,
-                  topicId: session.topicId,
-                  businessDate: leaderboardDate,
-                },
-              },
+              where: { sessionId: session.id },
             })
           : null;
         const notifications = result
@@ -472,7 +469,6 @@ export class AttemptService {
         return {
           topicCompleted: completed,
           submittedAt,
-          leaderboardDate,
           notifications,
         };
       });
@@ -513,7 +509,6 @@ export class AttemptService {
         ...(await this.leaderboardService.resultForSubmit(
           userId,
           session.topicId,
-          leaderboardDate,
           session.id,
         )),
         attemptScore: calculateTopicLeaderboardScore(

@@ -52,6 +52,7 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
     score: number,
     durationMs: number,
     submittedAt: string,
+    counted: boolean | null = true,
   ) => {
     const session = await newSession(userId, topicId);
     return prisma.topicLeaderboardResult.create({
@@ -60,6 +61,7 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
         topicId,
         sessionId: session.id,
         businessDate,
+        isCounted: counted,
         score,
         correctCount: score / 100,
         totalQuestions: 10,
@@ -136,8 +138,9 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
     expect(board.items.map((item) => item?.rank)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('sums weekly scores Monday-Sunday and excludes the next Monday', async () => {
+  it('weekly board uses counted results only, Monday-Sunday, and excludes the next Monday', async () => {
     const topicId = await newTopic();
+    // u-x: first submit counted (Mon), a later one on Sunday is practice history (NULL) and must not add up.
     await insertResult(
       topicId,
       'u-x',
@@ -150,22 +153,24 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
       topicId,
       'u-x',
       '2026-10-18',
-      500,
+      900,
+      1000,
+      '2026-10-18T03:00:00Z',
+      null,
+    );
+    // u-y: counted on Sunday, the last day of the week.
+    await insertResult(
+      topicId,
+      'u-y',
+      '2026-10-18',
+      1000,
       1000,
       '2026-10-18T03:00:00Z',
     );
+    // u-z: counted, but on the next Monday: not part of this week.
     await insertResult(
       topicId,
-      'u-y',
-      '2026-10-14',
-      1000,
-      1000,
-      '2026-10-14T03:00:00Z',
-    );
-    // Next business week: must not count towards u-y this week.
-    await insertResult(
-      topicId,
-      'u-y',
+      'u-z',
       '2026-10-19',
       1000,
       1000,
@@ -186,10 +191,64 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
       weeklyScore: number;
       completedDays: number;
     }>;
-    // Equal weekly score (1000): more completed days ranks higher.
-    expect(items.map((item) => item.user.id)).toEqual(['u-x', 'u-y']);
-    expect(items.map((item) => item.weeklyScore)).toEqual([1000, 1000]);
-    expect(items.map((item) => item.completedDays)).toEqual([2, 1]);
+    expect(items.map((item) => item.user.id)).toEqual(['u-y', 'u-x']);
+    expect(items.map((item) => item.weeklyScore)).toEqual([1000, 500]);
+    expect(items.map((item) => item.completedDays)).toEqual([1, 1]);
+  });
+
+  it('rejects a second counted result for the same user and topic on another day, but keeps uncounted history', async () => {
+    const topicId = await newTopic();
+    await insertResult(
+      topicId,
+      'once',
+      '2026-10-12',
+      500,
+      1000,
+      '2026-10-12T03:00:00Z',
+    );
+    await expect(
+      insertResult(
+        topicId,
+        'once',
+        '2026-10-13',
+        900,
+        500,
+        '2026-10-13T03:00:00Z',
+      ),
+    ).rejects.toMatchObject({ code: 'P2002' });
+    // Any number of NULL (practice/history) rows is fine, and they never reach the daily board.
+    await insertResult(
+      topicId,
+      'once',
+      '2026-10-13',
+      900,
+      500,
+      '2026-10-13T03:00:00Z',
+      null,
+    );
+    await insertResult(
+      topicId,
+      'once',
+      '2026-10-14',
+      900,
+      500,
+      '2026-10-14T03:00:00Z',
+      null,
+    );
+    const day2 = await service.list(
+      topicId,
+      'daily',
+      { date: '2026-10-13' },
+      req,
+    );
+    expect(day2.pagination.total).toBe(0);
+    const day1 = await service.list(
+      topicId,
+      'daily',
+      { date: '2026-10-12' },
+      req,
+    );
+    expect(day1.items.map((i) => i?.user.id)).toEqual(['once']);
   });
 
   it('rejects a second official row for the same user, topic and day', async () => {
@@ -332,23 +391,7 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
 
   it('weekly ties: weekly score, completed days, total duration, last submission, then userId', async () => {
     const topicId = await newTopic();
-    // Monday 2026-10-12 .. Sunday 2026-10-18
-    await insertResult(
-      topicId,
-      'w-b',
-      '2026-10-12',
-      300,
-      5000,
-      '2026-10-12T03:00:00Z',
-    );
-    await insertResult(
-      topicId,
-      'w-b',
-      '2026-10-13',
-      300,
-      5000,
-      '2026-10-13T03:00:00Z',
-    ); // 600, 2 days, 10000ms
+    // Monday 2026-10-12 .. Sunday 2026-10-18; each user has one counted result per topic.
     await insertResult(
       topicId,
       'w-a',
@@ -356,26 +399,18 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
       600,
       9000,
       '2026-10-12T05:00:00Z',
-    ); // 600, 1 day
-    await insertResult(
-      topicId,
-      'w-c',
-      '2026-10-12',
-      300,
-      4000,
-      '2026-10-12T03:00:00Z',
     );
     await insertResult(
       topicId,
-      'w-c',
-      '2026-10-13',
-      300,
-      4000,
-      '2026-10-13T03:00:00Z',
-    ); // 600, 2 days, 8000ms
+      'w-b',
+      '2026-10-12',
+      600,
+      5000,
+      '2026-10-12T03:00:00Z',
+    ); // same score, faster
     await insertResult(
       topicId,
-      'w-d',
+      'w-c',
       '2026-10-12',
       300,
       4000,
@@ -388,7 +423,7 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
       300,
       4000,
       '2026-10-13T02:00:00Z',
-    ); // identical to w-c except earlier last submit
+    ); // identical to w-c but submitted a day later, so it ranks below w-c
     await insertResult(
       topicId,
       'w-e',
@@ -397,6 +432,16 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
       1000,
       '2026-10-12T03:00:00Z',
     ); // 0 points still ranked
+    // History that must not change anything.
+    await insertResult(
+      topicId,
+      'w-e',
+      '2026-10-13',
+      1000,
+      1,
+      '2026-10-13T03:00:00Z',
+      null,
+    );
 
     const board = await service.list(
       topicId,
@@ -405,12 +450,12 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
       asUser('w-e'),
     );
 
-    // w-c and w-d tie on score/days/duration; w-d submitted last earlier -> ahead. 2 days beat 1 day at equal score.
+    // 600: w-b is faster than w-a. 300: equal duration, w-c submitted earlier (the 12th) than w-d (the 13th).
     expect(board.items.map((i) => i?.user.id)).toEqual([
-      'w-d',
-      'w-c',
       'w-b',
       'w-a',
+      'w-c',
+      'w-d',
       'w-e',
     ]);
     expect(board.currentUserRank).toBe(5);
@@ -546,6 +591,54 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
         correctCount: 4,
         totalQuestions: 4,
       });
+    });
+
+    it('treats a later submit (another day) as practice: no new row, no notification, no rank, same official result', async () => {
+      const topicId = await seedTopic();
+      // The user's first-ever submit of this topic happened on an earlier business day.
+      const first = await insertResult(
+        topicId,
+        'again-1',
+        '2026-10-01',
+        500,
+        9000,
+        '2026-10-01T03:00:00Z',
+      );
+      const later = await answeredSession('again-1', topicId);
+
+      const result = await attempts.submitSession(later.id, asUser('again-1'));
+
+      expect(result.leaderboard).toMatchObject({
+        isOfficial: false,
+        score: 500,
+        attemptScore: 1000,
+        businessDate: '2026-10-01',
+      });
+      const rows = await prisma.topicLeaderboardResult.findMany({
+        where: { topicId, userId: 'again-1' },
+      });
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ id: first.id, isCounted: true });
+      expect(
+        await prisma.notification.count({
+          where: { topicId, userId: 'again-1' },
+        }),
+      ).toBe(0);
+      // The practice run is still stored as a normal attempt, and progress still updates.
+      expect(
+        await prisma.attemptSession.count({
+          where: { id: later.id, status: 'SUBMITTED' },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.quizAttempt.count({ where: { sessionId: later.id } }),
+      ).toBe(4);
+      // Today's board does not list the user.
+      const today = await new LeaderboardService(
+        prisma,
+        profiles as never,
+      ).list(topicId, 'daily', {}, asUser('again-1'));
+      expect(today.pagination.total).toBe(0);
     });
 
     it('lets only one of two simultaneous submits of the same session win', async () => {
