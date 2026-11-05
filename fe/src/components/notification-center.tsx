@@ -100,7 +100,8 @@ export function NotificationCenter() {
     }
     setOpen(false);
     setToast(null);
-    if (row.topicId) router.push(row.type.startsWith('LEADERBOARD_') ? `/topics/${row.topicId}/leaderboard` : `/topics/${row.topicId}`);
+    if (row.type.startsWith('WEEKLY_')) router.push('/leaderboard');
+    else if (row.topicId) router.push(row.type.startsWith('LEADERBOARD_') ? `/topics/${row.topicId}/leaderboard` : `/topics/${row.topicId}`);
   };
 
   const markAllRead = async () => {

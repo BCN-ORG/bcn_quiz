@@ -8,6 +8,7 @@ import {
   Gauge,
   ClockCounterClockwise,
   SignOut,
+  Trophy,
   List,
   Moon,
   GearSix,
@@ -23,6 +24,7 @@ import { NotificationCenter } from './notification-center';
 const primary = [
   { href: '/dashboard', label: 'Tổng quan', icon: Gauge, allow: () => true },
   { href: '/courses', label: 'Khóa học', icon: BookOpen, allow: canReadQuestions },
+  { href: '/leaderboard', label: 'Xếp hạng', icon: Trophy, allow: canReadQuestions },
   { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise, allow: canReadResults },
   { href: '/certificates', label: 'Chứng chỉ', icon: Certificate, allow: canReadResults },
 ];
@@ -137,7 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="page-content">
-          {pathname.startsWith('/courses') || pathname.startsWith('/topics') ? (
+          {pathname.startsWith('/courses') || pathname.startsWith('/topics') || pathname.startsWith('/leaderboard') ? (
             canReadQuestions(user) ? children : <Empty title="Không có quyền xem khóa học" description="Tài khoản cần quyền xem khóa học và làm bài." />
           ) : pathname.startsWith('/history') || pathname.startsWith('/certificates') ? (
             canReadResults(user) ? children : <Empty title="Không có quyền xem lịch sử" description="Tài khoản cần quyền xem lịch sử làm bài." />
@@ -145,7 +147,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <nav className="bottom-nav" aria-label="Điều hướng di động">
-        {links.slice(0, 5).map(({ href, label, icon: Icon }) => (
+        {links.slice(0, 6).map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href} className={pathname.startsWith(href) ? 'active' : ''}><Icon /><span>{label}</span></Link>
         ))}
       </nav>

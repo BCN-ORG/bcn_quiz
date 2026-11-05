@@ -29,24 +29,20 @@ const context = (controller: Controller, handler: string, user?: unknown) =>
 
 const handlers: Array<[string, Controller, string]> = [
   ['GET /leaderboards/topics/:id/daily', LeaderboardController, 'daily'],
-  ['GET /leaderboards/topics/:id/weekly', LeaderboardController, 'weekly'],
+  ['GET /leaderboards/weekly', LeaderboardController, 'weekly'],
   [
     'GET /admin/leaderboards/topics/:id/daily',
     AdminLeaderboardController,
     'daily',
   ],
-  [
-    'GET /admin/leaderboards/topics/:id/weekly',
-    AdminLeaderboardController,
-    'weekly',
-  ],
+  ['GET /admin/leaderboards/weekly', AdminLeaderboardController, 'weekly'],
   [
     'GET /admin/leaderboards/topics/:id/daily/export',
     AdminLeaderboardController,
     'exportDaily',
   ],
   [
-    'GET /admin/leaderboards/topics/:id/weekly/export',
+    'GET /admin/leaderboards/weekly/export',
     AdminLeaderboardController,
     'exportWeekly',
   ],
@@ -102,4 +98,30 @@ describe('leaderboard authorization matrix', () => {
       });
     }
   }
+});
+
+describe('leaderboard routes', () => {
+  const route = (controller: Controller, handler: string) => {
+    const fn = (controller.prototype as unknown as Record<string, () => void>)[
+      handler
+    ];
+    return `${Reflect.getMetadata('path', controller)}/${Reflect.getMetadata('path', fn)}`;
+  };
+
+  it('has one overall weekly board and no per-topic weekly route', () => {
+    expect(route(LeaderboardController, 'weekly')).toBe('leaderboards/weekly');
+    expect(route(AdminLeaderboardController, 'weekly')).toBe(
+      'admin/leaderboards/weekly',
+    );
+    expect(route(AdminLeaderboardController, 'exportWeekly')).toBe(
+      'admin/leaderboards/weekly/export',
+    );
+    expect(route(LeaderboardController, 'daily')).toBe(
+      'leaderboards/topics/:topicId/daily',
+    );
+    const handlerNames = [LeaderboardController, AdminLeaderboardController]
+      .flatMap((c) => Object.getOwnPropertyNames(c.prototype))
+      .join(' ');
+    expect(handlerNames).not.toMatch(/topicWeekly/);
+  });
 });

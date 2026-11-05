@@ -530,7 +530,7 @@ img { display: block; max-width: 100%; }
   .mobile-only { display: inline-grid; }
   .topbar { padding: 0 18px; }
   .page-content { padding: 28px 18px 92px; }
-  .bottom-nav { position: fixed; z-index: 12; left: 12px; right: 12px; bottom: max(10px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(15px); box-shadow: var(--shadow); }
+  .bottom-nav { position: fixed; z-index: 12; left: 12px; right: 12px; bottom: max(10px, env(safe-area-inset-bottom)); display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(15px); box-shadow: var(--shadow); }
   .bottom-nav a { min-height: 50px; display: grid; place-items: center; align-content: center; gap: 2px; color: var(--muted); font-size: 10px; }
   .bottom-nav a.active { color: var(--accent-strong); }
   .bottom-nav svg { width: 20px; height: 20px; }

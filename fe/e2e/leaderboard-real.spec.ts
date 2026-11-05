@@ -41,7 +41,7 @@ test('thật: nộp xong hạng khớp trang kết quả; nộp lại không đ�
 
   // lượt thứ hai (đáp án khác) là luyện tập: điểm chính thức của ngày không đổi
   const rank2 = await takeQuiz(page, courseId, topicId, 1);
-  await expect(page.getByText(/Lượt luyện tập/)).toBeVisible();
+  await expect(page.getByText(/Lượt ôn tập/)).toBeVisible();
   const afterRetry = parse((await board(page, topicId)).text);
   expect(afterRetry.currentUserResult!.score).toBe(afterFirst.currentUserResult!.score);
   expect(afterRetry.currentUserRank).toBe(afterFirst.currentUserRank);
@@ -55,6 +55,7 @@ test('thật: quyền và riêng tư của API bảng xếp hạng', async ({ pa
   const anonymous = await playwrightRequest.newContext({ storageState: undefined });
   expect((await anonymous.get(`${API}/leaderboards/topics/${topicId}/daily`)).status()).toBe(401);
   expect((await anonymous.get(`${API}/admin/leaderboards/topics/${topicId}/daily`)).status()).toBe(401);
+  expect((await anonymous.get(`${API}/leaderboards/weekly`)).status()).toBe(401);
   await anonymous.dispose();
 
   // thành viên đọc được, payload không có email; ô search của admin bị bỏ qua
@@ -65,9 +66,15 @@ test('thật: quyền và riêng tư của API bảng xếp hạng', async ({ pa
   expect(searched.status).toBe(200);
   expect(parse(searched.text).pagination.total).toBe(parse(plain.text).pagination.total);
 
+  // bảng tuần là bảng tổng thể: thành viên đọc được, không có email; route tuần theo từng topic không còn
+  const weekly = await page.request.get(`${API}/leaderboards/weekly`);
+  expect(weekly.status()).toBe(200);
+  expect(await weekly.text()).not.toMatch(/"email"/);
+  expect((await page.request.get(`${API}/leaderboards/topics/${topicId}/weekly`)).status()).toBe(404);
+
   // thành viên không gọi được endpoint admin (danh sách, xuất file)
-  for (const path of ['daily', 'weekly', 'daily/export']) {
-    const res = await page.request.get(`${API}/admin/leaderboards/topics/${topicId}/${path}`);
+  for (const path of [`topics/${topicId}/daily`, 'weekly', `topics/${topicId}/daily/export`, 'weekly/export']) {
+    const res = await page.request.get(`${API}/admin/leaderboards/${path}`);
     expect(res.status(), path).toBe(403);
   }
 });

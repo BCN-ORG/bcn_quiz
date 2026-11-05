@@ -6,7 +6,7 @@ export type LeaderboardRow = {
   correctCount?: number;
   totalQuestions?: number;
   durationMs?: number;
-  completedDays?: number;
+  topicsCompleted?: number;
   totalDurationMs?: number;
 };
 
@@ -49,16 +49,16 @@ export function LeaderboardTable({ rows, mode, currentUserId, caption = 'Bảng 
       <th className="num" scope="col">Hạng</th>
       <th scope="col">Người chơi</th>
       <th className="num" scope="col">{mode === 'daily' ? 'Điểm' : 'Tổng điểm'}</th>
-      <th className="leaderboard-detail num" scope="col">{mode === 'daily' ? 'Đúng' : 'Số ngày'}</th>
+      <th className="leaderboard-detail num" scope="col">{mode === 'daily' ? 'Đúng' : 'Số topic'}</th>
       <th className="leaderboard-detail num" scope="col">{mode === 'daily' ? 'Thời gian' : 'Tổng thời gian'}</th>
     </tr></thead>
     <tbody>{rows.map((row) => {
       const mine = row.user.id === currentUserId;
       return <tr key={row.user.id} className={mine ? 'leaderboard-current' : undefined} aria-current={mine ? 'true' : undefined}>
         <td className={`num leaderboard-rank-cell${row.rank <= 3 ? ` is-top-${row.rank}` : ''}`}><strong><span className="sr-only">Hạng </span>#{row.rank}</strong></td>
-        <th scope="row"><LeaderboardPlayer row={row} current={mine} namesUnavailable={namesUnavailable} /><small className="leaderboard-mobile-detail">{mode === 'daily' ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0} đúng · ${leaderboardDuration(row.durationMs)}` : `${row.completedDays ?? 0} ngày · ${leaderboardDuration(row.totalDurationMs)}`}</small></th>
+        <th scope="row"><LeaderboardPlayer row={row} current={mine} namesUnavailable={namesUnavailable} /><small className="leaderboard-mobile-detail">{mode === 'daily' ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0} đúng · ${leaderboardDuration(row.durationMs)}` : `${row.topicsCompleted ?? 0} topic · ${leaderboardDuration(row.totalDurationMs)}`}</small></th>
         <td className="num"><strong>{leaderboardPoints(row).toLocaleString('vi-VN')}</strong><span className="sr-only"> điểm</span></td>
-        <td className="leaderboard-detail num">{mode === 'daily' ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0}` : row.completedDays ?? 0}</td>
+        <td className="leaderboard-detail num">{mode === 'daily' ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0}` : row.topicsCompleted ?? 0}</td>
         <td className="leaderboard-detail num">{leaderboardDuration(mode === 'daily' ? row.durationMs : row.totalDurationMs)}</td>
       </tr>;
     })}</tbody>

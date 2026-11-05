@@ -70,15 +70,9 @@ describe('NotificationSchedulerService', () => {
     expect(where).not.toHaveProperty('businessDate');
   });
 
-  it('uses weekly ranks for progress and closed-week summary once per user/topic/week', async () => {
+  it('sends one overall weekly progress / summary notification per user per week', async () => {
     const keys = new Set<string>();
     const prisma = {
-      topicLeaderboardResult: {
-        groupBy: jest.fn().mockResolvedValue([{ topicId: 'topic' }]),
-      },
-      topic: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'topic', name: 'Topic' }]),
-      },
       notification: {
         createManyAndReturn: jest.fn(
           async ({ data }: { data: Array<{ dedupKey: string }> }) => {
@@ -93,7 +87,7 @@ describe('NotificationSchedulerService', () => {
       weeklyRows: jest
         .fn()
         .mockResolvedValue([
-          { userId: 'a', rank: 2, score: 1700, completedDays: 2 },
+          { userId: 'a', rank: 2, score: 1700, topicsCompleted: 3 },
         ]),
     };
     const notifications = { publishCreated: jest.fn() };
@@ -107,18 +101,16 @@ describe('NotificationSchedulerService', () => {
     await service.runWeekly('progress', new Date('2026-10-15T11:00:00Z'));
     await service.runWeekly('summary', new Date('2026-10-19T01:00:00Z'));
     await service.runWeekly('summary', new Date('2026-10-19T01:00:00Z'));
+    // No topic in the key any more: one per user and week, and the summary covers the week that just ended.
     expect([...keys]).toEqual([
-      'weekly-progress:a:topic:2026-10-12',
-      'weekly-summary:a:topic:2026-10-12',
+      'weekly-progress:a:2026-10-12',
+      'weekly-summary:a:2026-10-12',
     ]);
-    expect(prisma.notification.createManyAndReturn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: [
-          expect.objectContaining({
-            message: expect.stringContaining('1,700'),
-          }),
-        ],
-      }),
-    );
+    expect(leaderboard.weeklyRows).toHaveBeenCalledWith('2026-10-12');
+    const first = prisma.notification.createManyAndReturn.mock.calls[0][0]
+      .data[0] as Record<string, unknown>;
+    expect(first.topicId).toBeUndefined();
+    expect(first.message).toEqual(expect.stringContaining('1,700'));
+    expect(first.message).toEqual(expect.stringContaining('3 topic'));
   });
 });

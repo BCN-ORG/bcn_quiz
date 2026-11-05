@@ -14,7 +14,7 @@ const openAdminBoard = async (page: Page, available: boolean, email?: string) =>
     return data;
   };
   await asMentorInUi(page);
-  await page.route(/\/api\/admin\/leaderboards\/topics\/[^/]+\/(daily|weekly)\?/, (route) => {
+  await page.route(/\/api\/admin\/leaderboards\/(topics\/[^/]+\/daily|weekly)\?/, (route) => {
     const mode = new URL(route.request().url()).pathname.endsWith('/weekly') ? 'weekly' : 'daily';
     return route.fulfill({
       status: 200, contentType: 'application/json',
@@ -68,4 +68,18 @@ test('email lạ không thành liên kết mailto có tham số; email hợp l�
   await expect(first).toContainText('a@b.co?cc=x@evil.com');
   await expect(first.locator('a[href^="mailto:"]')).toHaveCount(0);
   await expect(table.locator('tbody tr').nth(1).locator('a[href^="mailto:"]')).toHaveCount(1);
+});
+
+test('admin: chế độ tuần là bảng tổng thể, không cần chọn chủ đề, cột "Số topic", xuất file không theo topic', async ({ page }) => {
+  await openAdminBoard(page, true);
+  await page.getByLabel('Chế độ').selectOption('weekly');
+  await expect(page.getByLabel('Chủ đề')).toHaveCount(0);
+  const table = page.getByRole('table', { name: /đầy đủ thông tin người dùng/ });
+  await expect(table).toBeVisible();
+  for (const header of ['Hạng', 'Họ tên', 'Email', 'Tổng điểm', 'Số topic', 'Tổng thời gian', 'Nộp gần nhất']) {
+    await expect(table.getByRole('columnheader', { name: header })).toBeVisible();
+  }
+  await expect(page.getByRole('heading', { name: /Bảng xếp hạng tuần \(tổng thể\)/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Xuất toàn bộ XLSX' })).toBeEnabled();
+  await expect(page.getByText('Chọn một chủ đề')).toHaveCount(0);
 });

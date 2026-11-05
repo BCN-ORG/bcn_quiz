@@ -18,7 +18,7 @@ export function AdminLeaderboardTable({ rows, mode, namesUnavailable = false, ca
         <th scope="col">Email</th>
         <th scope="col">ID thành viên</th>
         <th className="num" scope="col">{daily ? 'Điểm' : 'Tổng điểm'}</th>
-        <th className="num" scope="col">{daily ? 'Đúng / tổng' : 'Số ngày'}</th>
+        <th className="num" scope="col">{daily ? 'Đúng / tổng' : 'Số topic'}</th>
         <th className="num" scope="col">{daily ? 'Thời gian làm' : 'Tổng thời gian'}</th>
         <th scope="col">{daily ? 'Nộp lúc' : 'Nộp gần nhất'}</th>
       </tr></thead>
@@ -28,7 +28,7 @@ export function AdminLeaderboardTable({ rows, mode, namesUnavailable = false, ca
         <td className="admin-email">{row.email && SAFE_EMAIL.test(row.email) ? <a href={`mailto:${row.email}`}>{row.email}</a> : row.email ? <span>{row.email}</span> : <span className="leaderboard-hidden-name">{namesUnavailable ? 'Chưa tải được' : '—'}</span>}</td>
         <td><code className="admin-id" title={row.user.id}>{row.user.id}</code></td>
         <td className="num"><strong>{leaderboardPoints(row).toLocaleString('vi-VN')}</strong></td>
-        <td className="num">{daily ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0}` : row.completedDays ?? 0}</td>
+        <td className="num">{daily ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0}` : row.topicsCompleted ?? 0}</td>
         <td className="num">{leaderboardDuration(daily ? row.durationMs : row.totalDurationMs)}</td>
         <td>{when(daily ? row.submittedAt : row.lastSubmittedAt)}</td>
       </tr>)}</tbody>

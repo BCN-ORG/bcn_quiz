@@ -19,7 +19,13 @@ import {
   parseBusinessDate,
 } from './leaderboard-rules';
 
-type Mode = 'daily' | 'weekly';
+type ListQuery = {
+  date?: string;
+  weekStart?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
+};
 type RankedRow = {
   rank: number;
   userId: string;
@@ -28,7 +34,7 @@ type RankedRow = {
   totalQuestions?: number;
   durationMs?: number;
   submittedAt?: Date;
-  completedDays?: number;
+  topicsCompleted?: number;
   totalDurationMs?: bigint | number;
   lastSubmittedAt?: Date;
 };
@@ -42,14 +48,8 @@ export class LeaderboardService {
 
   async list(
     topicId: string,
-    mode: Mode,
-    query: {
-      date?: string;
-      weekStart?: string;
-      page?: number;
-      limit?: number;
-      search?: string;
-    },
+    _mode: 'daily',
+    query: ListQuery,
     req: Request,
     admin = false,
   ) {
@@ -58,16 +58,63 @@ export class LeaderboardService {
       select: { id: true, name: true, slug: true },
     });
     if (!topic) throw new NotFoundException('Topic not found');
-    const selectedDate = this.dateOrThrow(
-      mode === 'daily' ? query.date : query.weekStart,
-    );
-    const start =
-      mode === 'daily' ? selectedDate : businessWeekStart(selectedDate);
-    const end = mode === 'daily' ? selectedDate : businessWeekEnd(selectedDate);
+    const date = this.dateOrThrow(query.date);
+    const ranked = this.rankedQuery(topicId, date);
+    const board = await this.board(ranked, query, req, admin);
+    return {
+      topic,
+      mode: 'daily' as const,
+      date,
+      closesAt: endOfBusinessDay(date),
+      ...board,
+    };
+  }
+
+  /**
+   * The overall weekly board: one row per user, summing their official (first-ever) topic results whose business date
+   * falls in the Monday-Sunday week, across every topic.
+   */
+  async listWeekly(query: ListQuery, req: Request, admin = false) {
+    const selected = this.dateOrThrow(query.weekStart);
+    const start = businessWeekStart(selected);
+    const end = businessWeekEnd(selected);
+    const ranked = this.weeklyRankedQuery(start, end);
+    const [board, progress] = await Promise.all([
+      this.board(ranked, query, req, admin),
+      this.progressFor(this.userId(req)),
+    ]);
+    return {
+      mode: 'weekly' as const,
+      weekStart: start,
+      weekEnd: end,
+      closesAt: endOfBusinessDay(end),
+      progress,
+      ...board,
+    };
+  }
+
+  /** How many topics the viewer has an official result for (all time) out of the topics that can be done at all. */
+  private async progressFor(userId: string | null) {
+    const [topicsDone, topicsTotal] = await Promise.all([
+      userId
+        ? this.prisma.topicLeaderboardResult.count({
+            where: { userId, isCounted: true },
+          })
+        : Promise.resolve(0),
+      this.prisma.topic.count({ where: { quizzes: { some: {} } } }),
+    ]);
+    return { topicsDone, topicsTotal };
+  }
+
+  private async board(
+    ranked: Prisma.Sql,
+    query: ListQuery,
+    req: Request,
+    admin: boolean,
+  ) {
     const page = this.pageOrThrow(query.page, 1, 1_000_000);
     const limit = this.pageOrThrow(query.limit, 20, 100);
     const search = admin ? (query.search?.trim() ?? '') : '';
-    const ranked = this.rankedQuery(topicId, mode, start, end);
     const matchedIds = search ? await this.profiles.searchUserIds(search) : [];
     const filter = search
       ? matchedIds.length
@@ -107,12 +154,6 @@ export class LeaderboardService {
     const byRank = new Map(enriched.map((row) => [row.rank, row]));
     const totalPages = Math.max(1, Math.ceil(total / limit));
     return {
-      topic,
-      mode,
-      date: mode === 'daily' ? start : undefined,
-      weekStart: mode === 'weekly' ? start : undefined,
-      weekEnd: mode === 'weekly' ? end : undefined,
-      closesAt: endOfBusinessDay(end),
       // false when Profiles could not be asked for names: the UI must not present that as anonymous users.
       profilesAvailable: !lookupFailed,
       items: rows.map((row) => byRank.get(row.rank)),
@@ -142,12 +183,7 @@ export class LeaderboardService {
     });
     if (!result) throw new NotFoundException('Leaderboard result not found');
     const officialDate = result.businessDate;
-    const ranked = this.rankedQuery(
-      topicId,
-      'daily',
-      officialDate,
-      officialDate,
-    );
+    const ranked = this.rankedQuery(topicId, officialDate);
     const rows = await this.prisma.$queryRaw<
       Array<{ rank: number }>
     >`${ranked} SELECT rank FROM ranked WHERE "userId" = ${userId}`;
@@ -160,9 +196,8 @@ export class LeaderboardService {
     };
   }
 
-  async export(
+  async exportDaily(
     topicId: string,
-    mode: Mode,
     dateValue?: string,
   ): Promise<{ buffer: Buffer; filename: string }> {
     const topic = await this.prisma.topic.findUnique({
@@ -170,82 +205,46 @@ export class LeaderboardService {
       select: { name: true, slug: true },
     });
     if (!topic) throw new NotFoundException('Topic not found');
-    const selected = this.dateOrThrow(dateValue);
-    const start = mode === 'daily' ? selected : businessWeekStart(selected);
-    const end = mode === 'daily' ? selected : businessWeekEnd(selected);
-    const ranked = this.rankedQuery(topicId, mode, start, end);
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet(mode === 'daily' ? 'Daily' : 'Weekly');
-    sheet.columns = (
-      mode === 'daily'
-        ? [
-            'Rank',
-            'User ID',
-            'Full Name',
-            'Email',
-            'Topic',
-            'Date',
-            'Score',
-            'Correct Answers',
-            'Total Questions',
-            'Accuracy',
-            'Duration (ms)',
-            'Submitted At',
-          ]
-        : [
-            'Rank',
-            'User ID',
-            'Full Name',
-            'Email',
-            'Topic',
-            'Week Start',
-            'Week End',
-            'Weekly Score',
-            'Completed Days',
-            'Total Duration (ms)',
-            'Last Submitted At',
-          ]
-    ).map((header) => ({ header, key: header, width: 22 }));
+    const date = this.dateOrThrow(dateValue);
+    const ranked = this.rankedQuery(topicId, date);
     const rows = await this.prisma.$queryRaw<
       RankedRow[]
     >`${ranked} SELECT * FROM ranked ORDER BY rank`;
     const { profiles } = await this.resolveProfiles(
       rows.map((row) => row.userId),
     );
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Daily');
+    sheet.columns = [
+      'Rank',
+      'User ID',
+      'Full Name',
+      'Email',
+      'Topic',
+      'Date',
+      'Score',
+      'Correct Answers',
+      'Total Questions',
+      'Accuracy',
+      'Duration (ms)',
+      'Submitted At',
+    ].map((header) => ({ header, key: header, width: 22 }));
     for (const row of rows) {
       const profile = profiles.get(row.userId);
-      sheet.addRow(
-        mode === 'daily'
-          ? [
-              row.rank,
-              row.userId,
-              profile?.fullName ?? 'Unknown',
-              profile?.email ?? '',
-              topic.name,
-              start,
-              row.score,
-              row.correctCount,
-              row.totalQuestions,
-              row.totalQuestions
-                ? (row.correctCount ?? 0) / row.totalQuestions
-                : 0,
-              row.durationMs,
-              row.submittedAt?.toISOString(),
-            ]
-          : [
-              row.rank,
-              row.userId,
-              profile?.fullName ?? 'Unknown',
-              profile?.email ?? '',
-              topic.name,
-              start,
-              end,
-              row.score,
-              row.completedDays,
-              Number(row.totalDurationMs ?? 0),
-              row.lastSubmittedAt?.toISOString(),
-            ],
-      );
+      sheet.addRow([
+        row.rank,
+        row.userId,
+        profile?.fullName ?? 'Unknown',
+        profile?.email ?? '',
+        topic.name,
+        date,
+        row.score,
+        row.correctCount,
+        row.totalQuestions,
+        row.totalQuestions ? (row.correctCount ?? 0) / row.totalQuestions : 0,
+        row.durationMs,
+        row.submittedAt?.toISOString(),
+      ]);
     }
     sheet.getRow(1).font = { bold: true };
     const safeSlug =
@@ -253,45 +252,85 @@ export class LeaderboardService {
         .toLowerCase()
         .replace(/[^a-z0-9_-]/g, '-')
         .slice(0, 60) || topicId;
-    const filename = `${mode}-leaderboard-${safeSlug}-${start}${mode === 'weekly' ? `_${end}` : ''}.xlsx`;
-    return { buffer: Buffer.from(await workbook.xlsx.writeBuffer()), filename };
+    return {
+      buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+      filename: `daily-leaderboard-${safeSlug}-${date}.xlsx`,
+    };
   }
 
-  async weeklyRows(topicId: string, weekStart: string): Promise<RankedRow[]> {
-    const start = businessWeekStart(parseBusinessDate(weekStart));
-    const ranked = this.rankedQuery(
-      topicId,
-      'weekly',
-      start,
-      businessWeekEnd(start),
+  async exportWeekly(
+    weekStartValue?: string,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const selected = this.dateOrThrow(weekStartValue);
+    const start = businessWeekStart(selected);
+    const end = businessWeekEnd(selected);
+    const rows = await this.weeklyRows(start);
+    const { profiles } = await this.resolveProfiles(
+      rows.map((row) => row.userId),
     );
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Weekly');
+    sheet.columns = [
+      'Rank',
+      'User ID',
+      'Full Name',
+      'Email',
+      'Week Start',
+      'Week End',
+      'Weekly Score',
+      'Topics Completed',
+      'Total Duration (ms)',
+      'Last Submitted At',
+    ].map((header) => ({ header, key: header, width: 22 }));
+    for (const row of rows) {
+      const profile = profiles.get(row.userId);
+      sheet.addRow([
+        row.rank,
+        row.userId,
+        profile?.fullName ?? 'Unknown',
+        profile?.email ?? '',
+        start,
+        end,
+        row.score,
+        row.topicsCompleted,
+        Number(row.totalDurationMs ?? 0),
+        row.lastSubmittedAt?.toISOString(),
+      ]);
+    }
+    sheet.getRow(1).font = { bold: true };
+    return {
+      buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+      filename: `weekly-leaderboard-${start}_${end}.xlsx`,
+    };
+  }
+
+  /** Every ranked row of the overall weekly board (used by the export and the weekly notifications). */
+  async weeklyRows(weekStart: string): Promise<RankedRow[]> {
+    const start = businessWeekStart(parseBusinessDate(weekStart));
+    const ranked = this.weeklyRankedQuery(start, businessWeekEnd(start));
     return this.prisma.$queryRaw<
       RankedRow[]
     >`${ranked} SELECT * FROM ranked ORDER BY rank`;
   }
 
-  private rankedQuery(
-    topicId: string,
-    mode: Mode,
-    start: string,
-    end: string,
-  ): Prisma.Sql {
-    if (mode === 'daily') {
-      return Prisma.sql`WITH ranked AS (
+  private rankedQuery(topicId: string, start: string): Prisma.Sql {
+    return Prisma.sql`WITH ranked AS (
         SELECT ROW_NUMBER() OVER (ORDER BY score DESC, "durationMs" ASC, "submittedAt" ASC, "userId" ASC)::int AS rank,
           "userId", score, "correctCount", "totalQuestions", "durationMs", "submittedAt"
         FROM topic_leaderboard_results WHERE "topicId" = ${topicId} AND "businessDate" = ${start} AND "isCounted" IS TRUE
       )`;
-    }
+  }
+
+  private weeklyRankedQuery(start: string, end: string): Prisma.Sql {
     return Prisma.sql`WITH totals AS (
-      SELECT "userId", SUM(score)::int AS score, COUNT(*)::int AS "completedDays",
+      SELECT "userId", SUM(score)::int AS score, COUNT(*)::int AS "topicsCompleted",
         SUM("durationMs")::bigint AS "totalDurationMs", MAX("submittedAt") AS "lastSubmittedAt"
       FROM topic_leaderboard_results
-      WHERE "topicId" = ${topicId} AND "businessDate" BETWEEN ${start} AND ${end} AND "isCounted" IS TRUE
+      WHERE "businessDate" BETWEEN ${start} AND ${end} AND "isCounted" IS TRUE
       GROUP BY "userId"
     ), ranked AS (
-      SELECT ROW_NUMBER() OVER (ORDER BY score DESC, "completedDays" DESC, "totalDurationMs" ASC, "lastSubmittedAt" ASC, "userId" ASC)::int AS rank,
-        "userId", score, "completedDays", "totalDurationMs", "lastSubmittedAt" FROM totals
+      SELECT ROW_NUMBER() OVER (ORDER BY score DESC, "topicsCompleted" DESC, "totalDurationMs" ASC, "lastSubmittedAt" ASC, "userId" ASC)::int AS rank,
+        "userId", score, "topicsCompleted", "totalDurationMs", "lastSubmittedAt" FROM totals
     )`;
   }
 
@@ -306,7 +345,7 @@ export class LeaderboardService {
         fullName: profile?.fullName?.trim() || 'Người dùng',
         avatarUrl: profile?.avatarUrl ?? null,
       };
-      return row.completedDays === undefined
+      return row.topicsCompleted === undefined
         ? {
             rank: row.rank,
             user,
@@ -325,7 +364,7 @@ export class LeaderboardService {
             user,
             ...(admin ? { email: profile?.email ?? null } : {}),
             weeklyScore: row.score,
-            completedDays: row.completedDays,
+            topicsCompleted: row.topicsCompleted,
             totalDurationMs: Number(row.totalDurationMs),
             lastSubmittedAt: row.lastSubmittedAt,
           };

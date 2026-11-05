@@ -138,62 +138,104 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
     expect(board.items.map((item) => item?.rank)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('weekly board uses counted results only, Monday-Sunday, and excludes the next Monday', async () => {
-    const topicId = await newTopic();
-    // u-x: first submit counted (Mon), a later one on Sunday is practice history (NULL) and must not add up.
+  it('overall weekly board sums official results across topics, Monday-Sunday, and counts topics', async () => {
+    // A far-away week so rows from other tests (the board is global) cannot leak in.
+    const [a, b, c] = [await newTopic(), await newTopic(), await newTopic()];
+    // u-x: two topics counted (Mon + Sun); a third row is practice history (NULL) and must not add up.
     await insertResult(
-      topicId,
+      a,
       'u-x',
-      '2026-10-12',
+      '2031-01-06',
       500,
       1000,
-      '2026-10-12T03:00:00Z',
+      '2031-01-06T03:00:00Z',
     );
     await insertResult(
-      topicId,
+      b,
       'u-x',
-      '2026-10-18',
+      '2031-01-12',
+      500,
+      1000,
+      '2031-01-12T03:00:00Z',
+    );
+    await insertResult(
+      c,
+      'u-x',
+      '2031-01-07',
       900,
       1000,
-      '2026-10-18T03:00:00Z',
+      '2031-01-07T03:00:00Z',
       null,
     );
-    // u-y: counted on Sunday, the last day of the week.
+    // u-y: one topic with the same total; fewer topics ranks below u-x.
     await insertResult(
-      topicId,
+      a,
       'u-y',
-      '2026-10-18',
+      '2031-01-08',
       1000,
       1000,
-      '2026-10-18T03:00:00Z',
+      '2031-01-08T03:00:00Z',
     );
     // u-z: counted, but on the next Monday: not part of this week.
     await insertResult(
-      topicId,
+      a,
       'u-z',
-      '2026-10-19',
+      '2031-01-13',
       1000,
       1000,
-      '2026-10-19T03:00:00Z',
+      '2031-01-13T03:00:00Z',
     );
 
-    const board = await service.list(
-      topicId,
-      'weekly',
-      { weekStart: '2026-10-14' },
-      req,
+    const board = await service.listWeekly(
+      { weekStart: '2031-01-08' },
+      asUser('u-x'),
     );
 
-    expect(board.weekStart).toBe('2026-10-12');
-    expect(board.weekEnd).toBe('2026-10-18');
+    expect(board.weekStart).toBe('2031-01-06');
+    expect(board.weekEnd).toBe('2031-01-12');
     const items = board.items as Array<{
       user: { id: string };
       weeklyScore: number;
-      completedDays: number;
+      topicsCompleted: number;
     }>;
-    expect(items.map((item) => item.user.id)).toEqual(['u-y', 'u-x']);
-    expect(items.map((item) => item.weeklyScore)).toEqual([1000, 500]);
-    expect(items.map((item) => item.completedDays)).toEqual([1, 1]);
+    expect(items.map((item) => item.user.id)).toEqual(['u-x', 'u-y']);
+    expect(items.map((item) => item.weeklyScore)).toEqual([1000, 1000]);
+    expect(items.map((item) => item.topicsCompleted)).toEqual([2, 1]);
+    expect(board.currentUserRank).toBe(1);
+    expect(board.pagination.total).toBe(2);
+    // Overall progress is all-time: u-x has official results in 2 topics.
+    expect(board.progress.topicsDone).toBe(2);
+  });
+
+  it('progress: topicsTotal counts only topics that have questions, topicsDone is all time', async () => {
+    const before = (
+      await service.listWeekly({ weekStart: '2031-04-07' }, asUser('prog-1'))
+    ).progress;
+    expect(before.topicsDone).toBe(0);
+    const topicId = await newTopic();
+    await prisma.quiz.create({
+      data: {
+        quizCode: `P-${randomUUID()}`,
+        question: 'q',
+        answer: 'A',
+        topicId,
+      },
+    });
+    await newTopic(); // a topic without questions must not count
+    await insertResult(
+      topicId,
+      'prog-1',
+      '2031-01-06',
+      700,
+      1000,
+      '2031-01-06T03:00:00Z',
+    );
+    const after = (
+      await service.listWeekly({ weekStart: '2031-04-07' }, asUser('prog-1'))
+    ).progress;
+    // The result is from January, the requested week is in April: still counted as done.
+    expect(after.topicsDone).toBe(1);
+    expect(after.topicsTotal).toBe(before.topicsTotal + 1);
   });
 
   it('rejects a second counted result for the same user and topic on another day, but keeps uncounted history', async () => {
@@ -389,76 +431,91 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
     expect(last.aroundMe.map((i) => i?.rank)).toEqual([43, 44, 45]);
   });
 
-  it('weekly ties: weekly score, completed days, total duration, last submission, then userId', async () => {
-    const topicId = await newTopic();
-    // Monday 2026-10-12 .. Sunday 2026-10-18; each user has one counted result per topic.
+  it('weekly ties: weekly score, topics done, total duration, last submission, then userId', async () => {
+    const [a, b] = [await newTopic(), await newTopic()];
+    // Week 2031-02-03 .. 2031-02-09; each user has at most one official result per topic.
     await insertResult(
-      topicId,
+      a,
       'w-a',
-      '2026-10-12',
+      '2031-02-03',
       600,
       9000,
-      '2026-10-12T05:00:00Z',
-    );
+      '2031-02-03T05:00:00Z',
+    ); // 600, 1 topic
     await insertResult(
-      topicId,
+      a,
       'w-b',
-      '2026-10-12',
-      600,
-      5000,
-      '2026-10-12T03:00:00Z',
-    ); // same score, faster
-    await insertResult(
-      topicId,
-      'w-c',
-      '2026-10-12',
+      '2031-02-03',
       300,
-      4000,
-      '2026-10-12T03:00:00Z',
+      5000,
+      '2031-02-03T03:00:00Z',
     );
     await insertResult(
-      topicId,
-      'w-d',
-      '2026-10-13',
+      b,
+      'w-b',
+      '2031-02-04',
+      300,
+      5000,
+      '2031-02-04T03:00:00Z',
+    ); // 600, 2 topics: beats w-a
+    await insertResult(
+      a,
+      'w-c',
+      '2031-02-03',
       300,
       4000,
-      '2026-10-13T02:00:00Z',
-    ); // identical to w-c but submitted a day later, so it ranks below w-c
+      '2031-02-03T03:00:00Z',
+    ); // 300
     await insertResult(
-      topicId,
-      'w-e',
-      '2026-10-12',
-      0,
+      b,
+      'w-d',
+      '2031-02-03',
+      300,
+      4000,
+      '2031-02-03T02:00:00Z',
+    ); // same but earlier last submit
+    await insertResult(
+      a,
+      'w-f',
+      '2031-02-05',
+      100,
       1000,
-      '2026-10-12T03:00:00Z',
-    ); // 0 points still ranked
-    // History that must not change anything.
+      '2031-02-05T03:00:00Z',
+    ); // full tie with w-g: userId
     await insertResult(
-      topicId,
+      b,
+      'w-g',
+      '2031-02-05',
+      100,
+      1000,
+      '2031-02-05T03:00:00Z',
+    );
+    await insertResult(a, 'w-e', '2031-02-03', 0, 1000, '2031-02-03T03:00:00Z'); // 0 points still ranked
+    await insertResult(
+      b,
       'w-e',
-      '2026-10-13',
+      '2031-02-04',
       1000,
       1,
-      '2026-10-13T03:00:00Z',
+      '2031-02-04T03:00:00Z',
       null,
-    );
+    ); // history: ignored
 
-    const board = await service.list(
-      topicId,
-      'weekly',
-      { weekStart: '2026-10-14' },
+    const board = await service.listWeekly(
+      { weekStart: '2031-02-05' },
       asUser('w-e'),
     );
 
-    // 600: w-b is faster than w-a. 300: equal duration, w-c submitted earlier (the 12th) than w-d (the 13th).
     expect(board.items.map((i) => i?.user.id)).toEqual([
       'w-b',
       'w-a',
-      'w-c',
       'w-d',
+      'w-c',
+      'w-f',
+      'w-g',
       'w-e',
     ]);
-    expect(board.currentUserRank).toBe(5);
+    expect(board.currentUserRank).toBe(7);
   });
 
   it('public quiz list returns options but never answer or explanation', async () => {
@@ -741,20 +798,10 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
         ),
       );
       await time('weekly page 1', () =>
-        service.list(
-          topicId,
-          'weekly',
-          { weekStart: date, page: 1, limit: 20 },
-          viewer,
-        ),
+        service.listWeekly({ weekStart: date, page: 1, limit: 20 }, viewer),
       );
       await time('weekly page 125 (middle)', () =>
-        service.list(
-          topicId,
-          'weekly',
-          { weekStart: date, page: 125, limit: 20 },
-          viewer,
-        ),
+        service.listWeekly({ weekStart: date, page: 125, limit: 20 }, viewer),
       );
       console.log(`PERF 5000 results (ms): ${JSON.stringify(timings)}`);
       for (const [label, ms] of Object.entries(timings))

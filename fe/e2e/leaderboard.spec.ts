@@ -16,26 +16,23 @@ test('URL giữ bộ lọc: tải lại/chia sẻ khôi phục chế độ, ngà
   const me = await myUserId(page);
   const seen: URL[] = [];
   await stubBoard(page, (q, mode) => board({ total: 45, myRank: 37, me, page: Number(q.get('page') ?? 1), mode }), (url) => seen.push(url));
-  await open(page, '?courseId=c1&mode=weekly&date=2026-11-04&page=2');
+  await open(page, '?courseId=c1&date=2026-11-04&page=2');
 
-  await expect(page.getByRole('button', { name: 'Tuần này' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Trang 2', { exact: true })).toBeVisible();
   const first = seen.at(-1)!;
-  expect(first.pathname).toMatch(/\/weekly$/);
-  expect(first.searchParams.get('weekStart')).toBe('2026-11-04');
+  expect(first.pathname).toMatch(/\/daily$/);
+  expect(first.searchParams.get('date')).toBe('2026-11-04');
   expect(first.searchParams.get('page')).toBe('2');
 
   // chuyển trang giữ nguyên courseId và bộ lọc
   await page.getByRole('button', { name: 'Trang sau' }).click();
   await expect.poll(() => view(page).searchParams.get('page')).toBe('3');
   expect(view(page).searchParams.get('courseId')).toBe('c1');
-  expect(view(page).searchParams.get('mode')).toBe('weekly');
 
   // xóa bộ lọc: về mặc định, giữ courseId
   await page.getByRole('button', { name: 'Xóa bộ lọc' }).click();
   await expect.poll(() => view(page).searchParams.has('mode') || view(page).searchParams.has('page') || view(page).searchParams.has('date')).toBe(false);
   expect(view(page).searchParams.get('courseId')).toBe('c1');
-  await expect(page.getByRole('button', { name: 'Hôm nay' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Xóa bộ lọc' })).toHaveCount(0);
 
   // tham số sai: không bao giờ gửi lên API
@@ -187,7 +184,7 @@ test('tên trống được gọi đúng tên: "Chưa đặt tên" khi Profiles 
   await expect(page.getByText(/Chưa tải được tên người chơi/)).toHaveCount(0);
   await expect(page.getByText('ẩn tên')).toHaveCount(0);
 
-  await page.unroute(/\/api\/leaderboards\/topics\/[^/]+\/(daily|weekly)\?/);
+  await page.unroute(/\/api\/leaderboards\/(topics\/[^/]+\/daily|weekly)\?/);
   await stubBoard(page, () => board({ total: 5, myRank: null, me, names, profilesAvailable: false }));
   await page.getByRole('button', { name: 'Làm mới' }).click();
   await expect(page.getByText(/Chưa tải được tên người chơi từ BCN/)).toBeVisible();
@@ -206,19 +203,20 @@ test('riêng tư: kể cả khi API lỡ trả thêm email, giao diện thành v
   expect(await page.locator('#topic-leaderboard a[href^="mailto:"]').count()).toBe(0);
 });
 
-test('kết quả cũ không ghi đè kết quả mới khi đổi bộ lọc nhanh', async ({ page }) => {
+test('kết quả cũ không ghi đè kết quả mới khi đổi ngày nhanh', async ({ page }) => {
   const me = await myUserId(page);
   await stubBoard(page, async (q, mode) => {
-    if (mode === 'weekly') { await new Promise((r) => setTimeout(r, 1500)); return board({ total: 5, myRank: null, me, mode, names: { 1: 'BẢNG TUẦN CŨ' } }); }
+    if (q.get('date') === '2026-11-01') { await new Promise((r) => setTimeout(r, 1500)); return board({ total: 5, myRank: null, me, mode, names: { 1: 'BẢNG NGÀY CŨ' } }); }
     return board({ total: 5, myRank: null, me, mode, names: { 1: 'BẢNG NGÀY MỚI' } });
   });
   await open(page);
   await expect(page.getByText('BẢNG NGÀY MỚI').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Tuần này' }).click();
-  await page.getByRole('button', { name: 'Hôm nay' }).click();
+  const date = page.locator('.leaderboard-date input');
+  await date.fill('2026-11-01'); // chậm
+  await date.fill('2026-11-02'); // nhanh, đến sau
   await page.waitForTimeout(2200);
   await expect(page.getByText('BẢNG NGÀY MỚI').first()).toBeVisible();
-  await expect(page.getByText('BẢNG TUẦN CŨ')).toHaveCount(0);
+  await expect(page.getByText('BẢNG NGÀY CŨ')).toHaveCount(0);
 });
 
 for (const mode of ['daily', 'weekly'] as const) {
@@ -226,7 +224,7 @@ for (const mode of ['daily', 'weekly'] as const) {
     await page.setViewportSize({ width: 375, height: 800 });
     const me = await myUserId(page);
     await stubBoard(page, (q, m) => board({ total: 45, myRank: 37, me, mode: m, page: Number(q.get('page') ?? 1), names: { 1: 'Nguyễn Văn Một Cái Tên Rất Rất Dài Để Thử Cắt Chữ' } }));
-    await open(page, mode === 'weekly' ? '?mode=weekly' : '');
+    if (mode === 'weekly') await page.goto('/leaderboard'); else await open(page);
     const table = page.getByRole('table', { name: /trang 1 trên 3/ });
     await expect(table).toBeVisible();
     const overflow = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth - window.innerWidth, body: document.body.scrollWidth - window.innerWidth }));
@@ -275,24 +273,18 @@ test('bàn phím: tiêu điểm không rơi về <body> sau Trang sau, Làm mớ
 
   await page.getByRole('button', { name: 'Xóa bộ lọc' }).focus();
   await page.keyboard.press('Enter');
-  await expect.poll(() => activeText(page)).toBe('Bảng xếp hạng');
+  await expect.poll(() => activeText(page)).toBe('Bảng xếp hạng ngày');
 });
 
-test('Back hoàn tác bộ lọc: đổi chế độ rồi quay lại thì trở về chế độ trước', async ({ page }) => {
+test('Back hoàn tác bộ lọc: đổi ngày rồi quay lại thì trở về ngày trước', async ({ page }) => {
   const me = await myUserId(page);
   await stubBoard(page, (q, mode) => board({ total: 45, myRank: null, me, mode, page: Number(q.get('page') ?? 1) }));
   await open(page);
   await expect(page.getByRole('table', { name: /trang 1 trên 3/ })).toBeVisible();
-  await page.getByRole('button', { name: 'Tuần này' }).click();
-  await expect(page.getByRole('button', { name: 'Tuần này' })).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.leaderboard-date input').fill('2026-11-02');
+  await expect.poll(() => view(page).searchParams.get('date')).toBe('2026-11-02');
   await page.goBack();
-  await expect(page.getByRole('button', { name: 'Hôm nay' })).toHaveAttribute('aria-pressed', 'true');
-  expect(view(page).searchParams.has('mode')).toBe(false);
-
-  // bấm lại đúng chế độ đang chọn không thêm mục lịch sử
-  const length = await page.evaluate(() => history.length);
-  await page.getByRole('button', { name: 'Hôm nay' }).click();
-  expect(await page.evaluate(() => history.length)).toBe(length);
+  await expect.poll(() => view(page).searchParams.has('date')).toBe(false);
 });
 
 test('chữ cái đầu của tên có emoji không bị cắt đôi; trang vượt giới hạn có lối về trang 1 và không có phân trang sai', async ({ page }) => {
@@ -320,4 +312,37 @@ test('lần tải đầu lỗi: nhãn nói "Chưa cập nhật được", không
   await expect(page.locator('.state-panel.error')).toBeVisible();
   await expect(page.getByText('Chưa cập nhật được.')).toBeVisible();
   await expect(page.getByText('Đang cập nhật…')).toHaveCount(0);
+});
+
+test('bảng tuần tổng thể: một bảng cho mọi topic, có số topic và tiến độ của tôi, không có nút đổi chế độ', async ({ page }) => {
+  const me = await myUserId(page);
+  const seen: URL[] = [];
+  await stubBoard(page, (q, mode) => board({ total: 45, myRank: 37, me, mode, page: Number(q.get('page') ?? 1) }), (url) => seen.push(url));
+  await page.goto('/leaderboard');
+  await expect(page.getByRole('heading', { name: 'Bảng xếp hạng tuần', level: 1 })).toBeVisible();
+  const table = page.getByRole('table', { name: /trang 1 trên 3/ });
+  await expect(table).toBeVisible();
+  expect(seen.at(-1)!.pathname).toMatch(/\/leaderboards\/weekly$/);
+  await expect(table.getByRole('columnheader', { name: 'Số topic' })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'Số ngày' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Tuần này' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Hôm nay' })).toHaveCount(0);
+  await expect(page.locator('#leaderboard-progress')).toContainText('4/9');
+  await expect(page.locator('#leaderboard-me')).toContainText('3 topic trong tuần');
+  // chuyển trang giữ ở bảng tuần, không thêm tham số mode
+  await page.getByRole('button', { name: 'Trang sau' }).click();
+  await expect.poll(() => view(page).searchParams.get('page')).toBe('2');
+  expect(view(page).searchParams.has('mode')).toBe(false);
+  expect(seen.at(-1)!.pathname).toMatch(/\/leaderboards\/weekly$/);
+});
+
+test('trang topic chỉ còn bảng ngày: không có tab tuần, ?mode=weekly bị bỏ qua, có đường dẫn sang bảng tuần', async ({ page }) => {
+  const me = await myUserId(page);
+  const seen: URL[] = [];
+  await stubBoard(page, (q, mode) => board({ total: 5, myRank: null, me, mode }), (url) => seen.push(url));
+  await open(page, '?mode=weekly');
+  await expect(page.getByRole('table', { name: /trang 1 trên 1/ })).toBeVisible();
+  expect(seen.at(-1)!.pathname).toMatch(/\/topics\/[^/]+\/daily$/);
+  await expect(page.getByRole('button', { name: 'Tuần này' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /bảng xếp hạng tuần tổng thể/i })).toHaveAttribute('href', '/leaderboard');
 });

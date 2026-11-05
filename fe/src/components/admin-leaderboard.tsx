@@ -51,13 +51,14 @@ export function AdminLeaderboard() {
 
   const load = useCallback(async () => {
     const currentRequest = ++requestNumber.current;
-    if (!topicId) { setData(null); return; }
+    // The weekly board is overall (all topics), so only the daily board needs a topic.
+    if (mode === 'daily' && !topicId) { setData(null); return; }
     setLoading(true); setError(''); setSearchFailed(false);
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (date) params.set(mode === 'daily' ? 'date' : 'weekStart', date);
       if (search.trim()) params.set('search', search.trim());
-      const next = await request.get<Data>(`/admin/leaderboards/topics/${topicId}/${mode}?${params}`);
+      const next = await request.get<Data>(mode === 'daily' ? `/admin/leaderboards/topics/${topicId}/daily?${params}` : `/admin/leaderboards/weekly?${params}`);
       if (currentRequest === requestNumber.current) setData(next);
     } catch (reason) {
       if (currentRequest === requestNumber.current) {
@@ -70,30 +71,30 @@ export function AdminLeaderboard() {
   useEffect(() => { void load(); }, [load]);
 
   const exportRows = async () => {
-    if (!topicId) return;
+    if (mode === 'daily' && !topicId) return;
     setExporting(true); setError(''); setSearchFailed(false);
     try {
       const selected = date || (mode === 'daily' ? data?.date : data?.weekStart) || '';
       const params = new URLSearchParams({ format: 'xlsx' });
       if (selected) params.set(mode === 'daily' ? 'date' : 'weekStart', selected);
-      await downloadFile(`/admin/leaderboards/topics/${topicId}/${mode}/export?${params}`, `${mode}-leaderboard.xlsx`);
+      await downloadFile(mode === 'daily' ? `/admin/leaderboards/topics/${topicId}/daily/export?${params}` : `/admin/leaderboards/weekly/export?${params}`, `${mode}-leaderboard.xlsx`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không xuất được file'); }
     finally { setExporting(false); }
   };
 
   return <section className="section panel" aria-label="Quản trị bảng xếp hạng">
-    <div className="section-title"><h2>Bảng xếp hạng Topic</h2><button className="button" type="button" disabled={!topicId || exporting} onClick={() => void exportRows()}>{exporting ? 'Đang xuất…' : 'Xuất toàn bộ XLSX'}</button></div>
+    <div className="section-title"><h2>{mode === 'daily' ? 'Bảng xếp hạng Topic' : 'Bảng xếp hạng tuần (tổng thể)'}</h2><button className="button" type="button" disabled={(mode === 'daily' && !topicId) || exporting} onClick={() => void exportRows()}>{exporting ? 'Đang xuất…' : 'Xuất toàn bộ XLSX'}</button></div>
     <div className="grid grid-2">
-      <label className="field"><span>Khóa học</span><select value={courseId} onChange={(event) => { setCourseId(event.target.value); setData(null); setPage(1); }}><option value="">Tất cả khóa học</option>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label className="field"><span>Chủ đề</span><select value={topicId} onChange={(event) => { setTopicId(event.target.value); setData(null); setPage(1); }}><option value="">Chọn chủ đề</option>{topics.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label className="field"><span>Chế độ</span><select value={mode} onChange={(event) => { setMode(event.target.value as 'daily' | 'weekly'); setDate(''); setData(null); setPage(1); }}><option value="daily">Hôm nay</option><option value="weekly">Tuần này</option></select></label>
+      {mode === 'daily' ? <label className="field"><span>Khóa học</span><select value={courseId} onChange={(event) => { setCourseId(event.target.value); setData(null); setPage(1); }}><option value="">Tất cả khóa học</option>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
+      {mode === 'daily' ? <label className="field"><span>Chủ đề</span><select value={topicId} onChange={(event) => { setTopicId(event.target.value); setData(null); setPage(1); }}><option value="">Chọn chủ đề</option>{topics.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
+      <label className="field"><span>Chế độ</span><select value={mode} onChange={(event) => { setMode(event.target.value as 'daily' | 'weekly'); setDate(''); setData(null); setPage(1); }}><option value="daily">Theo ngày (từng chủ đề)</option><option value="weekly">Theo tuần (tổng thể)</option></select></label>
       <label className="field"><span>{mode === 'daily' ? 'Ngày' : 'Tuần chứa ngày'}</span><input type="date" value={date || (mode === 'daily' ? data?.date : data?.weekStart) || ''} onChange={(event) => { setDate(event.target.value); setData(null); setPage(1); }} /></label>
       <label className="field"><span>Tìm theo tên người dùng</span><span className="leaderboard-search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên người dùng" />{query.trim() && (query.trim() !== search || loading) ? <CircleNotch className="spin" aria-label="Đang tìm kiếm" /> : null}</span></label>
     </div>
     {error ? <ErrorState title={searchFailed ? 'Không thể tìm kiếm người dùng lúc này.' : undefined} message={error} retry={() => void load()} /> : null}
-    {!topicId ? <Empty title="Chọn một chủ đề" description="Mỗi Topic có bảng xếp hạng riêng." /> : null}
+    {mode === 'daily' && !topicId ? <Empty title="Chọn một chủ đề" description="Bảng theo ngày là của từng Topic. Bảng theo tuần là bảng tổng thể, không cần chọn chủ đề." /> : null}
     {loading && !data ? <Loading label="Đang tải bảng xếp hạng" /> : null}
-    {data && topicId ? <>
+    {data && (mode === 'weekly' || topicId) ? <>
       {data.profilesAvailable === false ? <div className="notice leaderboard-profiles-warning" role="alert">
         <strong>Chưa lấy được họ tên và email từ BCN Profiles.</strong>
         <p>Điểm và thứ hạng vẫn đúng. Cột họ tên hiện &quot;Chưa tải được tên&quot;, email để trống, và file Excel xuất lúc này sẽ ghi &quot;Unknown&quot; ở cột Full Name và để trống Email.</p>

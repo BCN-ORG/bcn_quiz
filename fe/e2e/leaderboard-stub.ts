@@ -7,7 +7,7 @@ type Row = {
   rank: number;
   user: { id: string; fullName: string; avatarUrl: string | null };
   score?: number; correctCount?: number; totalQuestions?: number; durationMs?: number;
-  weeklyScore?: number; completedDays?: number; totalDurationMs?: number;
+  weeklyScore?: number; topicsCompleted?: number; totalDurationMs?: number;
 };
 
 /** Id of the signed-in e2e user, so the stubbed board can contain "me". */
@@ -27,7 +27,7 @@ export async function myUserId(page: Page): Promise<string> {
 }
 
 /**
- * Builds a payload with the same shape as GET /leaderboards/topics/:id/{daily|weekly}. Ranks are unique and
+ * Builds a payload with the same shape as GET /leaderboards/topics/:id/daily and GET /leaderboards/weekly (overall). Ranks are unique and
  * strictly ordered, exactly like the server (full tie-break chain), so the UI is tested against values it must not recompute.
  */
 export function board(opts: { total: number; myRank: number | null; me: string; page?: number; mode?: 'daily' | 'weekly'; names?: Record<number, string>; profilesAvailable?: boolean; admin?: boolean }) {
@@ -38,7 +38,7 @@ export function board(opts: { total: number; myRank: number | null; me: string; 
     const score = Math.max(0, 1000 - (rank - 1) * Math.max(1, Math.floor(1000 / Math.max(total, 1))));
     return mode === 'daily'
       ? { ...base, score, correctCount: Math.round(score / 100), totalQuestions: 10, durationMs: 60_000 + rank * 1000 }
-      : { ...base, weeklyScore: score * 3, completedDays: 3, totalDurationMs: 180_000 + rank * 3000 };
+      : { ...base, weeklyScore: score * 3, topicsCompleted: 3, totalDurationMs: 180_000 + rank * 3000 };
   };
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
   const first = (page - 1) * LIMIT + 1;
@@ -51,6 +51,7 @@ export function board(opts: { total: number; myRank: number | null; me: string; 
     ...(mode === 'daily' ? { date: '2026-11-04' } : { weekStart: '2026-11-02', weekEnd: '2026-11-08' }),
     closesAt: '2026-11-04T16:59:59.999Z',
     profilesAvailable: opts.profilesAvailable ?? true,
+    progress: { topicsDone: 4, topicsTotal: 9 },
     items,
     top3: [1, 2, 3].filter((r) => r <= total).map(row),
     top10Cutoff: total >= 10 ? points(row(10)) : null,
@@ -63,7 +64,7 @@ export function board(opts: { total: number; myRank: number | null; me: string; 
 
 /** Serves `board(...)` for every leaderboard request; the handler sees the parsed query so tests can vary the response. */
 export async function stubBoard(page: Page, make: (query: URLSearchParams, mode: 'daily' | 'weekly') => unknown | Promise<unknown>, onRequest?: (url: URL) => void) {
-  await page.route(/\/api\/leaderboards\/topics\/[^/]+\/(daily|weekly)\?/, async (route) => {
+  await page.route(/\/api\/leaderboards\/(topics\/[^/]+\/daily|weekly)\?/, async (route) => {
     const url = new URL(route.request().url());
     onRequest?.(url);
     const mode = url.pathname.endsWith('/weekly') ? 'weekly' : 'daily';

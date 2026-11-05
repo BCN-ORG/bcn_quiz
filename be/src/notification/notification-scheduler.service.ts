@@ -4,7 +4,6 @@ import { NotificationType, Prisma } from '@prisma/client';
 import { LeaderboardService } from '../leaderboard/leaderboard.service';
 import {
   businessDate,
-  businessWeekEnd,
   businessWeekStart,
 } from '../leaderboard/leaderboard-rules';
 import { PrismaService } from '../prisma/prisma.service';
@@ -143,46 +142,31 @@ export class NotificationSchedulerService {
     const reference =
       mode === 'summary' ? new Date(now.getTime() - 7 * 86_400_000) : now;
     const start = businessWeekStart(businessDate(reference));
-    const end = businessWeekEnd(start);
-    const groups = await this.prisma.topicLeaderboardResult.groupBy({
-      by: ['topicId'],
-      where: { businessDate: { gte: start, lte: end }, isCounted: true },
-    });
-    if (!groups.length) return;
-    const topics = await this.prisma.topic.findMany({
-      where: { id: { in: groups.map((row) => row.topicId) } },
-      select: { id: true, name: true },
-    });
-    const names = new Map(topics.map((topic) => [topic.id, topic.name]));
-    for (const group of groups) {
-      const name = names.get(group.topicId);
-      if (!name) continue;
-      const ranked = await this.leaderboard.weeklyRows(group.topicId, start);
-      for (let i = 0; i < ranked.length; i += 100) {
-        const data: Prisma.NotificationCreateManyInput[] = ranked
-          .slice(i, i + 100)
-          .map((row) => ({
-            userId: row.userId,
-            type:
-              mode === 'progress'
-                ? NotificationType.WEEKLY_PROGRESS
-                : NotificationType.WEEKLY_SUMMARY,
-            title:
-              mode === 'progress' ? 'Thứ hạng tuần của bạn' : 'Tổng kết tuần',
-            message:
-              mode === 'progress'
-                ? `Bạn hiện đang đứng #${row.rank} với ${row.score.toLocaleString('en-US')} điểm trong ${name}. Bạn đã tham gia ${row.completedDays} ngày tuần này.`
-                : `${name}: Hạng cuối #${row.rank}, tổng điểm ${row.score.toLocaleString('en-US')}, tham gia ${row.completedDays}/7 ngày.`,
-            topicId: group.topicId,
-            weekStart: start,
-            dedupKey: `weekly-${mode}:${row.userId}:${group.topicId}:${start}`,
-          }));
-        const created = await this.prisma.notification.createManyAndReturn({
-          data,
-          skipDuplicates: true,
-        });
-        await this.notifications.publishCreated(created);
-      }
+    // One overall board: every user with an official result this week gets one notification per week.
+    const ranked = await this.leaderboard.weeklyRows(start);
+    for (let i = 0; i < ranked.length; i += 100) {
+      const data: Prisma.NotificationCreateManyInput[] = ranked
+        .slice(i, i + 100)
+        .map((row) => ({
+          userId: row.userId,
+          type:
+            mode === 'progress'
+              ? NotificationType.WEEKLY_PROGRESS
+              : NotificationType.WEEKLY_SUMMARY,
+          title:
+            mode === 'progress' ? 'Thứ hạng tuần của bạn' : 'Tổng kết tuần',
+          message:
+            mode === 'progress'
+              ? `Bạn hiện đang đứng #${row.rank} bảng xếp hạng tuần với ${row.score.toLocaleString('en-US')} điểm, đã làm ${row.topicsCompleted} topic tuần này.`
+              : `Tuần vừa qua: hạng cuối #${row.rank}, tổng ${row.score.toLocaleString('en-US')} điểm, đã làm ${row.topicsCompleted} topic.`,
+          weekStart: start,
+          dedupKey: `weekly-${mode}:${row.userId}:${start}`,
+        }));
+      const created = await this.prisma.notification.createManyAndReturn({
+        data,
+        skipDuplicates: true,
+      });
+      await this.notifications.publishCreated(created);
     }
   }
 }

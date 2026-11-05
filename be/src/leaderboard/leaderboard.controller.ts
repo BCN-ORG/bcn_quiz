@@ -34,12 +34,12 @@ export class LeaderboardQueryDto {
   @IsOptional() @IsString() format?: string;
 }
 
-@Controller('leaderboards/topics')
+@Controller('leaderboards')
 export class LeaderboardController {
   constructor(private readonly service: LeaderboardService) {}
 
   @Permissions(...CONTENT_READ)
-  @Get(':topicId/daily')
+  @Get('topics/:topicId/daily')
   daily(
     @Param('topicId') topicId: string,
     @Query() query: LeaderboardQueryDto,
@@ -48,23 +48,20 @@ export class LeaderboardController {
     return this.service.list(topicId, 'daily', query, req);
   }
 
+  /** The overall weekly board (all topics together). */
   @Permissions(...CONTENT_READ)
-  @Get(':topicId/weekly')
-  weekly(
-    @Param('topicId') topicId: string,
-    @Query() query: LeaderboardQueryDto,
-    @Request() req: ExpressRequest,
-  ) {
-    return this.service.list(topicId, 'weekly', query, req);
+  @Get('weekly')
+  weekly(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
+    return this.service.listWeekly(query, req);
   }
 }
 
-@Controller('admin/leaderboards/topics')
+@Controller('admin/leaderboards')
 export class AdminLeaderboardController {
   constructor(private readonly service: LeaderboardService) {}
 
   @Permissions(...CONTENT_UPDATE)
-  @Get(':topicId/daily')
+  @Get('topics/:topicId/daily')
   daily(
     @Param('topicId') topicId: string,
     @Query() query: LeaderboardQueryDto,
@@ -74,48 +71,41 @@ export class AdminLeaderboardController {
   }
 
   @Permissions(...CONTENT_UPDATE)
-  @Get(':topicId/weekly')
-  weekly(
-    @Param('topicId') topicId: string,
-    @Query() query: LeaderboardQueryDto,
-    @Request() req: ExpressRequest,
-  ) {
-    return this.service.list(topicId, 'weekly', query, req, true);
+  @Get('weekly')
+  weekly(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
+    return this.service.listWeekly(query, req, true);
   }
 
   @Permissions(...CONTENT_UPDATE)
-  @Get(':topicId/daily/export')
+  @Get('topics/:topicId/daily/export')
   async exportDaily(
     @Param('topicId') topicId: string,
     @Query() query: LeaderboardQueryDto,
     @Response({ passthrough: true }) res: ExpressResponse,
   ) {
-    return this.exportFile(topicId, 'daily', query, res);
+    this.assertXlsx(query);
+    return this.file(await this.service.exportDaily(topicId, query.date), res);
   }
 
   @Permissions(...CONTENT_UPDATE)
-  @Get(':topicId/weekly/export')
+  @Get('weekly/export')
   async exportWeekly(
-    @Param('topicId') topicId: string,
     @Query() query: LeaderboardQueryDto,
     @Response({ passthrough: true }) res: ExpressResponse,
   ) {
-    return this.exportFile(topicId, 'weekly', query, res);
+    this.assertXlsx(query);
+    return this.file(await this.service.exportWeekly(query.weekStart), res);
   }
 
-  private async exportFile(
-    topicId: string,
-    mode: 'daily' | 'weekly',
-    query: LeaderboardQueryDto,
-    res: ExpressResponse,
-  ) {
+  private assertXlsx(query: LeaderboardQueryDto) {
     if (query.format && query.format !== 'xlsx')
       throw new BadRequestException('Only xlsx format is supported');
-    const { buffer, filename } = await this.service.export(
-      topicId,
-      mode,
-      mode === 'daily' ? query.date : query.weekStart,
-    );
+  }
+
+  private file(
+    { buffer, filename }: { buffer: Buffer; filename: string },
+    res: ExpressResponse,
+  ) {
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

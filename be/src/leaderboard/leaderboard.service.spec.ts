@@ -13,36 +13,22 @@ describe('LeaderboardService', () => {
     submittedAt: new Date('2026-10-11T02:00:00.000Z'),
   });
 
-  it('uses the required deterministic daily and weekly ordering and weekly aggregation', () => {
+  it('uses the required deterministic daily and overall weekly ordering and weekly aggregation across topics', () => {
     const service = new LeaderboardService({} as never, {} as never);
     const query = service as unknown as {
-      rankedQuery(
-        topicId: string,
-        mode: 'daily' | 'weekly',
-        start: string,
-        end: string,
-      ): { sql: string };
+      rankedQuery(topicId: string, start: string): { sql: string };
+      weeklyRankedQuery(start: string, end: string): { sql: string };
     };
-    const daily = query.rankedQuery(
-      'topic-1',
-      'daily',
-      '2026-10-11',
-      '2026-10-11',
-    ).sql;
-    const weekly = query.rankedQuery(
-      'topic-1',
-      'weekly',
-      '2026-10-05',
-      '2026-10-11',
-    ).sql;
+    const daily = query.rankedQuery('topic-1', '2026-10-11').sql;
+    const weekly = query.weeklyRankedQuery('2026-10-05', '2026-10-11').sql;
     expect(daily).toContain(
       'ORDER BY score DESC, "durationMs" ASC, "submittedAt" ASC, "userId" ASC',
     );
     expect(weekly).toContain(
-      'SUM(score)::int AS score, COUNT(*)::int AS "completedDays"',
+      'SUM(score)::int AS score, COUNT(*)::int AS "topicsCompleted"',
     );
     expect(weekly).toContain(
-      'ORDER BY score DESC, "completedDays" DESC, "totalDurationMs" ASC, "lastSubmittedAt" ASC, "userId" ASC',
+      'ORDER BY score DESC, "topicsCompleted" DESC, "totalDurationMs" ASC, "lastSubmittedAt" ASC, "userId" ASC',
     );
   });
 
@@ -184,7 +170,7 @@ describe('LeaderboardService', () => {
       })),
     };
     const service = new LeaderboardService(prisma as never, profiles as never);
-    const result = await service.export('topic-1', 'daily', '2026-10-11');
+    const result = await service.exportDaily('topic-1', '2026-10-11');
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(result.buffer as never);
     const sheet = workbook.worksheets[0];
@@ -198,9 +184,8 @@ describe('LeaderboardService', () => {
     ).toEqual([100, 20]);
   });
 
-  it('exports all weekly rows with aggregated fields', async () => {
+  it('exports all overall weekly rows with the number of topics', async () => {
     const prisma = {
-      topic: { findUnique: jest.fn().mockResolvedValue(topic) },
       $queryRaw: jest
         .fn()
         .mockResolvedValueOnce([
@@ -208,7 +193,7 @@ describe('LeaderboardService', () => {
             rank: 1,
             userId: 'user-1',
             score: 2700,
-            completedDays: 3,
+            topicsCompleted: 3,
             totalDurationMs: 930000n,
             lastSubmittedAt: new Date('2026-10-07T02:00:00.000Z'),
           },
@@ -223,7 +208,7 @@ describe('LeaderboardService', () => {
           .mockResolvedValue({ users: new Map(), failed: false }),
       } as never,
     );
-    const result = await service.export('topic-1', 'weekly', '2026-10-07');
+    const result = await service.exportWeekly('2026-10-07');
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(result.buffer as never);
     const sheet = workbook.worksheets[0];
@@ -233,7 +218,6 @@ describe('LeaderboardService', () => {
       'user-1',
       'Unknown',
       '',
-      'Topic 1',
       '2026-10-05',
       '2026-10-11',
       2700,
@@ -346,7 +330,7 @@ describe('LeaderboardService', () => {
       const result = await new LeaderboardService(
         prisma as never,
         profiles as never,
-      ).export('topic-1', 'daily', '2026-10-11');
+      ).exportDaily('topic-1', '2026-10-11');
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(result.buffer as never);
       expect(workbook.worksheets[0].rowCount).toBe(2);
