@@ -388,9 +388,13 @@ export class LeaderboardService {
 
   private dateOrThrow(value?: string): string {
     try {
-      return parseBusinessDate(value ?? businessDate(new Date()));
+      const date = parseBusinessDate(value ?? businessDate(new Date()));
+      // Week maths on the very first/last year produces dates the rest of the code rejects (a 500): refuse them here.
+      const year = Number(date.slice(0, 4));
+      if (year < 2000 || year > 2099) throw new Error('out of range');
+      return date;
     } catch {
-      throw new BadRequestException('Date must be YYYY-MM-DD');
+      throw new BadRequestException('Date must be YYYY-MM-DD, years 2000-2099');
     }
   }
 

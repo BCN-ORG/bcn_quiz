@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import { LeaderboardService } from './leaderboard.service';
 
@@ -29,6 +30,23 @@ describe('LeaderboardService', () => {
     );
     expect(weekly).toContain(
       'ORDER BY score DESC, "topicsCompleted" DESC, "totalDurationMs" ASC, "lastSubmittedAt" ASC, "userId" ASC',
+    );
+  });
+
+  it.each([
+    '0000-01-01',
+    '9999-12-31',
+    '1999-12-31',
+    '2100-01-01',
+    '2026-02-30',
+    'abc',
+  ])('rejects weekStart %s with a 400, never a 500', async (weekStart) => {
+    const service = new LeaderboardService({} as never, {} as never);
+    await expect(
+      service.listWeekly({ weekStart }, {} as never),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.exportWeekly(weekStart)).rejects.toBeInstanceOf(
+      BadRequestException,
     );
   });
 

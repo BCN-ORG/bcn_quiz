@@ -52,7 +52,7 @@ export function AdminLeaderboard() {
   const load = useCallback(async () => {
     const currentRequest = ++requestNumber.current;
     // The weekly board is overall (all topics), so only the daily board needs a topic.
-    if (mode === 'daily' && !topicId) { setData(null); return; }
+    if (mode === 'daily' && !topicId) { setData(null); setLoading(false); return; }
     setLoading(true); setError(''); setSearchFailed(false);
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
