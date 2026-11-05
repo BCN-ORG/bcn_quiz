@@ -16,6 +16,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:dev": "SEED_DEV=1 ts-node prisma/seed-dev.ts",
     "db:reset": "prisma migrate reset --force && npm run db:seed",
     "migrate:deploy": "prisma migrate deploy",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
