@@ -100,7 +100,7 @@ describe('CourseProgressService progress rules', () => {
     quiz: { count: jest.fn() },
     topicProgress: { findUnique: jest.fn(), update: jest.fn() },
     userCourseProgress: { upsert: jest.fn() },
-    certificate: { count: jest.fn() },
+    certificate: { findFirst: jest.fn() },
     certificateRequest: { createMany: jest.fn(), updateMany: jest.fn() },
     $queryRaw: jest.fn(),
   };
@@ -158,7 +158,7 @@ describe('CourseProgressService progress rules', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.userCourseProgress.upsert.mockResolvedValue({});
-    prisma.certificate.count.mockResolvedValue(0);
+    prisma.certificate.findFirst.mockResolvedValue(null);
     service = new CourseProgressService(
       prisma as never,
       profilesService as never,
@@ -185,13 +185,31 @@ describe('CourseProgressService progress rules', () => {
       });
     });
 
-    it('a learner who already holds a live certificate gets no new request (rolling deploy with an old instance)', async () => {
-      prisma.certificate.count.mockResolvedValue(1);
-      await upsert({}, done);
-      expect(prisma.certificate.count).toHaveBeenCalledWith({
-        where: { userId: 'learner-1', courseId: 'course-1', revokedAt: null },
+    it('a learner who already holds a live certificate gets it recorded as an APPROVED request, never a PENDING one', async () => {
+      const issuedAt = new Date('2026-11-06T04:31:58Z');
+      prisma.certificate.findFirst.mockResolvedValue({
+        id: 'cert-1',
+        issuedAt,
       });
-      expect(prisma.certificateRequest.createMany).not.toHaveBeenCalled();
+      await upsert({}, done);
+      expect(prisma.certificate.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'learner-1', courseId: 'course-1', revokedAt: null },
+        select: { id: true, issuedAt: true },
+      });
+      expect(prisma.certificateRequest.createMany).toHaveBeenCalledTimes(1);
+      expect(prisma.certificateRequest.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            userId: 'learner-1',
+            courseId: 'course-1',
+            status: 'APPROVED',
+            certificateId: 'cert-1',
+            requestedAt: issuedAt,
+          }),
+        ],
+        skipDuplicates: true,
+      });
+      expect(prisma.certificateRequest.updateMany).not.toHaveBeenCalled();
     });
 
     it('an incomplete course creates nothing and only holds a PENDING request (decisions are never touched)', async () => {

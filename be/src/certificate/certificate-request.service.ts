@@ -53,6 +53,7 @@ export class CertificateRequestService {
 
   async listMine(req: ExpressRequest) {
     const userId = this.certificates.extractUserId(req);
+    await this.healMissingRequests(userId);
     const rows = await this.prisma.certificateRequest.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
@@ -85,6 +86,42 @@ export class CertificateRequestService {
         certificate: row.certificate,
       })),
     };
+  }
+
+  /**
+   * The list is built from requests, but a request only exists once the course was evaluated after the learner finished
+   * it (or after a certificate was issued before approval existed). Without this, such a learner would see an empty
+   * page. Cheap: it only touches courses that have a COMPLETED progress or a certificate and no request yet.
+   */
+  private async healMissingRequests(userId: string) {
+    const [requests, completed, certs] = await Promise.all([
+      this.prisma.certificateRequest.findMany({
+        where: { userId },
+        select: { courseId: true },
+      }),
+      this.prisma.userCourseProgress.findMany({
+        where: { userId, status: CourseProgressStatus.COMPLETED },
+        select: { courseId: true },
+      }),
+      this.prisma.certificate.findMany({
+        where: { userId, revokedAt: null },
+        select: { courseId: true },
+      }),
+    ]);
+    const have = new Set(requests.map((row) => row.courseId));
+    const done = new Set(completed.map((row) => row.courseId));
+    const missing = new Set(
+      [...done, ...certs.map((row) => row.courseId)].filter(
+        (courseId) => !have.has(courseId),
+      ),
+    );
+    for (const courseId of missing) {
+      await this.progress.syncCertificateRequest(
+        userId,
+        courseId,
+        done.has(courseId),
+      );
+    }
   }
 
   async resubmit(courseId: string, req: ExpressRequest) {

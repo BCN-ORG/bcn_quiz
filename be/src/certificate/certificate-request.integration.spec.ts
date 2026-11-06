@@ -619,10 +619,10 @@ maybeDescribe('Certificate approval on real PostgreSQL', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('a live certificate without a request (issued by an old instance) does not get a new request', async () => {
+  it('a live certificate without a request is recorded as an APPROVED request (never invisible, never a new decision)', async () => {
     const { course, topics } = await newCourse(1);
     const user = newUser();
-    await prisma.certificate.create({
+    const cert = await prisma.certificate.create({
       data: {
         userId: user,
         courseId: course.id,
@@ -630,7 +630,48 @@ maybeDescribe('Certificate approval on real PostgreSQL', () => {
       },
     });
     await finishCourse(user, course.id, topics);
-    expect(await requestOf(user, course.id)).toBeNull();
+    expect(await requestOf(user, course.id)).toMatchObject({
+      status: 'APPROVED',
+      certificateId: cert.id,
+    });
+    expect(await certCount(user, course.id)).toBe(1);
+    expect(await notifications(user, 'CERTIFICATE_APPROVED')).toBe(0);
+  });
+
+  it("the learner's list heals itself: a completed course and a certificate that have no request yet still show up", async () => {
+    // (a) completed course, stored progress COMPLETED, but nothing ever created the request
+    const a = await newCourse(1);
+    const user = newUser();
+    await finishCourse(user, a.course.id, a.topics);
+    await prisma.certificateRequest.deleteMany({ where: { userId: user } });
+    // (b) a certificate issued before approval existed, in a course the learner has not completed (now)
+    const b = await newCourse(1);
+    const cert = await prisma.certificate.create({
+      data: {
+        userId: user,
+        courseId: b.course.id,
+        certificateCode: `CRT-${randomUUID()}`,
+      },
+    });
+
+    const mine = await service.listMine(asUser(user));
+    const byCourse = new Map(mine.items.map((item) => [item.course.id, item]));
+    expect(byCourse.get(a.course.id)).toMatchObject({
+      status: 'PENDING',
+      certificate: null,
+    });
+    expect(byCourse.get(b.course.id)).toMatchObject({
+      status: 'APPROVED',
+      certificate: { certificateCode: cert.certificateCode },
+    });
+    expect(mine.items).toHaveLength(2);
+    // idempotent: listing again changes nothing
+    expect((await service.listMine(asUser(user))).items).toHaveLength(2);
+    expect(
+      await prisma.certificateRequest.count({ where: { userId: user } }),
+    ).toBe(2);
+    // another learner never sees them
+    expect((await service.listMine(asUser(newUser()))).items).toHaveLength(0);
   });
 
   it('deleting the course removes its requests and certificates', async () => {

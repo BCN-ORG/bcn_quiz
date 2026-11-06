@@ -617,12 +617,30 @@ export class CourseProgressService {
     courseId: string,
     completed: boolean,
   ): Promise<void> {
-    if (completed) {
-      // A live certificate with no request (e.g. issued by an old instance during a rolling deploy) needs no new request.
-      const held = await this.prisma.certificate.count({
-        where: { userId, courseId, revokedAt: null },
+    // A live certificate with no request (issued before approval existed, or by an old instance during a rolling deploy)
+    // is recorded as an already APPROVED request: it must never be invisible, and it needs no new decision.
+    const held = await this.prisma.certificate.findFirst({
+      where: { userId, courseId, revokedAt: null },
+      select: { id: true, issuedAt: true },
+    });
+    if (held) {
+      await this.prisma.certificateRequest.createMany({
+        data: [
+          {
+            userId,
+            courseId,
+            status: CertificateRequestStatus.APPROVED,
+            certificateId: held.id,
+            requestedAt: held.issuedAt,
+            reviewedAt: held.issuedAt,
+            reviewerNote: 'Cấp tự động trước khi có bước duyệt',
+          },
+        ],
+        skipDuplicates: true,
       });
-      if (held) return;
+      return;
+    }
+    if (completed) {
       await this.prisma.certificateRequest.createMany({
         data: [{ userId, courseId }],
         skipDuplicates: true,
