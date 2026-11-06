@@ -15,7 +15,8 @@ export class CertificateService {
     const userId = this.extractUserId(req);
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const where = { userId };
+    // Revoked certificates are not shown as held; their status is on the learner's request.
+    const where = { userId, revokedAt: null };
     const [items, total] = await Promise.all([
       this.prisma.certificate.findMany({
         where,
@@ -44,6 +45,7 @@ export class CertificateService {
     const rows = await this.prisma.certificate.findMany({
       where: {
         certificateCode: { contains: normalized, mode: 'insensitive' },
+        revokedAt: null,
       },
       take: 8,
       orderBy: { issuedAt: 'desc' },
@@ -73,6 +75,7 @@ export class CertificateService {
     type VerifyRow = {
       certificateCode: string;
       issuedAt: Date;
+      revokedAt: Date | null;
       course_id: string;
       course_name: string;
       course_slug: string;
@@ -82,6 +85,7 @@ export class CertificateService {
       SELECT
         cert."certificateCode",
         cert."issuedAt",
+        cert."revokedAt",
         c.id AS course_id,
         c.name AS course_name,
         c.slug AS course_slug
@@ -96,8 +100,10 @@ export class CertificateService {
       throw new NotFoundException('Certificate not found');
     }
 
+    // A revoked certificate is reported as such (never as valid); the reason stays private to the admin and the learner.
     return {
-      valid: true,
+      valid: !row.revokedAt,
+      ...(row.revokedAt ? { revoked: true, revokedAt: row.revokedAt } : {}),
       certificateCode: row.certificateCode,
       issuedAt: row.issuedAt,
       course: {

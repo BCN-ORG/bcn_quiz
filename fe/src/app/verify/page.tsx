@@ -149,7 +149,7 @@ export default function VerifyCertificatePage() {
           <article className="verify-result" aria-live="polite">
             <CheckCircle aria-hidden="true" />
             <div>
-              <strong>Chứng chỉ hợp lệ</strong>
+              <strong>{result.valid ? 'Chứng chỉ hợp lệ' : 'Chứng chỉ này đã bị thu hồi và không còn hợp lệ'}</strong>
               <h2>{result.course.name}</h2>
               <p>
                 Mã: <code>{result.certificateCode}</code>

@@ -33,7 +33,8 @@ describe('CertificateService', () => {
       });
       expect(prisma.certificate.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { userId: 'u1' },
+          // revoked certificates are not listed as held
+          where: { userId: 'u1', revokedAt: null },
           skip: 10,
           take: 10,
         }),
@@ -95,6 +96,7 @@ describe('CertificateService', () => {
         expect.objectContaining({
           where: {
             certificateCode: { contains: 'crt', mode: 'insensitive' },
+            revokedAt: null,
           },
           take: 8,
         }),

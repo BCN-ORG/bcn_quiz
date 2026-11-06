@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { ArrowRight, BookOpen, FolderSimple, UploadSimple } from '@phosphor-icons/react';
 import { useParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { CERT_STATUS, CertStatus } from '@/components/certificate-status';
 import { ProjectDue } from '@/components/project-due';
 import { Empty, ErrorState, Loading, PaginationNav, Progress, Status } from '@/components/ui';
 import { ApiError, UploadStageError, logUploadStageError, request, uploadFileWithProgress } from '@/lib/api';
 import { isLateSubmission, topicOpen } from '@/lib/format';
-import type { Course, CourseProgress, Pagination, ProjectRequirement, Submission, Topic } from '@/lib/types';
+import type { Course, CourseProgress, MyCertificateRequest, Pagination, ProjectRequirement, Submission, Topic } from '@/lib/types';
 
 type CourseTopic = NonNullable<Course['topics']>[number];
 
@@ -50,6 +51,7 @@ export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [course, setCourse] = useState<Course | null>(null);
   const [progress, setProgress] = useState<CourseProgress | null>(null);
+  const [certRequest, setCertRequest] = useState<MyCertificateRequest | null>(null);
   const [requirement, setRequirement] = useState<ProjectRequirement | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [topics, setTopics] = useState<CourseTopic[]>([]);
@@ -103,6 +105,9 @@ export default function CourseDetailPage() {
       } else {
         setSubmission(null);
       }
+      // The certificate status is secondary information: a failure here must not break the course page.
+      try { setCertRequest((await request.get<{ items: MyCertificateRequest[] }>('/certificate/requests/me')).items.find((item) => item.course.id === id) ?? null); }
+      catch { setCertRequest(null); }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Đã có lỗi xảy ra'); }
     finally { setLoading(false); }
   }, [id]);
@@ -221,6 +226,7 @@ export default function CourseDetailPage() {
         <section className="panel"><h2>Tiến độ tổng</h2><Progress value={progress.progressPercent} label="Toàn khóa" /><Progress value={progress.topicProgressPercent} label="Quiz" />{course.hasProject ? <Progress value={progress.projectProgressPercent} label="Project" /> : null}</section>
         <section className="panel"><h2>Điều kiện hoàn thành</h2><p>Mỗi topic cần coverage đáp án đúng từ 80%. {course.hasProject ? 'Project cần được quản trị viên duyệt.' : 'Khóa học này không yêu cầu project.'}</p></section>
       </div>
+      {certRequest ? <section className="panel section" id="course-certificate"><h2>Chứng chỉ</h2><p><CertStatus value={certRequest.status} /> {CERT_STATUS[certRequest.status].hint} <Link href="/certificates">Xem chứng chỉ</Link></p></section> : null}
       <section className="section">
         <div className="section-title"><h2>Nội dung khóa học</h2><span>{topicPagination.total} chủ đề</span></div>
         {topicsError ? <p className="form-error" role="alert">{topicsError}</p> : null}

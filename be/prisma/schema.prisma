@@ -149,11 +149,12 @@ model Course {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  topics             CourseTopic[]
-  projectRequirement CourseProjectRequirement?
-  userProgresses     UserCourseProgress[]
-  submissions        ProjectSubmission[]
-  certificates       Certificate[]
+  topics              CourseTopic[]
+  projectRequirement  CourseProjectRequirement?
+  userProgresses      UserCourseProgress[]
+  submissions         ProjectSubmission[]
+  certificates        Certificate[]
+  certificateRequests CertificateRequest[]
 
   @@index([createdAt])
   @@map("courses")
@@ -175,19 +176,19 @@ model CourseTopic {
 }
 
 model CourseProjectRequirement {
-  id                     String   @id @default(cuid())
-  courseId               String   @unique
+  id                     String    @id @default(cuid())
+  courseId               String    @unique
   title                  String
   description            String?
-  isRequired             Boolean  @default(true)
+  isRequired             Boolean   @default(true)
   /// Optional brief/spec file (pdf/docx/zip/rar) for detailed requirements
   attachmentUrl          String?
   attachmentPublicId     String?
   attachmentOriginalName String?
   /// Optional deadline shown to learners; late submissions are labelled, never blocked
   dueAt                  DateTime?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
   submissions ProjectSubmission[]
@@ -258,19 +259,56 @@ model ProjectSubmissionFile {
 }
 
 model Certificate {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
   courseId        String
-  certificateCode String   @unique
-  issuedAt        DateTime @default(now())
+  certificateCode String    @unique
+  issuedAt        DateTime  @default(now())
   metadata        Json?
-  createdAt       DateTime @default(now())
+  // Set when an admin revokes it: the certificate is kept as a record but no longer verifies as valid.
+  revokedAt       DateTime?
+  revokedBy       String?
+  revokedReason   String?
+  createdAt       DateTime  @default(now())
 
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course   Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  requests CertificateRequest[]
 
   @@unique([userId, courseId])
   @@index([userId, issuedAt])
   @@map("certificates")
+}
+
+/// A certificate is only issued after an admin approves the request that a completed course creates.
+enum CertificateRequestStatus {
+  PENDING
+  ON_HOLD
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+model CertificateRequest {
+  id            String                   @id @default(cuid())
+  userId        String
+  courseId      String
+  status        CertificateRequestStatus @default(PENDING)
+  requestedAt   DateTime                 @default(now())
+  resubmittedAt DateTime?
+  reviewerId    String?
+  reviewerNote  String?
+  reviewedAt    DateTime?
+  certificateId String?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  certificate Certificate? @relation(fields: [certificateId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, courseId])
+  @@index([status, requestedAt])
+  @@index([courseId, status])
+  @@map("certificate_requests")
 }
 
 enum AttemptSessionStatus {
@@ -339,6 +377,9 @@ enum NotificationType {
   DAILY_REMINDER
   WEEKLY_PROGRESS
   WEEKLY_SUMMARY
+  CERTIFICATE_APPROVED
+  CERTIFICATE_REJECTED
+  CERTIFICATE_REVOKED
 }
 
 model Notification {

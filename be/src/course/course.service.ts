@@ -118,7 +118,7 @@ export class CourseService {
         c."updatedAt",
         (SELECT COUNT(*)::int FROM course_topics ct WHERE ct."courseId" = c.id) AS topic_count,
         (SELECT COUNT(*)::int FROM project_submissions ps WHERE ps."courseId" = c.id) AS submission_count,
-        (SELECT COUNT(*)::int FROM certificates cert WHERE cert."courseId" = c.id) AS certificate_count,
+        (SELECT COUNT(*)::int FROM certificates cert WHERE cert."courseId" = c.id AND cert."revokedAt" IS NULL) AS certificate_count,
         pr.id AS req_id,
         pr.title AS req_title,
         pr.description AS req_description,

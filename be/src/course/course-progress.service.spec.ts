@@ -2,10 +2,10 @@ import { CourseProgressService } from './course-progress.service';
 
 describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
   const prisma = {
-    topicProgress: { updateMany: jest.fn() },
+    topicProgress: { updateMany: jest.fn(), findMany: jest.fn() },
     courseTopic: { findMany: jest.fn() },
     userCourseProgress: { findMany: jest.fn() },
-    certificate: { upsert: jest.fn() },
+    certificateRequest: { updateMany: jest.fn(), createMany: jest.fn() },
   };
 
   const profilesService = {
@@ -18,6 +18,8 @@ describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.topicProgress.updateMany.mockResolvedValue({ count: 3 });
+    prisma.topicProgress.findMany.mockResolvedValue([]);
+    prisma.courseTopic.findMany.mockResolvedValue([]);
     service = new CourseProgressService(
       prisma as never,
       profilesService as never,
@@ -32,14 +34,37 @@ describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
       where: { topicId: 'topic-1', isCompleted: true },
       data: { isCompleted: false, completedAt: null },
     });
-    expect(prisma.courseTopic.findMany).not.toHaveBeenCalled();
+    // Nobody had completed it, so no certificate request is touched; and the course is not re-evaluated synchronously.
+    expect(prisma.certificateRequest.updateMany).not.toHaveBeenCalled();
     expect(prisma.userCourseProgress.findMany).not.toHaveBeenCalled();
   });
 
-  it('syncs a newly completed course when approval runs as a reviewer', async () => {
-    prisma.certificate.upsert.mockResolvedValue({});
+  it('puts pending certificate requests of the learners who lose the topic on hold', async () => {
+    prisma.topicProgress.findMany.mockResolvedValue([
+      { userId: 'a' },
+      { userId: 'b' },
+    ]);
+    prisma.courseTopic.findMany.mockResolvedValue([
+      { courseId: 'c1' },
+      { courseId: 'c1' },
+      { courseId: 'c2' },
+    ]);
+
+    await service.reopenTopicProgressAndCourses('topic-1');
+
+    expect(prisma.certificateRequest.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: { in: ['a', 'b'] },
+        courseId: { in: ['c1', 'c2'] },
+        status: 'PENDING',
+      },
+      data: { status: 'ON_HOLD' },
+    });
+  });
+
+  it('syncs a newly completed course to Profiles when approval runs as a reviewer, without issuing a certificate', async () => {
     const completion = service as unknown as {
-      maybeIssueCertificateAndSyncProfiles: (
+      syncCompletionToProfiles: (
         userId: string,
         course: unknown,
         existing: unknown,
@@ -47,7 +72,7 @@ describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
       ) => Promise<void>;
     };
 
-    await completion.maybeIssueCertificateAndSyncProfiles(
+    await completion.syncCompletionToProfiles(
       'learner-1',
       { id: 'course-1', name: 'Course', slug: 'course' },
       { status: 'IN_PROGRESS' },
@@ -75,6 +100,7 @@ describe('CourseProgressService progress rules', () => {
     quiz: { count: jest.fn() },
     topicProgress: { findUnique: jest.fn(), update: jest.fn() },
     userCourseProgress: { upsert: jest.fn() },
+    certificateRequest: { createMany: jest.fn(), updateMany: jest.fn() },
     $queryRaw: jest.fn(),
   };
   const profilesService = {
@@ -135,6 +161,42 @@ describe('CourseProgressService progress rules', () => {
       prisma as never,
       profilesService as never,
     );
+  });
+
+  describe('certificate request sync (a certificate is never issued here)', () => {
+    const done = {
+      totalTopics: 2,
+      completedTopicCount: 2,
+      approvedReviewedAt: null,
+      hasApprovedProject: false,
+    };
+
+    it('a completed course creates the request (idempotently) and releases an on-hold one', async () => {
+      await upsert({}, done);
+      expect(prisma.certificateRequest.createMany).toHaveBeenCalledWith({
+        data: [{ userId: 'learner-1', courseId: 'course-1' }],
+        skipDuplicates: true,
+      });
+      expect(prisma.certificateRequest.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'learner-1', courseId: 'course-1', status: 'ON_HOLD' },
+        data: { status: 'PENDING' },
+      });
+    });
+
+    it('an incomplete course creates nothing and only holds a PENDING request (decisions are never touched)', async () => {
+      await upsert({}, { ...done, completedTopicCount: 1 });
+      expect(prisma.certificateRequest.createMany).not.toHaveBeenCalled();
+      expect(prisma.certificateRequest.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.certificateRequest.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'learner-1', courseId: 'course-1', status: 'PENDING' },
+        data: { status: 'ON_HOLD' },
+      });
+    });
+
+    it('topics done but the project not approved yet is not a completion: no request', async () => {
+      await upsert({ hasProject: true }, done);
+      expect(prisma.certificateRequest.createMany).not.toHaveBeenCalled();
+    });
   });
 
   it('completes a course without project once every topic is done', async () => {

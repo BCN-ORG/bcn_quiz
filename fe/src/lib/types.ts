@@ -124,8 +124,55 @@ export type Certificate = {
 };
 
 export type CertificateVerification = {
-  valid: true;
+  valid: boolean;
+  /** Present (true) when an admin revoked the certificate: the code exists but is no longer valid. */
+  revoked?: boolean;
+  revokedAt?: string;
   certificateCode: string;
   issuedAt: string;
   course: { id: string; name: string; slug: string };
+};
+
+export type CertificateRequestStatus = 'PENDING' | 'ON_HOLD' | 'APPROVED' | 'REJECTED' | 'REVOKED';
+
+/** The learner's own request for a course certificate (GET /certificate/requests/me). */
+export type MyCertificateRequest = {
+  id: string;
+  status: CertificateRequestStatus;
+  requestedAt: string;
+  resubmittedAt: string | null;
+  reviewedAt: string | null;
+  /** The admin's reason; only sent for REJECTED and REVOKED. */
+  reviewerNote: string | null;
+  course: { id: string; name: string; slug: string };
+  certificate: { id: string; certificateCode: string; issuedAt: string; revokedAt: string | null } | null;
+};
+
+export type AdminCertificateRequest = {
+  id: string;
+  status: CertificateRequestStatus;
+  requestedAt: string;
+  reviewedAt: string | null;
+  reviewerNote: string | null;
+  course: { id: string; name: string };
+  certificateCode: string | null;
+  user: { id: string; fullName: string | null; email: string | null; avatarUrl: string | null };
+};
+
+export type CertificateEligibility = {
+  eligible: boolean;
+  courseStatus: string;
+  course: { id: string; name: string; hasProject: boolean };
+  topicsDone: number;
+  topicsTotal: number;
+  topics: Array<{ id: string; name: string; sortOrder: number; quizCount: number; completed: boolean; accuracy: number | null; totalAttempts: number; addedAfterRequest: boolean }>;
+  project: { required: boolean; title: string | null; status: string | null; reviewedAt: string | null };
+  reasons: string[];
+  warnings: string[];
+};
+
+export type AdminCertificateRequestDetail = Omit<AdminCertificateRequest, 'course' | 'certificateCode'> & {
+  resubmittedAt: string | null;
+  certificate: { certificateCode: string; issuedAt: string; revokedAt: string | null; revokedReason: string | null } | null;
+  eligibility: CertificateEligibility;
 };

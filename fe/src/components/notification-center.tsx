@@ -100,7 +100,8 @@ export function NotificationCenter() {
     }
     setOpen(false);
     setToast(null);
-    if (row.type.startsWith('WEEKLY_')) router.push('/leaderboard');
+    if (row.type.startsWith('CERTIFICATE_')) router.push('/certificates');
+    else if (row.type.startsWith('WEEKLY_')) router.push('/leaderboard');
     else if (row.topicId) router.push(row.type.startsWith('LEADERBOARD_') ? `/topics/${row.topicId}/leaderboard` : `/topics/${row.topicId}`);
   };
 

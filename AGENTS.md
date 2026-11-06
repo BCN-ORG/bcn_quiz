@@ -11,6 +11,7 @@ This repository follows the user's Global Engineering Rules. Read `~/.ai-guidanc
 ## Domain and progress
 
 - `Course ↔ Topic → Quiz → Option`: Course–Topic is many-to-many; Topic is the complete question set, Quiz is one question, AttemptSession is one attempt at the whole Topic, and QuizAttempt is one question's result.
+- Certificates are issued ONLY by an admin decision (`CertificateRequest`, see `be/docs/CERTIFICATE_APPROVAL.md`): a completed course creates/keeps a PENDING request, a course that changes (new topic/quiz) puts a pending request ON_HOLD, an approved certificate stays valid, rejection and revocation need a reason, and every transition is a conditional update on the current status. Never issue a `Certificate` from the progress code path.
 - Preserve TopicProgress, CourseProgress, Certificate and ProjectSubmission behavior. A retry may affect learning progress under existing rules, but cannot overwrite an official leaderboard result.
 
 ## Topic leaderboard invariants

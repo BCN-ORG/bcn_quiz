@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  CertificateRequestStatus,
   CourseProgressStatus,
   ProjectSubmissionStatus,
   type UserCourseProgress,
 } from '@prisma/client';
 import type { Request as ExpressRequest } from 'express';
-import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
 
@@ -210,6 +210,27 @@ export class CourseProgressService {
    * bulk import was timing out against remote Postgres.
    */
   async reopenTopicProgressAndCourses(topicId: string): Promise<number> {
+    // Learners about to lose this topic: their pending certificate requests wait until they finish it again.
+    const [affected, links] = await Promise.all([
+      this.prisma.topicProgress.findMany({
+        where: { topicId, isCompleted: true },
+        select: { userId: true },
+      }),
+      this.prisma.courseTopic.findMany({
+        where: { topicId },
+        select: { courseId: true },
+      }),
+    ]);
+    if (affected.length && links.length) {
+      await this.prisma.certificateRequest.updateMany({
+        where: {
+          userId: { in: affected.map((row) => row.userId) },
+          courseId: { in: [...new Set(links.map((link) => link.courseId))] },
+          status: CertificateRequestStatus.PENDING,
+        },
+        data: { status: CertificateRequestStatus.ON_HOLD },
+      });
+    }
     const cleared = await this.prisma.topicProgress.updateMany({
       where: {
         topicId,
@@ -276,7 +297,7 @@ export class CourseProgressService {
       existing,
     );
 
-    await this.maybeIssueCertificateAndSyncProfiles(
+    await this.syncCompletionToProfiles(
       userId,
       course,
       existing,
@@ -585,49 +606,55 @@ export class CourseProgressService {
       );
     }
 
+    await this.syncCertificateRequest(
+      userId,
+      course.id,
+      status === CourseProgressStatus.COMPLETED,
+    );
+
     return progress;
   }
 
-  private async maybeIssueCertificateAndSyncProfiles(
+  /**
+   * A completed course creates a certificate REQUEST (an admin decides), it never issues the certificate itself.
+   * State based, so it also repairs completions that were stored by another code path:
+   *  - completed: create the request if there is none (unique per user+course, concurrent calls cannot duplicate);
+   *    an ON_HOLD request goes back to PENDING.
+   *  - not completed (the course gained a topic/quiz, a topic was reopened...): a PENDING request becomes ON_HOLD.
+   * APPROVED / REJECTED / REVOKED requests are decisions and are never touched here.
+   */
+  async syncCertificateRequest(
+    userId: string,
+    courseId: string,
+    completed: boolean,
+  ): Promise<void> {
+    if (completed) {
+      await this.prisma.certificateRequest.createMany({
+        data: [{ userId, courseId }],
+        skipDuplicates: true,
+      });
+      await this.prisma.certificateRequest.updateMany({
+        where: { userId, courseId, status: CertificateRequestStatus.ON_HOLD },
+        data: { status: CertificateRequestStatus.PENDING },
+      });
+      return;
+    }
+    await this.prisma.certificateRequest.updateMany({
+      where: { userId, courseId, status: CertificateRequestStatus.PENDING },
+      data: { status: CertificateRequestStatus.ON_HOLD },
+    });
+  }
+
+  private async syncCompletionToProfiles(
     userId: string,
     course: CourseForProgressEval,
     existing: UserCourseProgress | null,
     progress: UserCourseProgress,
     req?: ExpressRequest,
   ): Promise<void> {
-    const now = progress.updatedAt ?? new Date();
     const newlyCompleted =
       progress.status === CourseProgressStatus.COMPLETED &&
       existing?.status !== CourseProgressStatus.COMPLETED;
-
-    if (newlyCompleted) {
-      await this.prisma.certificate.upsert({
-        where: {
-          userId_courseId: {
-            userId,
-            courseId: course.id,
-          },
-        },
-        update: {
-          issuedAt: now,
-          metadata: {
-            topicProgressPercent: progress.topicProgressPercent,
-            projectProgressPercent: progress.projectProgressPercent,
-            refreshed: true,
-          },
-        },
-        create: {
-          userId,
-          courseId: course.id,
-          certificateCode: `CRT-${randomUUID()}`,
-          issuedAt: now,
-          metadata: {
-            topicProgressPercent: progress.topicProgressPercent,
-            projectProgressPercent: progress.projectProgressPercent,
-          },
-        },
-      });
-    }
 
     // Retry safely on later evaluations; Profiles deduplicates this stable key.
     if (
