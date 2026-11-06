@@ -315,7 +315,16 @@ export class CertificateRequestService {
           : `A ${current} request cannot be approved`,
       );
     }
-    if (!eligibility.eligible) {
+    // Reinstating a REVOKED certificate only undoes the revocation (same code, same issue date). An approved certificate
+    // stays valid when the course changes, so the course changing since then must not block restoring it: it needs a
+    // written reason instead, and the admin sees the warning that the learner has not finished the new content.
+    const reinstating = current === CertificateRequestStatus.REVOKED;
+    if (reinstating && !note) {
+      throw new BadRequestException(
+        'A reason is required to reinstate a revoked certificate',
+      );
+    }
+    if (!reinstating && !eligibility.eligible) {
       throw new ConflictException(
         `Learner is not eligible: ${eligibility.reasons.join('; ') || 'course not completed'}`,
       );
@@ -341,7 +350,7 @@ export class CertificateRequestService {
       const topicsNow = await tx.courseTopic.count({
         where: { courseId: request.courseId },
       });
-      if (topicsNow !== eligibility.topicsTotal) {
+      if (!reinstating && topicsNow !== eligibility.topicsTotal) {
         throw new ConflictException(
           'The course changed while reviewing, reload and review again',
         );
@@ -362,11 +371,12 @@ export class CertificateRequestService {
           },
         },
         // Reinstating keeps the original code AND the original issue date.
+        // (the snapshot of what the learner had when it was issued is left untouched when reinstating)
         update: {
           revokedAt: null,
           revokedBy: null,
           revokedReason: null,
-          metadata,
+          ...(reinstating ? {} : { metadata }),
         },
         create: {
           userId: request.userId,

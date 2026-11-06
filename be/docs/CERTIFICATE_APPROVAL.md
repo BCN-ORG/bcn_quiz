@@ -13,8 +13,9 @@ Hoàn thành khóa học **không còn tự cấp chứng chỉ**. Nó tạo m�
 | `PENDING` | `REJECTED` | admin từ chối, **bắt buộc có lý do** (học viên đọc được) |
 | `REJECTED` | `PENDING` | học viên bấm "Gửi lại" (chỉ khi khóa học đang hoàn thành) |
 | `APPROVED` | `REVOKED` | admin thu hồi, bắt buộc có lý do. Mã chứng chỉ ở trang xác minh báo "không còn hợp lệ" |
-| `REVOKED` | `APPROVED` | chỉ admin, khi học viên vẫn đủ điều kiện (cấp lại cùng mã) |
+| `REVOKED` | `APPROVED` | chỉ admin, nút "Cấp lại": hoàn tác việc thu hồi (cùng mã, cùng ngày cấp, giữ nguyên danh sách topic lúc cấp). **Không** kiểm tra lại nội dung khóa học (chứng chỉ đã duyệt vẫn hợp lệ khi khóa học đổi), nhưng **bắt buộc ghi lý do**; nếu học viên chưa hoàn thành nội dung mới, giao diện hiện cảnh báo |
 
+- Duyệt một yêu cầu `PENDING` luôn phải đủ điều kiện theo khóa học hiện tại; chỉ "Cấp lại" chứng chỉ đã thu hồi mới được miễn bước kiểm tra này.
 - Chứng chỉ đã duyệt **không bị ảnh hưởng** khi khóa học đổi sau đó (thêm topic...). Danh sách topic lúc cấp được lưu trong `certificates.metadata`.
 - Mọi chuyển trạng thái là cập nhật có điều kiện theo trạng thái hiện tại: hai admin bấm cùng lúc thì chỉ một người thắng.
 - Học viên được báo trong ứng dụng (`CERTIFICATE_APPROVED/REJECTED/REVOKED`) và thấy trạng thái ở trang Chứng chỉ và trang khóa học.

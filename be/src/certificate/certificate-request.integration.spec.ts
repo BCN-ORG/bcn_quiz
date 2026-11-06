@@ -489,21 +489,58 @@ maybeDescribe('Certificate approval on real PostgreSQL', () => {
     expect(await certCount(user, course.id)).toBe(1);
   });
 
-  it('a revoked request is not reinstated while the learner is not complete', async () => {
+  it('a revoked certificate can be reinstated after the course changed, but only with a written reason; a pending request still cannot', async () => {
     const { course, topics } = await newCourse(1);
     const user = newUser();
     await finishCourse(user, course.id, topics);
     const request = (await requestOf(user, course.id))!;
     await review(request.id, 'APPROVE');
-    await service.revoke(request.id, { reason: 'r' }, admin);
+    const before = await prisma.certificate.findFirstOrThrow({
+      where: { userId: user, courseId: course.id },
+    });
+    await service.revoke(request.id, { reason: 'Nhầm' }, admin);
+
+    // the course gains a topic the learner has not done: the learner is no longer "complete"
     const extra = await newTopic();
     await prisma.courseTopic.create({
       data: { courseId: course.id, topicId: extra.id, sortOrder: 2 },
     });
+    const detail = await service.adminDetail(request.id);
+    expect(detail.status).toBe('REVOKED');
+    expect(detail.eligibility.eligible).toBe(false); // the UI shows a warning, and the button stays usable
+
     await expect(review(request.id, 'APPROVE')).rejects.toBeInstanceOf(
-      ConflictException,
+      BadRequestException,
+    ); // reason required
+    await expect(review(request.id, 'APPROVE', '   ')).rejects.toBeInstanceOf(
+      BadRequestException,
     );
     expect((await requestOf(user, course.id))?.status).toBe('REVOKED');
+
+    await expect(
+      review(
+        request.id,
+        'APPROVE',
+        'Thu hồi nhầm, học viên đã đạt khi được cấp',
+      ),
+    ).resolves.toMatchObject({ status: 'APPROVED' });
+    const after = await prisma.certificate.findFirstOrThrow({
+      where: { userId: user, courseId: course.id },
+    });
+    expect(after).toMatchObject({
+      certificateCode: before.certificateCode,
+      revokedAt: null,
+    });
+    expect(after.issuedAt).toEqual(before.issuedAt);
+    expect(after.metadata).toEqual(before.metadata); // the issue-time snapshot is untouched
+    expect(await requestOf(user, course.id)).toMatchObject({
+      status: 'APPROVED',
+      reviewerNote: 'Thu hồi nhầm, học viên đã đạt khi được cấp',
+    });
+    expect(
+      await certificates.verifyByCode(before.certificateCode),
+    ).toMatchObject({ valid: true });
+    expect(await certCount(user, course.id)).toBe(1);
   });
 
   it('admin list filters by status and course, reports pending counts, and the learner sees only their own requests', async () => {

@@ -8,7 +8,7 @@ import { CERT_STATUS, CertStatus } from './certificate-status';
 import { ConfirmDialog, Empty, ErrorState, Loading, PaginationNav } from './ui';
 
 type ListData = Pagination<AdminCertificateRequest> & { pendingCount: number; onHoldCount: number; profilesAvailable?: boolean };
-type Action = { kind: 'APPROVE' | 'REJECT' | 'REVOKE'; id: string };
+type Action = { kind: 'APPROVE' | 'REJECT' | 'REVOKE'; id: string; /** APPROVE of a REVOKED certificate: undoes the revocation, needs a written reason. */ reinstate?: boolean };
 
 const STATUSES: CertificateRequestStatus[] = ['PENDING', 'ON_HOLD', 'APPROVED', 'REJECTED', 'REVOKED'];
 const when = (value: string | null) => (value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }) : '—');
@@ -72,12 +72,12 @@ export function AdminCertificates() {
   const run = async () => {
     if (!action) return;
     const trimmed = note.trim();
-    if ((action.kind !== 'APPROVE') && !trimmed) { setDetailError('Cần nhập lý do.'); return; }
+    if ((action.kind !== 'APPROVE' || action.reinstate) && !trimmed) { setDetailError('Cần nhập lý do.'); return; }
     setBusy(true); setDetailError(''); setNotice('');
     try {
       if (action.kind === 'REVOKE') await request.patch(`/admin/certificate-requests/${encodeURIComponent(action.id)}/revoke`, { reason: trimmed });
       else await request.patch(`/admin/certificate-requests/${encodeURIComponent(action.id)}/review`, { decision: action.kind, note: trimmed || undefined });
-      setNotice(action.kind === 'APPROVE' ? 'Đã duyệt và cấp chứng chỉ.' : action.kind === 'REJECT' ? 'Đã từ chối yêu cầu.' : 'Đã thu hồi chứng chỉ.');
+      setNotice(action.kind === 'APPROVE' ? (action.reinstate ? 'Đã cấp lại chứng chỉ.' : 'Đã duyệt và cấp chứng chỉ.') : action.kind === 'REJECT' ? 'Đã từ chối yêu cầu.' : 'Đã thu hồi chứng chỉ.');
       setAction(null); setNote('');
       await Promise.all([load(), loadDetail(action.id)]);
     } catch (reason) {
@@ -90,7 +90,7 @@ export function AdminCertificates() {
   };
 
   const actionCopy = action && {
-    APPROVE: { title: 'Duyệt và cấp chứng chỉ?', message: 'Hệ thống kiểm tra lại điều kiện theo khóa học hiện tại trước khi cấp. Học viên sẽ nhận thông báo.', confirm: 'Duyệt và cấp', noteLabel: 'Ghi chú (không bắt buộc)', required: false, danger: false },
+    APPROVE: action.reinstate ? { title: 'Cấp lại chứng chỉ đã thu hồi?', message: 'Chỉ hoàn tác việc thu hồi: giữ nguyên mã và ngày cấp ban đầu, không kiểm tra lại nội dung khóa học. Học viên sẽ nhận thông báo.', confirm: 'Cấp lại', noteLabel: 'Lý do cấp lại (bắt buộc)', required: true, danger: false } : { title: 'Duyệt và cấp chứng chỉ?', message: 'Hệ thống kiểm tra lại điều kiện theo khóa học hiện tại trước khi cấp. Học viên sẽ nhận thông báo.', confirm: 'Duyệt và cấp', noteLabel: 'Ghi chú (không bắt buộc)', required: false, danger: false },
     REJECT: { title: 'Từ chối yêu cầu?', message: 'Học viên sẽ thấy lý do và có thể gửi lại yêu cầu.', confirm: 'Từ chối', noteLabel: 'Lý do (bắt buộc)', required: true, danger: true },
     REVOKE: { title: 'Thu hồi chứng chỉ?', message: 'Mã chứng chỉ sẽ báo không còn hợp lệ ở trang xác minh công khai. Học viên sẽ thấy lý do.', confirm: 'Thu hồi', noteLabel: 'Lý do (bắt buộc)', required: true, danger: true },
   }[action.kind];
@@ -119,7 +119,7 @@ export function AdminCertificates() {
       {detailError ? <p className="form-error" role="alert">{detailError}</p> : null}
       {detail ? <>
         <div className="section-title"><h3>{who(detail.user)} · {detail.eligibility.course.name}</h3><CertStatus value={detail.status} /></div>
-        <p role="status" className={detail.eligibility.eligible ? 'notice' : 'form-error'}>{detail.eligibility.eligible ? 'Đủ điều kiện: đã hoàn thành khóa học theo nội dung hiện tại.' : `Chưa đủ điều kiện: ${detail.eligibility.reasons.join('; ') || 'khóa học chưa hoàn thành'}`}</p>
+        <p role="status" className={detail.eligibility.eligible || detail.status === 'REVOKED' ? 'notice' : 'form-error'}>{detail.eligibility.eligible ? 'Đủ điều kiện: đã hoàn thành khóa học theo nội dung hiện tại.' : detail.status === 'REVOKED' ? `Học viên hiện chưa hoàn thành khóa học theo nội dung mới (${detail.eligibility.reasons.join('; ') || 'khóa học chưa hoàn thành'}). Vẫn có thể cấp lại chứng chỉ đã thu hồi: việc này chỉ hoàn tác thu hồi và cần ghi lý do.` : `Chưa đủ điều kiện: ${detail.eligibility.reasons.join('; ') || 'khóa học chưa hoàn thành'}`}</p>
         {detail.eligibility.warnings.map((warning) => <p className="notice" key={warning}>{warning}</p>)}
         <p>Topic: <strong>{detail.eligibility.topicsDone}/{detail.eligibility.topicsTotal}</strong>{detail.eligibility.project.required ? <> · Đồ án: <strong>{detail.eligibility.project.status ?? 'chưa nộp'}</strong></> : ' · Không có đồ án'}</p>
         <div className="admin-table-scroll" tabIndex={0} role="region" aria-label="Các topic của khóa học, cuộn ngang để xem hết cột">
@@ -137,7 +137,8 @@ export function AdminCertificates() {
         {detail.reviewerNote ? <p className="notice"><strong>Ghi chú/lý do gần nhất:</strong> {detail.reviewerNote}</p> : null}
         {detail.certificate ? <p>Mã chứng chỉ: <code>{detail.certificate.certificateCode}</code>{detail.certificate.revokedAt ? ` · đã thu hồi ${when(detail.certificate.revokedAt)}` : ''}</p> : null}
         <div className="list-actions">
-          {detail.status === 'PENDING' || detail.status === 'REVOKED' ? <button className="button" disabled={!detail.eligibility.eligible} onClick={() => { setAction({ kind: 'APPROVE', id: detail.id }); setNote(''); setDetailError(''); }}>{detail.status === 'REVOKED' ? 'Cấp lại' : 'Duyệt'}</button> : null}
+          {detail.status === 'PENDING' || detail.status === 'REVOKED' ? <button className="button" disabled={detail.status === 'PENDING' && !detail.eligibility.eligible} onClick={() => { setAction({ kind: 'APPROVE', id: detail.id, reinstate: detail.status === 'REVOKED' }); setNote(''); setDetailError(''); }}>{detail.status === 'REVOKED' ? 'Cấp lại' : 'Duyệt'}</button> : null}
+          {detail.status === 'PENDING' && !detail.eligibility.eligible ? <small id="certificate-approve-blocked">Chưa thể duyệt: {detail.eligibility.reasons.join('; ') || 'khóa học chưa hoàn thành'}.</small> : null}
           {detail.status === 'PENDING' ? <button className="button danger" onClick={() => { setAction({ kind: 'REJECT', id: detail.id }); setNote(''); setDetailError(''); }}>Từ chối</button> : null}
           {detail.status === 'APPROVED' ? <button className="button danger" onClick={() => { setAction({ kind: 'REVOKE', id: detail.id }); setNote(''); setDetailError(''); }}>Thu hồi chứng chỉ</button> : null}
           {detail.status === 'ON_HOLD' ? <small>Đang tạm hoãn: chờ học viên hoàn thành nội dung mới của khóa học.</small> : null}

@@ -115,6 +115,34 @@ test('admin: từ chối bắt buộc có lý do và gửi đúng lý do lên se
   await expect.poll(() => listCalls).toBeGreaterThan(before);
 });
 
+test('admin: chứng chỉ đã thu hồi mà khóa học đã đổi vẫn Cấp lại được, nhưng bắt buộc nhập lý do; yêu cầu chờ duyệt chưa đủ điều kiện thì bị khóa kèm lý do', async ({ page }) => {
+  await asMentorInUi(page);
+  const revoked = { ...detail(false), status: 'REVOKED', reviewerNote: 'Nhầm', certificate: { certificateCode: 'CRT-1', issuedAt: '2026-10-01T03:00:00Z', revokedAt: '2026-11-01T03:00:00Z', revokedReason: 'Nhầm' } };
+  await page.route('**/api/admin/certificate-requests?**', (route) => route.fulfill(ok({ ...adminList, items: [{ ...adminList.items[0], status: 'REVOKED' }] })));
+  await page.route('**/api/admin/certificate-requests/r1', (route) => route.fulfill(ok(revoked)));
+  const bodies: unknown[] = [];
+  await page.route('**/api/admin/certificate-requests/r1/review', (route) => { bodies.push(route.request().postDataJSON()); return route.fulfill(ok({ id: 'r1', status: 'APPROVED' })); });
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Chứng chỉ' }).click();
+  await page.getByRole('button', { name: 'Xem xét' }).click();
+  await expect(page.locator('#certificate-detail')).toContainText('Vẫn có thể cấp lại chứng chỉ đã thu hồi');
+  const reinstate = page.getByRole('button', { name: 'Cấp lại', exact: true });
+  await expect(reinstate).toBeEnabled();
+  await reinstate.click();
+  const confirm = page.getByRole('button', { name: 'Cấp lại', exact: true }).last();
+  await expect(confirm).toBeDisabled(); // cần lý do
+  await page.getByPlaceholder('Học viên sẽ đọc được nội dung này').fill('Thu hồi nhầm');
+  await confirm.click();
+  await expect.poll(() => bodies.length).toBe(1);
+  expect(bodies[0]).toEqual({ decision: 'APPROVE', note: 'Thu hồi nhầm' });
+});
+
+test('admin: nút Duyệt bị khóa thì ngay cạnh nút có nêu lý do', async ({ page }) => {
+  await openAdmin(page, false);
+  await expect(page.getByRole('button', { name: 'Duyệt', exact: true })).toBeDisabled();
+  await expect(page.locator('#certificate-approve-blocked')).toContainText('Chưa thể duyệt: Chưa hoàn thành 1/2 topic: Chủ đề mới thêm');
+});
+
 test('trang xác minh công khai: mã đã thu hồi báo không còn hợp lệ, không hiện lý do', async ({ page }) => {
   await page.route('**/api/certificate/suggest**', (route) => route.fulfill(ok([])));
   await page.route('**/api/certificate/verify/**', (route) => route.fulfill(ok({ valid: false, revoked: true, revokedAt: '2026-10-05T03:00:00Z', certificateCode: 'CRT-old', issuedAt: '2026-09-01T03:00:00Z', course: { id: 'c', name: 'SQL', slug: 'sql' } })));
