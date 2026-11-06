@@ -211,26 +211,15 @@ export class CourseProgressService {
    */
   async reopenTopicProgressAndCourses(topicId: string): Promise<number> {
     // Learners about to lose this topic: their pending certificate requests wait until they finish it again.
-    const [affected, links] = await Promise.all([
-      this.prisma.topicProgress.findMany({
-        where: { topicId, isCompleted: true },
-        select: { userId: true },
-      }),
-      this.prisma.courseTopic.findMany({
-        where: { topicId },
-        select: { courseId: true },
-      }),
-    ]);
-    if (affected.length && links.length) {
-      await this.prisma.certificateRequest.updateMany({
-        where: {
-          userId: { in: affected.map((row) => row.userId) },
-          courseId: { in: [...new Set(links.map((link) => link.courseId))] },
-          status: CertificateRequestStatus.PENDING,
-        },
-        data: { status: CertificateRequestStatus.ON_HOLD },
-      });
-    }
+    // One statement (no per-learner id list, which could exceed the bind-parameter limit on a popular topic).
+    await this.prisma.$executeRaw`
+      UPDATE certificate_requests r
+      SET status = 'ON_HOLD'::"CertificateRequestStatus", "updatedAt" = now()
+      WHERE r.status = 'PENDING'::"CertificateRequestStatus"
+        AND r."courseId" IN (SELECT ct."courseId" FROM course_topics ct WHERE ct."topicId" = ${topicId})
+        AND r."userId" IN (
+          SELECT tp."userId" FROM topic_progresses tp WHERE tp."topicId" = ${topicId} AND tp."isCompleted" = true
+        )`;
     const cleared = await this.prisma.topicProgress.updateMany({
       where: {
         topicId,
@@ -629,6 +618,11 @@ export class CourseProgressService {
     completed: boolean,
   ): Promise<void> {
     if (completed) {
+      // A live certificate with no request (e.g. issued by an old instance during a rolling deploy) needs no new request.
+      const held = await this.prisma.certificate.count({
+        where: { userId, courseId, revokedAt: null },
+      });
+      if (held) return;
       await this.prisma.certificateRequest.createMany({
         data: [{ userId, courseId }],
         skipDuplicates: true,

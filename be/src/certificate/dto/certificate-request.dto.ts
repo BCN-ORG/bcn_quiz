@@ -5,6 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -15,9 +16,9 @@ export class ListCertificateRequestsQueryDto {
   @IsOptional()
   @IsEnum(CertificateRequestStatus)
   status?: CertificateRequestStatus;
-  @IsOptional() @IsString() @MaxLength(64) courseId?: string;
+  @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{1,64}$/) courseId?: string;
   @IsOptional() @IsString() @MaxLength(100) search?: string;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100000) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
 }
 

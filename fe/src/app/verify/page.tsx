@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Certificate, CheckCircle, MagnifyingGlass } from '@phosphor-icons/react';
+import { Certificate, CheckCircle, MagnifyingGlass, XCircle } from '@phosphor-icons/react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { request } from '@/lib/api';
 import type { CertificateVerification } from '@/lib/types';
@@ -147,7 +147,7 @@ export default function VerifyCertificatePage() {
         ) : null}
         {result ? (
           <article className="verify-result" aria-live="polite">
-            <CheckCircle aria-hidden="true" />
+            {result.valid ? <CheckCircle aria-hidden="true" /> : <XCircle aria-hidden="true" />}
             <div>
               <strong>{result.valid ? 'Chứng chỉ hợp lệ' : 'Chứng chỉ này đã bị thu hồi và không còn hợp lệ'}</strong>
               <h2>{result.course.name}</h2>
@@ -155,7 +155,7 @@ export default function VerifyCertificatePage() {
                 Mã: <code>{result.certificateCode}</code>
               </p>
               <p>
-                Cấp ngày{' '}
+                {result.valid ? 'Cấp ngày' : 'Đã cấp ngày'}{' '}
                 {new Date(result.issuedAt).toLocaleDateString('vi-VN')}
               </p>
             </div>

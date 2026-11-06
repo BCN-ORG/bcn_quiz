@@ -2,10 +2,10 @@ import { CourseProgressService } from './course-progress.service';
 
 describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
   const prisma = {
-    topicProgress: { updateMany: jest.fn(), findMany: jest.fn() },
+    topicProgress: { updateMany: jest.fn() },
     courseTopic: { findMany: jest.fn() },
     userCourseProgress: { findMany: jest.fn() },
-    certificateRequest: { updateMany: jest.fn(), createMany: jest.fn() },
+    $executeRaw: jest.fn(),
   };
 
   const profilesService = {
@@ -18,8 +18,6 @@ describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.topicProgress.updateMany.mockResolvedValue({ count: 3 });
-    prisma.topicProgress.findMany.mockResolvedValue([]);
-    prisma.courseTopic.findMany.mockResolvedValue([]);
     service = new CourseProgressService(
       prisma as never,
       profilesService as never,
@@ -34,32 +32,34 @@ describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
       where: { topicId: 'topic-1', isCompleted: true },
       data: { isCompleted: false, completedAt: null },
     });
-    // Nobody had completed it, so no certificate request is touched; and the course is not re-evaluated synchronously.
-    expect(prisma.certificateRequest.updateMany).not.toHaveBeenCalled();
+    // The course is not re-evaluated synchronously (that stays lazy).
     expect(prisma.userCourseProgress.findMany).not.toHaveBeenCalled();
   });
 
-  it('puts pending certificate requests of the learners who lose the topic on hold', async () => {
-    prisma.topicProgress.findMany.mockResolvedValue([
-      { userId: 'a' },
-      { userId: 'b' },
-    ]);
-    prisma.courseTopic.findMany.mockResolvedValue([
-      { courseId: 'c1' },
-      { courseId: 'c1' },
-      { courseId: 'c2' },
-    ]);
+  it('puts pending certificate requests of the learners who lose the topic on hold, in ONE statement before clearing', async () => {
+    const order: string[] = [];
+    prisma.$executeRaw.mockImplementation(() => {
+      order.push('hold');
+      return Promise.resolve(2);
+    });
+    prisma.topicProgress.updateMany.mockImplementation(() => {
+      order.push('clear');
+      return Promise.resolve({ count: 3 });
+    });
 
     await service.reopenTopicProgressAndCourses('topic-1');
 
-    expect(prisma.certificateRequest.updateMany).toHaveBeenCalledWith({
-      where: {
-        userId: { in: ['a', 'b'] },
-        courseId: { in: ['c1', 'c2'] },
-        status: 'PENDING',
-      },
-      data: { status: 'ON_HOLD' },
-    });
+    expect(order).toEqual(['hold', 'clear']);
+    const [strings, ...values] = prisma.$executeRaw.mock.calls[0] as [
+      string[],
+      ...unknown[],
+    ];
+    const sql = strings.join('?');
+    expect(sql).toContain('UPDATE certificate_requests');
+    expect(sql).toContain("r.status = 'PENDING'");
+    expect(sql).toContain("SET status = 'ON_HOLD'");
+    // no per-learner id list: only the topic id is bound
+    expect(values).toEqual(['topic-1', 'topic-1']);
   });
 
   it('syncs a newly completed course to Profiles when approval runs as a reviewer, without issuing a certificate', async () => {
@@ -100,6 +100,7 @@ describe('CourseProgressService progress rules', () => {
     quiz: { count: jest.fn() },
     topicProgress: { findUnique: jest.fn(), update: jest.fn() },
     userCourseProgress: { upsert: jest.fn() },
+    certificate: { count: jest.fn() },
     certificateRequest: { createMany: jest.fn(), updateMany: jest.fn() },
     $queryRaw: jest.fn(),
   };
@@ -157,6 +158,7 @@ describe('CourseProgressService progress rules', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.userCourseProgress.upsert.mockResolvedValue({});
+    prisma.certificate.count.mockResolvedValue(0);
     service = new CourseProgressService(
       prisma as never,
       profilesService as never,
@@ -181,6 +183,15 @@ describe('CourseProgressService progress rules', () => {
         where: { userId: 'learner-1', courseId: 'course-1', status: 'ON_HOLD' },
         data: { status: 'PENDING' },
       });
+    });
+
+    it('a learner who already holds a live certificate gets no new request (rolling deploy with an old instance)', async () => {
+      prisma.certificate.count.mockResolvedValue(1);
+      await upsert({}, done);
+      expect(prisma.certificate.count).toHaveBeenCalledWith({
+        where: { userId: 'learner-1', courseId: 'course-1', revokedAt: null },
+      });
+      expect(prisma.certificateRequest.createMany).not.toHaveBeenCalled();
     });
 
     it('an incomplete course creates nothing and only holds a PENDING request (decisions are never touched)', async () => {

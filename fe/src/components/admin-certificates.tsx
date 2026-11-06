@@ -57,16 +57,17 @@ export function AdminCertificates() {
   }, [status, courseId, search, page]);
   useEffect(() => { void load(); }, [load]);
 
-  const loadDetail = useCallback(async (id: string) => {
+  const loadDetail = useCallback(async (id: string, keepError = false) => {
     const current = ++detailNumber.current;
-    setDetailLoading(true); setDetailError('');
+    setDetailLoading(true); if (!keepError) setDetailError('');
     try {
       const next = await request.get<AdminCertificateRequestDetail>(`/admin/certificate-requests/${encodeURIComponent(id)}`);
       if (current === detailNumber.current) setDetail(next);
     } catch (reason) { if (current === detailNumber.current) { setDetail(null); setDetailError(reason instanceof Error ? reason.message : 'Không tải được chi tiết'); } }
     finally { if (current === detailNumber.current) setDetailLoading(false); }
   }, []);
-  useEffect(() => { if (openId) void loadDetail(openId); else { detailNumber.current += 1; setDetail(null); } }, [openId, loadDetail]);
+  // Switching rows must not show the previous learner's detail (with live buttons) while the next one loads.
+  useEffect(() => { setDetail(null); if (openId) void loadDetail(openId); else detailNumber.current += 1; }, [openId, loadDetail]);
 
   const run = async () => {
     if (!action) return;
@@ -83,7 +84,8 @@ export function AdminCertificates() {
       // A conflict means the request changed meanwhile (another admin, or the course changed): show why and refresh.
       setDetailError(reason instanceof Error ? reason.message : 'Không thực hiện được');
       setAction(null);
-      await Promise.all([load(), loadDetail(action.id)]);
+      // The reload must not wipe the reason the server gave (keepError).
+      await Promise.all([load(), loadDetail(action.id, true)]);
     } finally { setBusy(false); }
   };
 

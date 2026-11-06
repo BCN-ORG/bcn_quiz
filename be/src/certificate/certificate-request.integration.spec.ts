@@ -477,8 +477,12 @@ maybeDescribe('Certificate approval on real PostgreSQL', () => {
       reviewerNote: 'Gian lận',
     });
 
-    // reinstated by an admin while still eligible: same code, valid again
+    // reinstated by an admin while still eligible: same code AND the same issue date, valid again
     await review(request.id, 'APPROVE', 'Xác minh lại');
+    expect(
+      (await prisma.certificate.findUniqueOrThrow({ where: { id: cert.id } }))
+        .issuedAt,
+    ).toEqual(cert.issuedAt);
     expect(await certificates.verifyByCode(cert.certificateCode)).toMatchObject(
       { valid: true },
     );
@@ -525,6 +529,71 @@ maybeDescribe('Certificate approval on real PostgreSQL', () => {
     await expect(service.adminDetail('does-not-exist')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('approve re-counts the course topics inside its transaction: a stale eligibility snapshot is refused and rolled back', async () => {
+    const { course, topics } = await newCourse(1);
+    const user = newUser();
+    await finishCourse(user, course.id, topics);
+    const request = (await requestOf(user, course.id))!;
+    const real = (
+      service as never as {
+        eligibility: (u: string, c: string) => Promise<{ topicsTotal: number }>;
+      }
+    ).eligibility.bind(service);
+    const spy = jest
+      .spyOn(service as never as { eligibility: typeof real }, 'eligibility')
+      .mockImplementation(async (u: string, c: string) => {
+        const live = await real(u, c);
+        // a topic is linked right after the check, before the transaction runs
+        const extra = await newTopic('Vừa thêm');
+        await prisma.courseTopic.create({
+          data: { courseId: c, topicId: extra.id, sortOrder: 9 },
+        });
+        return live;
+      });
+    await expect(review(request.id, 'APPROVE')).rejects.toThrow(
+      /course changed while reviewing/,
+    );
+    spy.mockRestore();
+    expect(await certCount(user, course.id)).toBe(0);
+    expect(await requestOf(user, course.id)).toMatchObject({
+      status: 'PENDING',
+      reviewerId: null,
+      certificateId: null,
+    });
+    expect(await notifications(user, 'CERTIFICATE_APPROVED')).toBe(0);
+    // the next honest attempt sees the new topic and holds the request instead
+    await expect(review(request.id, 'APPROVE')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect((await requestOf(user, course.id))?.status).toBe('ON_HOLD');
+  });
+
+  it('ids that cannot exist (NUL byte, path) are a 404 before touching the database', async () => {
+    await expect(service.adminDetail('a\u0000b')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(
+      service.review('../x', { decision: 'APPROVE' }, admin),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.resubmit('a\u0000b', asUser(newUser())),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('a live certificate without a request (issued by an old instance) does not get a new request', async () => {
+    const { course, topics } = await newCourse(1);
+    const user = newUser();
+    await prisma.certificate.create({
+      data: {
+        userId: user,
+        courseId: course.id,
+        certificateCode: `CRT-${randomUUID()}`,
+      },
+    });
+    await finishCourse(user, course.id, topics);
+    expect(await requestOf(user, course.id)).toBeNull();
   });
 
   it('deleting the course removes its requests and certificates', async () => {

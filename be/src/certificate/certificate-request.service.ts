@@ -25,6 +25,9 @@ import {
   RevokeCertificateDto,
 } from './dto/certificate-request.dto';
 
+/** Ids are cuid-like. Anything else (a NUL byte, a path...) is not a request/course and never reaches the database. */
+const ID = /^[A-Za-z0-9_-]{1,64}$/;
+
 const DECIDABLE: CertificateRequestStatus[] = [
   CertificateRequestStatus.PENDING,
   CertificateRequestStatus.REVOKED,
@@ -85,6 +88,8 @@ export class CertificateRequestService {
   }
 
   async resubmit(courseId: string, req: ExpressRequest) {
+    if (!ID.test(courseId))
+      throw new NotFoundException('Certificate request not found');
     const userId = this.certificates.extractUserId(req);
     const request = await this.prisma.certificateRequest.findUnique({
       where: { userId_courseId: { userId, courseId } },
@@ -331,6 +336,16 @@ export class CertificateRequestService {
           'Request was decided or changed meanwhile, reload',
         );
       }
+      // The course may have gained a topic since the eligibility check a few milliseconds ago: re-count inside the
+      // transaction (a throw rolls the claim back).
+      const topicsNow = await tx.courseTopic.count({
+        where: { courseId: request.courseId },
+      });
+      if (topicsNow !== eligibility.topicsTotal) {
+        throw new ConflictException(
+          'The course changed while reviewing, reload and review again',
+        );
+      }
       const metadata: Prisma.InputJsonValue = {
         topicIds: eligibility.topics.map((topic) => topic.id),
         topicsTotal: eligibility.topicsTotal,
@@ -346,8 +361,8 @@ export class CertificateRequestService {
             courseId: request.courseId,
           },
         },
+        // Reinstating keeps the original code AND the original issue date.
         update: {
-          issuedAt: now,
           revokedAt: null,
           revokedBy: null,
           revokedReason: null,
@@ -532,6 +547,8 @@ export class CertificateRequestService {
   }
 
   private async mustFind(id: string) {
+    if (!ID.test(id))
+      throw new NotFoundException('Certificate request not found');
     const request = await this.prisma.certificateRequest.findUnique({
       where: { id },
     });
