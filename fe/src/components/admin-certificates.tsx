@@ -38,6 +38,8 @@ export function AdminCertificates() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkNote, setBulkNote] = useState('');
   const [bulkResult, setBulkResult] = useState<BulkApproveResult | null>(null);
+  // Names are captured when the request is sent: the list is reloaded afterwards and a skipped learner may no longer be in it.
+  const [bulkNames, setBulkNames] = useState<Record<string, string>>({});
   const listNumber = useRef(0);
   const detailNumber = useRef(0);
 
@@ -57,7 +59,11 @@ export function AdminCertificates() {
       if (courseId) params.set('courseId', courseId);
       if (search) params.set('search', search);
       const next = await request.get<ListData>(`/admin/certificate-requests?${params}`);
-      if (current === listNumber.current) setData(next);
+      if (current === listNumber.current) {
+        setData(next);
+        // Keep only ticks that still point at a visible PENDING row (a single approve/reject elsewhere removes one).
+        setSelected((previous) => new Set([...previous].filter((id) => next.items.some((item) => item.id === id && item.status === 'PENDING'))));
+      }
     } catch (reason) { if (current === listNumber.current) setError(reason instanceof Error ? reason.message : 'Không tải được danh sách'); }
     finally { if (current === listNumber.current) setLoading(false); }
   }, [status, courseId, search, page]);
@@ -106,6 +112,7 @@ export function AdminCertificates() {
     const ids = [...selected];
     if (!ids.length) return;
     setBusy(true); setError(''); setNotice(''); setBulkResult(null);
+    setBulkNames(Object.fromEntries(ids.map((id) => [id, nameOf(id)])));
     try {
       const result = await request.post<BulkApproveResult>('/admin/certificate-requests/bulk-approve', { ids, note: bulkNote.trim() || undefined });
       setBulkResult(result);
@@ -133,7 +140,7 @@ export function AdminCertificates() {
     {notice ? <p className="notice" role="status">{notice}</p> : null}
     {bulkResult ? <div className="panel" id="bulk-result" role="status">
       <strong>Kết quả duyệt hàng loạt: đã duyệt {bulkResult.approved.length}, bỏ qua {bulkResult.skipped.length}.</strong>
-      {bulkResult.skipped.length ? <ul>{bulkResult.skipped.map((item) => <li key={item.id}>{nameOf(item.id)}: {item.reason}</li>)}</ul> : null}
+      {bulkResult.skipped.length ? <ul>{bulkResult.skipped.map((item) => <li key={item.id}>{bulkNames[item.id] ?? item.id}: {item.reason}</li>)}</ul> : null}
       <button className="button secondary" onClick={() => setBulkResult(null)}>Đóng kết quả</button>
     </div> : null}
     {error ? <ErrorState message={error} retry={() => void load()} /> : null}
