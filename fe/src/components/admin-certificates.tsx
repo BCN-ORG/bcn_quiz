@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CircleNotch } from '@phosphor-icons/react';
 import { request } from '@/lib/api';
-import type { AdminCertificateRequest, AdminCertificateRequestDetail, CertificateRequestStatus, Course, Pagination } from '@/lib/types';
+import type { AdminCertificateRequest, AdminCertificateRequestDetail, BulkApproveResult, CertificateRequestStatus, Course, Pagination } from '@/lib/types';
 import { CERT_STATUS, CertStatus } from './certificate-status';
 import { ConfirmDialog, Empty, ErrorState, Loading, PaginationNav } from './ui';
 
@@ -33,6 +33,11 @@ export function AdminCertificates() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  // Duyệt hàng loạt: ticked request ids (only PENDING rows can be ticked), the confirm dialog and the last result.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkNote, setBulkNote] = useState('');
+  const [bulkResult, setBulkResult] = useState<BulkApproveResult | null>(null);
   const listNumber = useRef(0);
   const detailNumber = useRef(0);
 
@@ -46,7 +51,8 @@ export function AdminCertificates() {
     const current = ++listNumber.current;
     setLoading(true); setError('');
     try {
-      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      // The pending queue is shown 100 at a time so one tick-all covers a whole batch.
+      const params = new URLSearchParams({ page: String(page), limit: status === 'PENDING' ? '100' : '20' });
       if (status) params.set('status', status);
       if (courseId) params.set('courseId', courseId);
       if (search) params.set('search', search);
@@ -56,6 +62,8 @@ export function AdminCertificates() {
     finally { if (current === listNumber.current) setLoading(false); }
   }, [status, courseId, search, page]);
   useEffect(() => { void load(); }, [load]);
+  // A selection never survives a change of filter or page (it could point at rows that are no longer shown).
+  useEffect(() => { setSelected(new Set()); }, [status, courseId, search, page]);
 
   const loadDetail = useCallback(async (id: string, keepError = false) => {
     const current = ++detailNumber.current;
@@ -89,6 +97,25 @@ export function AdminCertificates() {
     } finally { setBusy(false); }
   };
 
+  const pendingRows = data ? data.items.filter((item) => item.status === 'PENDING') : [];
+  const allTicked = pendingRows.length > 0 && pendingRows.every((item) => selected.has(item.id));
+  const toggle = (id: string) => setSelected((previous) => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const nameOf = (id: string) => { const row = data?.items.find((item) => item.id === id); return row ? who(row.user) : id; };
+
+  const runBulk = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setBusy(true); setError(''); setNotice(''); setBulkResult(null);
+    try {
+      const result = await request.post<BulkApproveResult>('/admin/certificate-requests/bulk-approve', { ids, note: bulkNote.trim() || undefined });
+      setBulkResult(result);
+      setNotice(`Đã duyệt ${result.approved.length} yêu cầu${result.skipped.length ? `, bỏ qua ${result.skipped.length}` : ''}.`);
+      setBulkOpen(false); setBulkNote(''); setSelected(new Set()); setOpenId('');
+      await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không duyệt hàng loạt được'); setBulkOpen(false); }
+    finally { setBusy(false); }
+  };
+
   const actionCopy = action && {
     APPROVE: action.reinstate ? { title: 'Cấp lại chứng chỉ đã thu hồi?', message: 'Chỉ hoàn tác việc thu hồi: giữ nguyên mã và ngày cấp ban đầu, không kiểm tra lại nội dung khóa học. Học viên sẽ nhận thông báo.', confirm: 'Cấp lại', noteLabel: 'Lý do cấp lại (bắt buộc)', required: true, danger: false } : { title: 'Duyệt và cấp chứng chỉ?', message: 'Hệ thống kiểm tra lại điều kiện theo khóa học hiện tại trước khi cấp. Học viên sẽ nhận thông báo.', confirm: 'Duyệt và cấp', noteLabel: 'Ghi chú (không bắt buộc)', required: false, danger: false },
     REJECT: { title: 'Từ chối yêu cầu?', message: 'Học viên sẽ thấy lý do và có thể gửi lại yêu cầu.', confirm: 'Từ chối', noteLabel: 'Lý do (bắt buộc)', required: true, danger: true },
@@ -104,10 +131,20 @@ export function AdminCertificates() {
       <label className="field"><span>Tìm theo tên người dùng</span><span className="leaderboard-search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên hoặc email" />{query.trim() && (query.trim() !== search || loading) ? <CircleNotch className="spin" aria-label="Đang tìm kiếm" /> : null}</span></label>
     </div>
     {notice ? <p className="notice" role="status">{notice}</p> : null}
+    {bulkResult ? <div className="panel" id="bulk-result" role="status">
+      <strong>Kết quả duyệt hàng loạt: đã duyệt {bulkResult.approved.length}, bỏ qua {bulkResult.skipped.length}.</strong>
+      {bulkResult.skipped.length ? <ul>{bulkResult.skipped.map((item) => <li key={item.id}>{nameOf(item.id)}: {item.reason}</li>)}</ul> : null}
+      <button className="button secondary" onClick={() => setBulkResult(null)}>Đóng kết quả</button>
+    </div> : null}
     {error ? <ErrorState message={error} retry={() => void load()} /> : null}
     {loading && !data ? <Loading label="Đang tải yêu cầu" /> : null}
     {data ? (data.items.length ? <>
+      {pendingRows.length ? <div className="list-actions" role="group" aria-label="Duyệt hàng loạt">
+        <label><input type="checkbox" checked={allTicked} onChange={() => setSelected(allTicked ? new Set() : new Set(pendingRows.map((item) => item.id)))} /> Chọn tất cả chờ duyệt trên trang ({pendingRows.length})</label>
+        <button className="button" disabled={!selected.size || busy} onClick={() => { setBulkNote(''); setBulkOpen(true); }}>Duyệt {selected.size ? `${selected.size} đã chọn` : 'hàng loạt'}</button>
+      </div> : null}
       <div className="list">{data.items.map((item) => <div className="list-row" key={item.id}>
+        {item.status === 'PENDING' ? <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} aria-label={`Chọn ${who(item.user)}`} /> : null}
         <div><strong>{who(item.user)}</strong><small>{item.user.email ? `${item.user.email} · ` : ''}{item.course.name} · yêu cầu {when(item.requestedAt)}</small></div>
         <div className="list-actions"><CertStatus value={item.status} /><button className="button secondary" aria-pressed={openId === item.id} onClick={() => setOpenId(openId === item.id ? '' : item.id)}>{openId === item.id ? 'Đóng' : 'Xem xét'}</button></div>
       </div>)}</div>
@@ -146,6 +183,19 @@ export function AdminCertificates() {
       </> : null}
     </section> : null}
 
+    <ConfirmDialog
+      open={bulkOpen}
+      title={`Duyệt ${selected.size} yêu cầu?`}
+      message="Hệ thống kiểm tra điều kiện từng học viên theo khóa học hiện tại. Ai chưa đủ điều kiện sẽ bị bỏ qua và được nêu lý do; những người còn lại được cấp chứng chỉ và nhận thông báo."
+      confirmLabel="Duyệt tất cả đã chọn"
+      busy={busy}
+      noteLabel="Ghi chú chung (không bắt buộc)"
+      noteValue={bulkNote}
+      notePlaceholder="Ghi chú nội bộ"
+      onNoteChange={setBulkNote}
+      onCancel={() => { if (!busy) { setBulkOpen(false); setBulkNote(''); } }}
+      onConfirm={() => void runBulk()}
+    />
     <ConfirmDialog
       open={Boolean(action)}
       title={actionCopy?.title ?? ''}

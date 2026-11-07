@@ -674,6 +674,182 @@ maybeDescribe('Certificate approval on real PostgreSQL', () => {
     expect((await service.listMine(asUser(newUser()))).items).toHaveLength(0);
   });
 
+  it('bulk approve: approves the eligible, skips the rest with the reason, one certificate and one notification each, and is safe to repeat', async () => {
+    const { course, topics } = await newCourse(1);
+    const ok = [newUser(), newUser(), newUser()];
+    for (const u of ok) await finishCourse(u, course.id, topics);
+    const okIds = await Promise.all(
+      ok.map(async (u) => (await requestOf(u, course.id))!.id),
+    );
+    // an approved one, a rejected one, and one that is no longer eligible because the course gained a topic after it was complete
+    const approvedUser = newUser();
+    await finishCourse(approvedUser, course.id, topics);
+    const approvedId = (await requestOf(approvedUser, course.id))!.id;
+    await review(approvedId, 'APPROVE');
+    const rejectedUser = newUser();
+    await finishCourse(rejectedUser, course.id, topics);
+    const rejectedId = (await requestOf(rejectedUser, course.id))!.id;
+    await review(rejectedId, 'REJECT', 'no');
+    const late = await newCourse(1);
+    const lateUser = newUser();
+    await finishCourse(lateUser, late.course.id, late.topics);
+    const lateId = (await requestOf(lateUser, late.course.id))!.id;
+    const extra = await newTopic('Sau này');
+    await prisma.courseTopic.create({
+      data: { courseId: late.course.id, topicId: extra.id, sortOrder: 2 },
+    });
+
+    const result = await service.bulkApprove(
+      {
+        ids: [...okIds, approvedId, rejectedId, lateId, 'does-not-exist'],
+        note: 'Duyệt đợt 1',
+      },
+      admin,
+    );
+
+    expect(result.approved.map((r) => r.id).sort()).toEqual([...okIds].sort());
+    const skipped = new Map(result.skipped.map((r) => [r.id, r.reason]));
+    expect(skipped.get(approvedId)).toMatch(/APPROVED/);
+    expect(skipped.get(rejectedId)).toMatch(/REJECTED/);
+    expect(skipped.get(lateId)).toMatch(/Sau này|hold|not eligible/i);
+    expect(skipped.get('does-not-exist')).toMatch(/not found/i);
+    for (const u of ok) {
+      expect(await certCount(u, course.id)).toBe(1);
+      expect(await notifications(u, 'CERTIFICATE_APPROVED')).toBe(1);
+      expect(await requestOf(u, course.id)).toMatchObject({
+        status: 'APPROVED',
+        reviewerId: 'admin-1',
+        reviewerNote: 'Duyệt đợt 1',
+      });
+    }
+    expect(await certCount(lateUser, late.course.id)).toBe(0);
+    expect(await certCount(rejectedUser, course.id)).toBe(0);
+    // repeating the same call changes nothing
+    const again = await service.bulkApprove({ ids: okIds }, admin);
+    expect(again.approved).toHaveLength(0);
+    expect(again.skipped).toHaveLength(okIds.length);
+    for (const u of ok)
+      expect(await notifications(u, 'CERTIFICATE_APPROVED')).toBe(1);
+  });
+
+  it('bulk approve called twice at the same time never issues a certificate twice', async () => {
+    const { course, topics } = await newCourse(1);
+    const learners = [newUser(), newUser(), newUser(), newUser()];
+    for (const u of learners) await finishCourse(u, course.id, topics);
+    const ids = await Promise.all(
+      learners.map(async (u) => (await requestOf(u, course.id))!.id),
+    );
+    const [a, b] = await Promise.all([
+      service.bulkApprove({ ids }, admin),
+      service.bulkApprove({ ids }, admin),
+    ]);
+    expect(a.approved.length + b.approved.length).toBe(ids.length);
+    for (const u of learners) {
+      expect(await certCount(u, course.id)).toBe(1);
+      expect(await notifications(u, 'CERTIFICATE_APPROVED')).toBe(1);
+    }
+  });
+
+  it('after the withdraw script (certificate revoked + request PENDING), approving re-issues the SAME code; an ineligible learner stays blocked', async () => {
+    const { course, topics } = await newCourse(1);
+    const good = newUser();
+    const stale = newUser();
+    const rows: Array<{
+      user: string;
+      certId: string;
+      code: string;
+      issuedAt: Date;
+    }> = [];
+    for (const user of [good, stale]) {
+      await finishCourse(user, course.id, topics);
+      await prisma.certificateRequest.deleteMany({ where: { userId: user } });
+      const issuedAt = new Date('2026-11-06T04:31:58Z');
+      const cert = await prisma.certificate.create({
+        data: {
+          userId: user,
+          courseId: course.id,
+          certificateCode: `CRT-${randomUUID()}`,
+          issuedAt,
+        },
+      });
+      // what scripts/withdraw-auto-issued-certificates.sh leaves behind
+      await prisma.certificate.update({
+        where: { id: cert.id },
+        data: {
+          revokedAt: new Date(),
+          revokedBy: 'system:bulk-withdraw',
+          revokedReason: 'x',
+        },
+      });
+      await prisma.certificateRequest.create({
+        data: {
+          userId: user,
+          courseId: course.id,
+          status: 'PENDING',
+          certificateId: cert.id,
+          requestedAt: issuedAt,
+        },
+      });
+      rows.push({
+        user,
+        certId: cert.id,
+        code: cert.certificateCode,
+        issuedAt,
+      });
+    }
+    // the learner side: shows "pending", no live certificate, the code is invalid meanwhile
+    const mine = await service.listMine(asUser(good));
+    expect(mine.items).toHaveLength(1);
+    expect(mine.items[0]).toMatchObject({ status: 'PENDING' });
+    expect(
+      (await certificates.getMyCertificates({}, asUser(good))).items,
+    ).toHaveLength(0);
+    expect(await certificates.verifyByCode(rows[0].code)).toMatchObject({
+      valid: false,
+      revoked: true,
+    });
+
+    // the course gains a topic the second learner has not done
+    const extra = await newTopic('Mới');
+    await prisma.courseTopic.create({
+      data: { courseId: course.id, topicId: extra.id, sortOrder: 2 },
+    });
+    await complete(good, extra.id);
+    await progress.evaluateCourseProgress(good, course.id);
+
+    const ids = await Promise.all(
+      rows.map(async (r) => (await requestOf(r.user, course.id))!.id),
+    );
+    const result = await service.bulkApprove({ ids }, admin);
+    expect(result.approved.map((r) => r.id)).toEqual([ids[0]]);
+    expect(result.skipped.map((r) => r.id)).toEqual([ids[1]]);
+
+    const reissued = await prisma.certificate.findUniqueOrThrow({
+      where: { id: rows[0].certId },
+    });
+    expect(reissued).toMatchObject({
+      certificateCode: rows[0].code,
+      revokedAt: null,
+      revokedBy: null,
+    });
+    expect(reissued.issuedAt).toEqual(rows[0].issuedAt);
+    expect(await certificates.verifyByCode(rows[0].code)).toMatchObject({
+      valid: true,
+    });
+    expect(await certCount(good, course.id)).toBe(1);
+    // the ineligible one keeps its withdrawn (invalid) certificate and waits
+    expect(
+      (
+        await prisma.certificate.findUniqueOrThrow({
+          where: { id: rows[1].certId },
+        })
+      ).revokedAt,
+    ).not.toBeNull();
+    expect(['PENDING', 'ON_HOLD']).toContain(
+      (await requestOf(stale, course.id))?.status,
+    );
+  });
+
   it('deleting the course removes its requests and certificates', async () => {
     const { course, topics } = await newCourse(1);
     const user = newUser();

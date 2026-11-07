@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -20,6 +21,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
 import { CertificateService } from './certificate.service';
 import {
+  BulkApproveCertificateRequestsDto,
   ListCertificateRequestsQueryDto,
   ReviewCertificateRequestDto,
   RevokeCertificateDto,
@@ -285,6 +287,67 @@ export class CertificateRequestService {
       );
     }
     return this.approve(request, reviewerId, note);
+  }
+
+  /**
+   * Approve many PENDING / ON_HOLD requests in one go (the admin ticked them). Every request goes through exactly the
+   * same path as a single approval (live eligibility check, conditional claim, its own transaction, its own
+   * notification), one after another: a learner who is not eligible, or whose request changed meanwhile, is skipped
+   * with the reason, and never stops the others. REVOKED / REJECTED / APPROVED requests are skipped: a reinstatement
+   * needs its own written reason.
+   */
+  async bulkApprove(
+    dto: BulkApproveCertificateRequestsDto,
+    req: ExpressRequest,
+  ) {
+    this.certificates.extractUserId(req); // an authenticated reviewer is required (also recorded by review())
+    const note = dto.note?.trim() || undefined;
+    const approved: Array<{ id: string; certificateCode: string }> = [];
+    const skipped: Array<{ id: string; reason: string }> = [];
+    for (const id of dto.ids) {
+      try {
+        const request = await this.mustFind(id);
+        if (
+          request.status !== CertificateRequestStatus.PENDING &&
+          request.status !== CertificateRequestStatus.ON_HOLD
+        ) {
+          skipped.push({
+            id,
+            reason: `Trạng thái ${request.status}: chỉ duyệt hàng loạt yêu cầu chờ duyệt`,
+          });
+          continue;
+        }
+        const result = (await this.review(
+          id,
+          { decision: 'APPROVE', note },
+          req,
+        )) as {
+          certificateCode: string;
+        };
+        approved.push({ id, certificateCode: result.certificateCode });
+      } catch (error) {
+        if (!(error instanceof HttpException)) {
+          this.logger.error(
+            `Bulk approve of ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        skipped.push({
+          id,
+          reason:
+            error instanceof HttpException
+              ? this.reasonOf(error)
+              : 'Lỗi không xác định, thử lại sau',
+        });
+      }
+    }
+    return { approved, skipped };
+  }
+
+  private reasonOf(error: HttpException): string {
+    const response = error.getResponse();
+    if (typeof response === 'string') return response;
+    const message = (response as { message?: unknown }).message;
+    return typeof message === 'string' ? message : error.message;
   }
 
   async revoke(id: string, dto: RevokeCertificateDto, req: ExpressRequest) {

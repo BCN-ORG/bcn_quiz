@@ -50,7 +50,7 @@ const expected: Record<
 
 describe('certificate request authorization matrix', () => {
   const guard = new RolesGuard(new Reflector());
-  for (const handler of ['list', 'detail', 'review', 'revoke']) {
+  for (const handler of ['list', 'detail', 'review', 'revoke', 'bulkApprove']) {
     for (const [who, user] of Object.entries(users) as Array<
       [keyof typeof users, unknown]
     >) {
@@ -80,6 +80,9 @@ describe('certificate routes', () => {
     );
     expect(path(CertificateAdminController.prototype, 'revoke')).toBe(
       ':id/revoke',
+    );
+    expect(path(CertificateAdminController.prototype, 'bulkApprove')).toBe(
+      'bulk-approve',
     );
     expect(path(CertificateController.prototype, 'myRequests')).toBe(
       'requests/me',

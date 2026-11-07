@@ -143,6 +143,40 @@ test('admin: nút Duyệt bị khóa thì ngay cạnh nút có nêu lý do', asy
   await expect(page.locator('#certificate-approve-blocked')).toContainText('Chưa thể duyệt: Chưa hoàn thành 1/2 topic: Chủ đề mới thêm');
 });
 
+test('admin: duyệt hàng loạt: chọn tất cả chờ duyệt, gửi đúng danh sách + ghi chú, hiện kết quả đã duyệt/bỏ qua kèm lý do và bỏ chọn', async ({ page }) => {
+  await asMentorInUi(page);
+  const user = (id: string, name: string) => ({ id, fullName: name, email: `${id}@example.com`, avatarUrl: null });
+  const row = (id: string, name: string, status: string) => ({ id: `r-${id}`, status, requestedAt: '2026-11-04T03:00:00Z', reviewedAt: null, reviewerNote: null, course: { id: 'c1', name: 'Web cơ bản' }, certificateCode: null, user: user(id, name) });
+  const items = [row('1', 'Lan Anh', 'PENDING'), row('2', 'Minh Khoa', 'PENDING'), row('3', 'Bảo Ngọc', 'PENDING'), row('4', 'Đã Hold', 'ON_HOLD')];
+  let listCalls = 0;
+  const limits: Array<string | null> = [];
+  await page.route('**/api/admin/certificate-requests?**', (route) => { listCalls += 1; limits.push(new URL(route.request().url()).searchParams.get('limit')); return route.fulfill(ok({ pendingCount: 3, onHoldCount: 1, profilesAvailable: true, items, pagination: { page: 1, limit: 100, total: 4, totalPages: 1, hasNext: false, hasPrevious: false } })); });
+  const bodies: unknown[] = [];
+  await page.route('**/api/admin/certificate-requests/bulk-approve', (route) => {
+    bodies.push(route.request().postDataJSON());
+    return route.fulfill(ok({ approved: [{ id: 'r-1', certificateCode: 'CRT-a' }, { id: 'r-2', certificateCode: 'CRT-b' }], skipped: [{ id: 'r-3', reason: 'Learner is not eligible: Chưa hoàn thành 1/2 topic: Mới' }] }));
+  });
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Chứng chỉ' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Chọn Lan Anh' })).toBeVisible();
+  expect(limits[0]).toBe('100'); // hàng chờ duyệt hiện 100 dòng/trang để chọn hết một lượt
+  await expect(page.getByRole('checkbox', { name: 'Chọn Đã Hold' })).toHaveCount(0); // chỉ dòng "Chờ duyệt" mới tick được
+  await expect(page.getByRole('button', { name: /^Duyệt hàng loạt$/ })).toBeDisabled();
+  await page.getByRole('checkbox', { name: /Chọn tất cả chờ duyệt trên trang \(3\)/ }).check();
+  await expect(page.getByRole('button', { name: 'Duyệt 3 đã chọn' })).toBeEnabled();
+  await page.getByRole('checkbox', { name: 'Chọn Bảo Ngọc' }).uncheck();
+  await page.getByRole('button', { name: 'Duyệt 2 đã chọn' }).click();
+  await page.getByPlaceholder('Ghi chú nội bộ').fill('Đợt 1');
+  await page.getByRole('button', { name: 'Duyệt tất cả đã chọn' }).click();
+  await expect.poll(() => bodies.length).toBe(1);
+  expect(bodies[0]).toEqual({ ids: ['r-1', 'r-2'], note: 'Đợt 1' });
+  const result = page.locator('#bulk-result');
+  await expect(result).toContainText('đã duyệt 2, bỏ qua 1');
+  await expect(result).toContainText('Bảo Ngọc: Learner is not eligible');
+  await expect(page.getByRole('button', { name: /^Duyệt hàng loạt$/ })).toBeDisabled(); // đã bỏ chọn
+  await expect.poll(() => listCalls).toBeGreaterThan(1); // danh sách được tải lại
+});
+
 test('trang xác minh công khai: mã đã thu hồi báo không còn hợp lệ, không hiện lý do', async ({ page }) => {
   await page.route('**/api/certificate/suggest**', (route) => route.fulfill(ok([])));
   await page.route('**/api/certificate/verify/**', (route) => route.fulfill(ok({ valid: false, revoked: true, revokedAt: '2026-10-05T03:00:00Z', certificateCode: 'CRT-old', issuedAt: '2026-09-01T03:00:00Z', course: { id: 'c', name: 'SQL', slug: 'sql' } })));

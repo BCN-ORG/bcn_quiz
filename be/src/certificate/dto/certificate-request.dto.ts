@@ -1,5 +1,9 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsEnum,
   IsIn,
   IsInt,
@@ -42,4 +46,22 @@ export class RevokeCertificateDto {
   @IsString()
   @MaxLength(1000)
   reason!: string;
+}
+
+/** Approve several PENDING requests at once. Each one is still checked and decided on its own. */
+export class BulkApproveCertificateRequestsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @Matches(/^[A-Za-z0-9_-]{1,64}$/, { each: true })
+  ids!: string[];
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
 }

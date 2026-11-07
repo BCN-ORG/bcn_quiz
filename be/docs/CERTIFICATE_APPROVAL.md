@@ -49,3 +49,20 @@ docker exec -i <QUIZ_DB_CONTAINER> psql -U <DB_USER> -d <DB> -X -q -tA -c \
 ```
 
 Hoàn tác: deploy lại bản trước (bản cũ không đọc các bảng/cột mới nên vẫn chạy) rồi, nếu cần, `DROP TABLE certificate_requests; ALTER TABLE certificates DROP COLUMN "revokedAt", DROP COLUMN "revokedBy", DROP COLUMN "revokedReason";`. Giá trị enum thông báo mới không gỡ được và vô hại. Lưu ý: bản cũ lại tự cấp chứng chỉ khi hoàn thành.
+
+## Thu hồi hàng loạt các chứng chỉ đã tự cấp + duyệt hàng loạt
+
+Trước khi có bước duyệt, bản cũ tự cấp chứng chỉ khi hoàn thành khóa học. Hiện việc tự cấp đã tắt (hoàn thành chỉ tạo yêu cầu). Để đưa các chứng chỉ đã tự cấp về cho admin duyệt lại:
+
+`be/scripts/withdraw-auto-issued-certificates.sh` (mặc định **chạy thử**, không đổi gì). Chỉ chọn chứng chỉ còn hiệu lực mà yêu cầu của nó là `APPROVED`, **không có người duyệt** và ghi chú "Cấp tự động trước khi có bước duyệt". Chứng chỉ do admin duyệt hoặc đã thu hồi **không bao giờ bị đụng tới**.
+
+```bash
+# từ máy bạn, không lưu gì trên server. Thay C, D, U bằng container, database và user của Quiz
+ssh <server> 'bash -s -- --container C --db D --user U' < be/scripts/withdraw-auto-issued-certificates.sh            # xem trước
+ssh <server> 'bash -s -- --container C --db D --user U --apply' < be/scripts/withdraw-auto-issued-certificates.sh    # thực hiện
+# tùy chọn: --course <id|slug> (chỉ một khóa), --no-notify (không tạo thông báo)
+```
+
+Mỗi chứng chỉ, trong một transaction: chứng chỉ bị đánh dấu thu hồi (trang xác minh báo "không còn hợp lệ", mã được giữ), yêu cầu về `PENDING` ("Chờ duyệt"), học viên nhận một thông báo. Trước khi đổi, giá trị cũ được chép vào bảng `certificates_withdraw_backup_<YYYYMMDD>` (lệnh hoàn tác nằm trong phần đầu của script). Chạy lại an toàn (không còn gì khớp, thông báo không nhân đôi).
+
+Sau đó vào tab **Chứng chỉ** của admin: chọn "Chờ duyệt", tick "Chọn tất cả chờ duyệt trên trang" rồi "Duyệt N đã chọn". Hệ thống kiểm tra điều kiện của **từng** học viên theo khóa học hiện tại; ai đủ điều kiện được cấp lại **cùng mã chứng chỉ và cùng ngày cấp**, ai chưa đủ thì bị bỏ qua kèm lý do (yêu cầu vẫn chờ). API: `POST /admin/certificate-requests/bulk-approve` `{ids: [<=100], note?}`.

@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Request,
 } from '@nestjs/common';
@@ -12,6 +13,7 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CONTENT_UPDATE } from '../auth/quiz-permissions';
 import { CertificateRequestService } from './certificate-request.service';
 import {
+  BulkApproveCertificateRequestsDto,
   ListCertificateRequestsQueryDto,
   ReviewCertificateRequestDto,
   RevokeCertificateDto,
@@ -26,6 +28,16 @@ export class CertificateAdminController {
   @Get()
   list(@Query() query: ListCertificateRequestsQueryDto) {
     return this.requests.adminList(query);
+  }
+
+  /** Approve the ticked requests; answers which were approved and which were skipped (with the reason). */
+  @Permissions(...CONTENT_UPDATE)
+  @Post('bulk-approve')
+  bulkApprove(
+    @Body() dto: BulkApproveCertificateRequestsDto,
+    @Request() req: ExpressRequest,
+  ) {
+    return this.requests.bulkApprove(dto, req);
   }
 
   @Permissions(...CONTENT_UPDATE)

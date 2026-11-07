@@ -159,6 +159,11 @@ export type AdminCertificateRequest = {
   user: { id: string; fullName: string | null; email: string | null; avatarUrl: string | null };
 };
 
+export type BulkApproveResult = {
+  approved: Array<{ id: string; certificateCode: string }>;
+  skipped: Array<{ id: string; reason: string }>;
+};
+
 export type CertificateEligibility = {
   eligible: boolean;
   courseStatus: string;
