@@ -34,7 +34,7 @@ export default function VerifyCertificatePage() {
         ),
       );
     } catch {
-      setError('Không tìm thấy chứng chỉ hợp lệ với mã này.');
+      setError('Không tìm thấy chứng nhận hợp lệ với mã này.');
     } finally {
       setLoading(false);
     }
@@ -96,11 +96,11 @@ export default function VerifyCertificatePage() {
           <Certificate aria-hidden="true" />
         </div>
         <p className="eyebrow">Xác minh công khai</p>
-        <h1 id="verify-title">Kiểm tra chứng chỉ BCN</h1>
-        <p>Nhập mã trên chứng chỉ để kiểm tra khóa học và ngày cấp.</p>
+        <h1 id="verify-title">Kiểm tra chứng nhận BCN</h1>
+        <p>Nhập mã trên chứng nhận để kiểm tra khóa học và ngày cấp.</p>
         <form className="verify-form" onSubmit={submit}>
           <label className="field verify-code-field">
-            <span>Mã chứng chỉ</span>
+            <span>Mã chứng nhận</span>
             <input
               value={code}
               onChange={(event) => setCode(event.target.value)}
@@ -149,7 +149,7 @@ export default function VerifyCertificatePage() {
           <article className="verify-result" aria-live="polite">
             {result.valid ? <CheckCircle aria-hidden="true" /> : <XCircle aria-hidden="true" />}
             <div>
-              <strong>{result.valid ? 'Chứng chỉ hợp lệ' : 'Chứng chỉ này đã bị thu hồi và không còn hợp lệ'}</strong>
+              <strong>{result.valid ? 'Chứng nhận hợp lệ' : 'Chứng nhận này đã bị thu hồi và không còn hợp lệ'}</strong>
               <h2>{result.course.name}</h2>
               <p>
                 Mã: <code>{result.certificateCode}</code>

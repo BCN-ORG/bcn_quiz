@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Certificate,
   BookOpen,
+  CaretDoubleLeft,
+  CaretDoubleRight,
   Gauge,
   ClockCounterClockwise,
   SignOut,
@@ -12,12 +14,17 @@ import {
   List,
   Moon,
   GearSix,
+  Plus,
   Sun,
   X,
 } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { canManageContent, canReadQuestions, canReadResults } from '@/lib/permissions';
+import { request } from '@/lib/api';
+import type { MyCertificateRequest } from '@/lib/types';
 import { useAuth } from './auth-provider';
+import { RankBadge } from './leaderboard-table';
+import { CertStatus } from './certificate-status';
 import { Empty, Loading } from './ui';
 import { NotificationCenter } from './notification-center';
 
@@ -26,7 +33,7 @@ const primary = [
   { href: '/courses', label: 'Khóa học', icon: BookOpen, allow: canReadQuestions },
   { href: '/leaderboard', label: 'Xếp hạng', icon: Trophy, allow: canReadQuestions },
   { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise, allow: canReadResults },
-  { href: '/certificates', label: 'Chứng chỉ', icon: Certificate, allow: canReadResults },
+  { href: '/certificates', label: 'Chứng nhận', icon: Certificate, allow: canReadResults },
 ];
 
 const PROFILES_APP_URL = (
@@ -48,14 +55,65 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [dark, setDark] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [certs, setCerts] = useState<MyCertificateRequest[] | null>(null);
+  const [weeklyRank, setWeeklyRank] = useState<number | null>(null);
+  const [certsError, setCertsError] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const enabled = localStorage.getItem('quiz-theme') === 'dark' ||
       (!localStorage.getItem('quiz-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
     setDark(enabled);
     document.documentElement.dataset.theme = enabled ? 'dark' : 'light';
+    setCollapsed(localStorage.getItem('quiz-sidebar-collapsed') === '1');
   }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((v) => {
+      localStorage.setItem('quiz-sidebar-collapsed', v ? '0' : '1');
+      return !v;
+    });
+  };
+
+  // Hang tuan cua minh de hien huy hieu o muc Xep hang (aside); loi thi khong hien.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void request.get<{ currentUserRank: number | null }>('/leaderboards/weekly?limit=1')
+      .then((data) => { if (!cancelled && typeof data.currentUserRank === 'number') setWeeklyRank(data.currentUserRank); })
+      .catch(() => { /* khong hien huy hieu */ });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Tai chung nhan khi mo the ho so lan dau (kieu Discord: chi tai khi can).
+  useEffect(() => {
+    if (!profileOpen || certs !== null) return;
+    let cancelled = false;
+    void request.get<{ items: MyCertificateRequest[] }>('/certificate/requests/me')
+      .then((data) => { if (!cancelled) setCerts(data.items); })
+      .catch(() => { if (!cancelled) setCertsError(true); });
+    return () => { cancelled = true; };
+  }, [profileOpen, certs]);
+
+  // Dong the ho so khi bam ra ngoai, bam Escape, hoac chuyen trang.
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onDown = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) setProfileOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setProfileOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [profileOpen]);
+
+  useEffect(() => { setProfileOpen(false); }, [pathname]);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/');
@@ -77,7 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout${collapsed ? ' app-layout-collapsed' : ''}`}>
       <aside className={`sidebar ${menu ? 'sidebar-open' : ''}`}>
         <div className="brand-row">
           <Link href="/dashboard" className="brand">
@@ -91,49 +149,90 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {links.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href} onClick={() => setMenu(false)} className={pathname.startsWith(href) ? 'active' : ''}>
               <Icon aria-hidden="true" /><span>{label}</span>
+              {href === '/leaderboard' && weeklyRank != null ? <span className="nav-rank"><RankBadge rank={weeklyRank} /></span> : null}
             </Link>
           ))}
         </nav>
-        <div className="sidebar-footer">
-          <div className="user-compact">
-            <div className="avatar">{(user.fullName || user.email).slice(0, 1).toUpperCase()}</div>
-            <div>
-              <strong>{user.fullName || 'Thành viên BCN'}</strong>
-              <small>{user.email}</small>
-              <div className="role-pills" aria-label="Vai trò Quiz">
-                {appRoles.length ? (
-                  appRoles.map((role) => (
-                    <span key={role} className="role-pill">{roleLabel(role)}</span>
-                  ))
-                ) : (
-                  <span className="role-pill muted">Member</span>
-                )}
-                {user.role?.toLowerCase() === 'admin' ? (
-                  <span className="role-pill platform" title="Vai trò nền tảng Profiles">Platform Admin</span>
-                ) : null}
+        <div className="sidebar-footer" ref={profileRef}>
+          <div className="sidebar-footer-row">
+            <button type="button" className="user-compact profile-trigger" onClick={() => setProfileOpen((v) => !v)} aria-expanded={profileOpen} aria-haspopup="dialog" aria-label="Mở hồ sơ của bạn">
+              <div className="avatar">{(user.fullName || user.email).slice(0, 1).toUpperCase()}</div>
+              <div>
+                <strong>{user.fullName || 'Thành viên BCN'}</strong>
+                <small>{user.email}</small>
               </div>
-              <a
-                className="roles-link"
-                href={`${PROFILES_APP_URL}/vi/applications`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Xem role mọi app
-              </a>
+            </button>
+            <button type="button" className="icon-button sidebar-collapse" onClick={toggleCollapsed} aria-label={collapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'} aria-expanded={!collapsed} title={collapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'}>
+              {collapsed ? <CaretDoubleRight /> : <CaretDoubleLeft />}
+            </button>
+          </div>
+          {profileOpen ? (
+            <div className="profile-card" role="dialog" aria-label="Hồ sơ của bạn">
+              <div className="profile-card-head">
+                <div className="avatar avatar-lg">{(user.fullName || user.email).slice(0, 1).toUpperCase()}</div>
+                <div>
+                  <strong>{user.fullName || 'Thành viên BCN'}</strong>
+                  <small>{user.email}</small>
+                </div>
+              </div>
+              <div className="profile-card-section">
+                <p className="profile-card-label">Vai trò</p>
+                <div className="role-pills" aria-label="Vai trò Quiz">
+                  {appRoles.length ? (
+                    appRoles.map((role) => (
+                      <span key={role} className="role-pill">{roleLabel(role)}</span>
+                    ))
+                  ) : (
+                    <span className="role-pill muted">Member</span>
+                  )}
+                  {user.role?.toLowerCase() === 'admin' ? (
+                    <span className="role-pill platform" title="Vai trò nền tảng Profiles">Platform Admin</span>
+                  ) : null}
+                </div>
+                <a
+                  className="roles-link"
+                  href={`${PROFILES_APP_URL}/vi/applications`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Xem role mọi app
+                </a>
+              </div>
+              <div className="profile-card-section">
+                <p className="profile-card-label">Chứng nhận</p>
+                {certs === null ? (
+                  certsError ? (
+                    <small className="profile-card-muted">Không tải được chứng nhận.</small>
+                  ) : (
+                    <small className="profile-card-muted">Đang tải chứng nhận…</small>
+                  )
+                ) : certs.length === 0 ? (
+                  <small className="profile-card-muted">Chưa có chứng nhận.</small>
+                ) : (
+                  <ul className="profile-cert-list">
+                    {certs.map((item) => (
+                      <li key={item.id}>
+                        <span>{item.course.name}</span>
+                        <CertStatus value={item.status} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Link className="roles-link" href="/certificates" onClick={() => setProfileOpen(false)}>Xem tất cả chứng nhận</Link>
+              </div>
+              <button type="button" className="button danger profile-logout" onClick={() => void logout()}><SignOut /> Đăng xuất</button>
             </div>
-          </div>
-          <div className="sidebar-actions">
-            <button className="icon-button" onClick={setTheme} aria-label={dark ? 'Dùng giao diện sáng' : 'Dùng giao diện tối'}>{dark ? <Sun /> : <Moon />}</button>
-            <button className="icon-button" onClick={() => void logout()} aria-label="Đăng xuất"><SignOut /></button>
-          </div>
+          ) : null}
         </div>
       </aside>
       {menu ? <button className="menu-backdrop" onClick={() => setMenu(false)} aria-label="Đóng menu" /> : null}
       <div className="main-column">
         <header className="topbar">
           <button className="icon-button mobile-only" onClick={() => setMenu(true)} aria-label="Mở menu"><List /></button>
-          <span>Học chắc từng chủ đề</span>
+          <span className="topbar-tagline">Học chắc từng chủ đề</span>
           <div className="topbar-actions">
+            {/* Nút tắt sang trang Quản trị, chỉ hiện với tài khoản quản trị (kịch bản Figma 05/11/2026) */}
+            {canManageContent(user) ? <Link className="button" href="/admin"><Plus /> Tạo khóa học</Link> : null}
             <NotificationCenter />
             <button className="icon-button" onClick={setTheme} aria-label={dark ? 'Dùng giao diện sáng' : 'Dùng giao diện tối'}>{dark ? <Sun /> : <Moon />}</button>
           </div>

@@ -202,6 +202,13 @@ function TopicQuizPage() {
     document.querySelector('.question-map button.current')?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }, [current, session]);
 
+  // Đang làm bài: ẩn sidebar/topbar của app để lấy bố cục toàn màn hình kiểu Figma.
+  useEffect(() => {
+    const playing = Boolean(session && !result);
+    document.body.classList.toggle('quiz-playing', playing);
+    return () => { document.body.classList.remove('quiz-playing'); };
+  }, [session, result]);
+
   const saveLabel = failedSave ? 'Chưa lưu được đáp án' : savingCount > 0 ? 'Đang lưu…' : answeredCount > 0 ? 'Đã lưu' : '';
   const submitting = useRef(false);
   const submit = async () => {
@@ -219,7 +226,7 @@ function TopicQuizPage() {
   if (topic && !topicOpen(topic.availability)) {
     return (
       <>
-        <header className="page-heading"><div><p className="eyebrow">{topic.name}</p><h1>Chưa đến lúc làm bài</h1><p>Chủ đề này {topic.availability === 'SCHEDULED' ? 'chưa mở' : 'đã đóng'}.</p></div><Status value={topic.availability || 'CLOSED'} /></header>
+        <header className="page-heading"><div><h1>Chưa đến lúc làm bài</h1><p>Chủ đề này {topic.availability === 'SCHEDULED' ? 'chưa mở' : 'đã đóng'}.</p></div><Status value={topic.availability || 'CLOSED'} /></header>
         <Empty title={topic.availability === 'SCHEDULED' ? 'Bài thi chưa mở' : 'Bài thi đã đóng'} description={topic.startsAt || topic.endsAt ? `Lịch: ${topic.startsAt ? new Date(topic.startsAt).toLocaleString('vi-VN') : 'không giới hạn'} đến ${topic.endsAt ? new Date(topic.endsAt).toLocaleString('vi-VN') : 'không giới hạn'}.` : 'Quay lại khóa học để xem các chủ đề khác.'} />
         <Link className="button secondary" href={leaderboardHref}>Xem bảng xếp hạng</Link>
       </>
@@ -231,7 +238,7 @@ function TopicQuizPage() {
       <section className="topic-result" aria-labelledby="topic-result-title">
         <div className="topic-result-head">
           <CheckCircle size={44} weight="duotone" aria-hidden="true" />
-          <div><p className="eyebrow">Kết quả</p><h1 id="topic-result-title">{topic.name}</h1></div>
+          <div><h1 id="topic-result-title">{topic.name}</h1></div>
         </div>
         <p className="topic-result-score"><strong>{result.leaderboard.attemptScore}</strong><span>/ {result.leaderboard.maxScore} điểm</span></p>
         <ul className="topic-result-chips">
@@ -262,7 +269,6 @@ function TopicQuizPage() {
     return (
       <div className="topic-intro">
         <section className="topic-hero">
-          <p className="eyebrow">Chủ đề</p>
           <h1>{topic.name}</h1>
           <p className="topic-lead">Làm trọn bộ câu hỏi trong một lượt. Chỉ lần nộp đầu tiên của bộ câu hỏi được tính vào bảng xếp hạng.</p>
           {topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}
@@ -302,10 +308,17 @@ function TopicQuizPage() {
   const content = quiz.content || { text: quiz.question || '' };
   return (
     <>
-      <header className="page-heading">
-        <div><p className="eyebrow">{topic.name}</p><h1>Câu {current + 1} / {quizzes.length}</h1><p>≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu · {answeredCount}/{quizzes.length} câu đã trả lời</p><p className={`save-status ${failedSave ? 'is-error' : ''}`} role="status" aria-live="polite">{saveLabel}</p>{topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}</div>
+      {/* Topbar riêng của bài làm kiểu Figma: quay lại | tên chủ đề | thao tác */}
+      <div className="quiz-topbar">
+        <Link className="button secondary" href={courseId ? `/courses/${courseId}` : '/courses'}><ArrowLeft /> Quay lại</Link>
+        <h1>{topic.name}</h1>
         <div className="list-actions"><Link className="button secondary" href={leaderboardHref} target="_blank" rel="noopener noreferrer">Xem bảng xếp hạng</Link><button type="button" className="button secondary" disabled={saving} onClick={() => setConfirmRestart(true)}>Bỏ bài dở & làm lại</button></div>
-      </header>
+      </div>
+      <div className="quiz-progress" aria-label={`Tiến độ làm bài: ${answeredCount} trên ${quizzes.length} câu`}>
+        <span>Câu {current + 1} / {quizzes.length}</span>
+        <div className="quiz-progress-bar"><span style={{ width: `${quizzes.length ? Math.round((answeredCount / quizzes.length) * 100) : 0}%` }} /></div>
+        <span>{quizzes.length ? Math.round((answeredCount / quizzes.length) * 100) : 0}% hoàn thành</span>
+      </div>
       {error ? <p className="form-error">{error}</p> : null}
       {failedSave ? (
         <div className="notice notice-danger" role="alert">
@@ -323,6 +336,11 @@ function TopicQuizPage() {
       ) : null}
       <div className="quiz-layout">
         <section className="panel quiz-question">
+          <div className="quiz-question-head">
+            <span className="quiz-points">≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu</span>
+            {topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}
+            <p className={`save-status ${failedSave ? 'is-error' : ''}`} role="status" aria-live="polite">{saveLabel}</p>
+          </div>
           <h2 id="question-text">{content.text}</h2>
           {content.code ? <pre className="code-block"><code>{content.code}</code></pre> : null}
           {content.image ? <Image src={content.image} alt="Minh họa cho câu hỏi" width={960} height={540} style={{ width: '100%', height: 'auto', borderRadius: 12 }} /> : null}

@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, BookOpen, FolderSimple, UploadSimple } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, BookOpen, FolderSimple, UploadSimple } from '@phosphor-icons/react';
 import { useParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { CERT_STATUS, CertStatus } from '@/components/certificate-status';
 import { ProjectDue } from '@/components/project-due';
-import { Empty, ErrorState, Loading, PaginationNav, Progress, Status } from '@/components/ui';
+import { Empty, ErrorState, Loading, PaginationNav, Status } from '@/components/ui';
 import { ApiError, UploadStageError, logUploadStageError, request, uploadFileWithProgress } from '@/lib/api';
 import { isLateSubmission, topicOpen } from '@/lib/format';
 import type { Course, CourseProgress, MyCertificateRequest, Pagination, ProjectRequirement, Submission, Topic } from '@/lib/types';
@@ -218,15 +218,20 @@ export default function CourseDetailPage() {
 
   return (
     <>
+      {/* Bố cục Quizzes detail của Figma: quay lại + 4 thẻ số liệu + 2 cột (Chủ đề / Project) */}
+      <Link className="back-link" href="/courses"><ArrowLeft /> Khóa học</Link>
       <header className="page-heading">
-        <div><p className="eyebrow">Lộ trình học</p><h1>{course.name}</h1><p>{course.description || 'Hoàn thành từng topic để tiến tới chứng chỉ.'}</p></div>
+        <div><h1>{course.name}</h1><p>{course.description || 'Hoàn thành từng topic để tiến tới chứng nhận.'}</p></div>
         <Status value={progress.status} />
       </header>
-      <div className="grid grid-2">
-        <section className="panel"><h2>Tiến độ tổng</h2><Progress value={progress.progressPercent} label="Toàn khóa" /><Progress value={progress.topicProgressPercent} label="Quiz" />{course.hasProject ? <Progress value={progress.projectProgressPercent} label="Project" /> : null}</section>
-        <section className="panel"><h2>Điều kiện hoàn thành</h2><p>Mỗi topic cần coverage đáp án đúng từ 80%. {course.hasProject ? 'Project cần được quản trị viên duyệt.' : 'Khóa học này không yêu cầu project.'}</p></section>
+      <div className="figma-stats" aria-label="Số liệu khóa học">
+        <div className="figma-stat"><span>Tiến độ tổng</span><strong>{progress.progressPercent}%</strong><small>toàn khóa</small></div>
+        <div className="figma-stat"><span>Quiz</span><strong>{progress.topicProgressPercent}%</strong><small>tiến độ topic</small></div>
+        <div className="figma-stat"><span>Project</span><strong>{course.hasProject ? `${progress.projectProgressPercent}%` : '—'}</strong><small>{course.hasProject ? 'tiến độ project' : 'không yêu cầu project'}</small></div>
+        <div className="figma-stat"><span>Chủ đề</span><strong>{topicPagination.total}</strong><small>Mỗi topic cần 80% đáp án đúng</small></div>
       </div>
-      {certRequest ? <section className="panel section" id="course-certificate"><h2>Chứng chỉ</h2><p><CertStatus value={certRequest.status} /> {CERT_STATUS[certRequest.status].hint} <Link href="/certificates">Xem chứng chỉ</Link></p></section> : null}
+      {certRequest ? <section className="panel section" id="course-certificate"><h2>Chứng nhận</h2><p><CertStatus value={certRequest.status} /> {CERT_STATUS[certRequest.status].hint} <Link href="/certificates">Xem chứng nhận</Link></p></section> : null}
+      <div className="figma-split">
       <section className="section">
         <div className="section-title"><h2>Nội dung khóa học</h2><span>{topicPagination.total} chủ đề</span></div>
         {topicsError ? <p className="form-error" role="alert">{topicsError}</p> : null}
@@ -329,6 +334,7 @@ export default function CourseDetailPage() {
           ) : null}
         </section>
       ) : null}
+      </div>
     </>
   );
 }

@@ -22,7 +22,7 @@ function LeaderboardPage() {
 
   return <>
     <Link className="leaderboard-back" href={`/topics/${id}${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ''}`}>← Quay lại chủ đề</Link>
-    <header className="page-heading"><div><p className="eyebrow">Chủ đề</p><h1>{topic?.name ?? 'Bảng xếp hạng'}</h1><p>Kết quả chính thức theo ngày. Chỉ lần làm đầu tiên của chủ đề được tính. <Link href="/leaderboard">Xem bảng xếp hạng tuần tổng thể →</Link></p></div></header>
+    <header className="page-heading"><div><h1>{topic?.name ?? 'Bảng xếp hạng'}</h1><p>Kết quả chính thức theo ngày. Chỉ lần làm đầu tiên của chủ đề được tính. <Link href="/leaderboard">Xem bảng xếp hạng tuần tổng thể →</Link></p></div></header>
     {error ? <ErrorState message={error} /> : null}
     {!topic && !error ? <Loading label="Đang tải chủ đề" /> : null}
     <TopicLeaderboard topicId={id} />
