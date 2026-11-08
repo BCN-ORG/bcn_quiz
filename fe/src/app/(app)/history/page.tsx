@@ -61,7 +61,7 @@ export default function HistoryPage() {
   if (error && !items.length) return <ErrorState message={error} retry={() => void load()} />;
   return (
     <>
-      <header className="page-heading"><div><p className="eyebrow">Hoạt động của bạn</p><h1>Lịch sử làm bài</h1><p>Bài đang làm dở, đã nộp, hoặc hết hạn.</p></div></header>
+      <header className="page-heading"><div><h1>Lịch sử làm bài</h1><p>Bài đang làm dở, đã nộp, hoặc hết hạn.</p></div></header>
       {error ? <p className="form-error">{error}</p> : null}
       {items.length ? (
         <div className="list">

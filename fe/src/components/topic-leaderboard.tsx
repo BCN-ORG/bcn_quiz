@@ -2,12 +2,12 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Trophy } from '@phosphor-icons/react';
+import { Trophy, User } from '@phosphor-icons/react';
 import { useAuth } from './auth-provider';
 import { Empty, ErrorState, PaginationNav } from './ui';
-import { LeaderboardPlayer, LeaderboardTable, leaderboardPoints, type LeaderboardRow } from './leaderboard-table';
+import { LeaderboardPlayer, LeaderboardTable, PodiumCup, leaderboardPoints, type LeaderboardRow } from './leaderboard-table';
 import { request } from '@/lib/api';
-import { LEADERBOARD_LIMIT, clockLabel, isFiltered, pageOfRank, parseFilters, withFilters, type LeaderboardFilters } from '@/lib/leaderboard-filters';
+import { LEADERBOARD_LIMIT, clockLabel, isFiltered, parseFilters, withFilters, type LeaderboardFilters } from '@/lib/leaderboard-filters';
 
 type Leaderboard = {
   date?: string;
@@ -79,50 +79,57 @@ export function TopicLeaderboard({ topicId }: { topicId?: string }) {
 
   const mine = data?.currentUserResult ?? null;
   const myRank = data?.currentUserRank ?? null;
-  const onThisPage = Boolean(data && user && data.items.some((row) => row.user.id === user.id));
-  const period = data ? (mode === 'daily' ? `Ngày ${data.date}` : `Tuần ${data.weekStart} → ${data.weekEnd}`) : '';
+  const fmtDay = (iso?: string | null) => { if (!iso) return ''; const [, m, day] = iso.split('-'); return day && m ? `${day}/${m}` : iso; };
+  const period = data ? (mode === 'daily' ? `Ngày ${fmtDay(data.date)}` : `Tuần ${fmtDay(data.weekStart)} → ${fmtDay(data.weekEnd)}`) : '';
   const namesUnavailable = data?.profilesAvailable === false;
-  const onlyMe = Boolean(data && data.pagination.total === 1 && mine);
 
   return (
     <section className="section panel leaderboard-section leaderboard-card" id="topic-leaderboard" aria-label={topicId ? 'Bảng xếp hạng Topic' : 'Bảng xếp hạng tuần'} aria-busy={loading}>
-      <div className="section-title"><h2 ref={titleRef} tabIndex={-1}><Trophy weight="duotone" aria-hidden="true" /> {topicId ? 'Bảng xếp hạng ngày' : 'Bảng xếp hạng tuần'}</h2></div>
+      <div className="section-title"><h2 ref={titleRef} tabIndex={-1}><Trophy weight="duotone" aria-hidden="true" /> {topicId ? 'Bảng xếp hạng ngày' : 'Bảng xếp hạng tuần'}</h2><button type="button" className="button secondary" aria-disabled={loading} onClick={() => { if (!loading) void load(); }}>Làm mới</button></div>
 
       <div className="leaderboard-toolbar">
-        <label className="field leaderboard-date"><span>{mode === 'daily' ? 'Ngày' : 'Tuần chứa ngày'}</span><input type="date" value={date || (mode === 'daily' ? data?.date : data?.weekStart) || ''} onChange={(event) => go({ date: event.target.value, page: 1 })} /></label>
-        <div className="leaderboard-fresh">
+        {mode === 'daily' ? (
+          <label className="field leaderboard-date"><span>Ngày</span><input type="date" value={date || data?.date || ''} onChange={(event) => go({ date: event.target.value, page: 1 })} /></label>
+        ) : (
+          period ? <p className="leaderboard-period">{period} · giờ Việt Nam</p> : <span aria-hidden="true" />
+        )}
+        {mode === 'daily' ? <div className="leaderboard-fresh">
           <p role="status" aria-live="polite">{loaded?.view === view ? `Cập nhật lúc ${clockLabel(loaded.at)} · không tự động làm mới` : error ? 'Chưa cập nhật được.' : 'Đang cập nhật…'}</p>
-          <button type="button" className="button secondary" aria-disabled={loading} onClick={() => { if (!loading) void load(); }}>Làm mới</button>
-        </div>
+        </div> : null}
       </div>
-      <div className="leaderboard-filters" role="group" aria-label="Bộ lọc đang áp dụng">
-        <span className="leaderboard-chip">{mode === 'daily' ? 'Theo ngày' : 'Theo tuần'}</span>
+      {mode === 'daily' ? <div className="leaderboard-filters" role="group" aria-label="Bộ lọc đang áp dụng">
+        <span className="leaderboard-chip">Theo ngày</span>
         {period ? <span className="leaderboard-chip">{period} · giờ Việt Nam</span> : null}
         {page > 1 ? <span className="leaderboard-chip">Trang {page}</span> : null}
         {isFiltered({ mode: 'daily', date, page }) ? <button type="button" className="button secondary" onClick={() => { go({ date: '', page: 1 }); titleRef.current?.focus(); }}>Xóa bộ lọc</button> : null}
-      </div>
+      </div> : null}
 
 
-      {mode === 'weekly' && data?.progress ? <p className="leaderboard-hint" id="leaderboard-progress">Bạn đã làm <strong>{data.progress.topicsDone}/{data.progress.topicsTotal}</strong> topic (tính từ trước đến nay). Chỉ lần làm đầu tiên của mỗi topic được cộng điểm; làm lại chỉ để ôn tập.</p> : null}
-      {mode === 'weekly' ? <p className="leaderboard-hint">Điểm tuần là tổng điểm lần làm đầu tiên của các topic bạn hoàn thành từ Thứ Hai đến Chủ nhật (giờ Việt Nam).</p> : null}
       {namesUnavailable ? <p className="leaderboard-offline" role="status">Chưa tải được tên người chơi từ BCN. Điểm và thứ hạng vẫn đúng; tên sẽ hiện lại khi hệ thống kết nối được. Bạn có thể bấm Làm mới sau ít phút.</p> : null}
       {!online ? <p className="leaderboard-offline" role="status">Bạn đang ngoại tuyến. Bảng hiển thị có thể đã cũ; sẽ tự tải lại khi có mạng.</p> : null}
       {error ? <ErrorState message={error} retry={() => void load()} /> : null}
       {loading && !data ? <div className="leaderboard-skeleton" role="status" aria-label="Đang tải bảng xếp hạng">{[1, 2, 3, 4].map((item) => <span key={item} />)}</div> : null}
       {data ? <>
         {data.pagination.total === 0 ? <Empty title={mode === 'weekly' ? 'Tuần này chưa có ai hoàn thành topic.' : 'Chưa có kết quả trong kỳ này.'} description={mode === 'weekly' ? 'Làm một topic lần đầu để xuất hiện trên bảng xếp hạng tuần.' : 'Hãy hoàn thành chủ đề để xuất hiện trên bảng xếp hạng.'} /> : <>
-          {mine && myRank ? <div className="panel leaderboard-me" id="leaderboard-me">
-            <h3>Hạng của bạn: <span className="leaderboard-me-rank">#{myRank}</span></h3>
-            <p><strong>{leaderboardPoints(mine).toLocaleString('vi-VN')} điểm</strong>{mode === 'weekly' ? ` · ${mine.topicsCompleted ?? 0} topic trong tuần` : ''}{mode === 'daily' && data.pagination.total > 0 ? ` · Top ${Math.ceil(myRank / data.pagination.total * 100)}% hôm nay` : ''}</p>
-            {data.top10Cutoff != null && myRank > 10 ? <p>Top 10: {data.top10Cutoff} điểm · còn {Math.max(0, data.top10Cutoff - leaderboardPoints(mine))} điểm</p> : null}
-            {data.aroundMe.some((row) => row.rank === myRank - 1) ? <p>Cách hạng trên {Math.max(0, leaderboardPoints(data.aroundMe.find((row) => row.rank === myRank - 1)!) - leaderboardPoints(mine))} điểm</p> : null}
-            {onThisPage ? <p className="leaderboard-hint">Bạn đang ở trang này, dòng của bạn được tô sáng.</p>
-              : <button type="button" className="button secondary" onClick={() => { go({ date, page: pageOfRank(myRank, data.pagination.limit) }); listRef.current?.focus(); }}>Đi tới trang {pageOfRank(myRank, data.pagination.limit)} (vị trí của bạn)</button>}
-          </div> : <p>Bạn chưa có kết quả trong kỳ này. {mode === 'weekly' ? 'Làm một topic lần đầu để xuất hiện trên bảng xếp hạng tuần.' : 'Hoàn thành Topic để xuất hiện trên bảng xếp hạng.'}</p>}
-          {onlyMe ? <p className="leaderboard-hint">Hiện chỉ có mình bạn trên bảng trong kỳ này.</p> : null}
+          {!(mine && myRank) ? <p>Bạn chưa có kết quả trong kỳ này. {mode === 'weekly' ? 'Làm một topic lần đầu để xuất hiện trên bảng xếp hạng tuần.' : 'Hoàn thành Topic để xuất hiện trên bảng xếp hạng.'}</p> : null}
 
           <h3>Top 3</h3>
-          <ol className="leaderboard-podium" aria-label="Top 3">{data.top3.map((row) => <li key={row.user.id} className={`leaderboard-top leaderboard-top-${row.rank}`}><span className="leaderboard-rank"><span className="sr-only">Hạng </span>#{row.rank}</span><LeaderboardPlayer row={row} large current={row.user.id === user?.id} namesUnavailable={namesUnavailable} /><strong>{leaderboardPoints(row).toLocaleString('vi-VN')} điểm</strong></li>)}</ol>
+          <ol className="leaderboard-podium" aria-label="Top 3">{[1, 2, 3].map((rank) => {
+            const row = data.top3.find((item) => item.rank === rank);
+            return <li key={rank} className={`leaderboard-slot leaderboard-slot-${rank}`}>
+              {row ? <div className={`leaderboard-top leaderboard-top-${rank}`}>
+                <PodiumCup rank={rank} />
+                <LeaderboardPlayer row={row} large current={row.user.id === user?.id} namesUnavailable={namesUnavailable} />
+                <strong>{leaderboardPoints(row).toLocaleString('vi-VN')} điểm</strong>
+              </div> : <div className={`leaderboard-top leaderboard-top-${rank} leaderboard-top-empty`}>
+                <PodiumCup rank={rank} faded />
+                <span className="leaderboard-empty-avatar" aria-hidden="true"><User /></span>
+                <p className="leaderboard-empty-label">HẠNG {rank}</p>
+                <p className="leaderboard-empty-rank">Chưa có người đạt hạng này</p>
+              </div>}
+              <div className={`leaderboard-step leaderboard-step-${rank}`} aria-hidden="true"><span className="leaderboard-step-num">{rank}</span></div>
+            </li>;
+          })}</ol>
           {mode === 'daily' ? <p className="leaderboard-hint">Bảng ngày {data.date} kết thúc lúc {new Date(data.closesAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}.</p> : null}
           {data.aroundMe.length ? <><h3>Quanh bạn</h3><LeaderboardTable rows={data.aroundMe} mode={mode} currentUserId={user?.id} caption="Các hạng quanh bạn" namesUnavailable={namesUnavailable} /></> : null}
           <h3 ref={listRef} tabIndex={-1}>Tất cả</h3>

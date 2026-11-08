@@ -16,7 +16,7 @@ export default function CertificatesPage() {
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try { setItems((await request.get<{ items: MyCertificateRequest[] }>('/certificate/requests/me')).items); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Không tải được chứng chỉ'); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Không tải được chứng nhận'); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -32,11 +32,11 @@ export default function CertificatesPage() {
   if (error) return <ErrorState message={error} retry={() => void load()} />;
   return (
     <>
-      <header className="page-heading"><div><p className="eyebrow">Thành tựu</p><h1>Chứng chỉ</h1><p>Hoàn thành khóa học để gửi yêu cầu; quản trị viên xem xét rồi cấp chứng chỉ. Chia sẻ mã để người khác xác minh.</p></div></header>
+      <header className="page-heading"><div><h1>Chứng nhận</h1><p>Hoàn thành khóa học để gửi yêu cầu; quản trị viên xem xét rồi cấp chứng nhận. Chia sẻ mã để người khác xác minh.</p></div></header>
       {actionError ? <p className="notice" role="alert">{actionError}</p> : null}
       {items.length ? <div className="grid grid-2">{items.map((item) => {
         const issued = item.status === 'APPROVED' && item.certificate && !item.certificate.revokedAt;
-        return <article className="panel" key={item.id} aria-label={`Chứng chỉ ${item.course.name}`}>
+        return <article className="panel" key={item.id} aria-label={`Chứng nhận ${item.course.name}`}>
           <Certificate size={36} color="var(--accent)" />
           <h2>{item.course.name}</h2>
           <p><CertStatus value={item.status} /></p>
@@ -49,7 +49,7 @@ export default function CertificatesPage() {
           </> : null}
           {item.status === 'REJECTED' ? <button className="button" style={{ marginTop: 16 }} disabled={busyId === item.id} onClick={() => void resubmit(item)}>{busyId === item.id ? 'Đang gửi…' : 'Gửi lại yêu cầu'}</button> : null}
         </article>;
-      })}</div> : <Empty title="Chưa có chứng chỉ" description="Hoàn thành khóa học để gửi yêu cầu nhận chứng chỉ." />}
+      })}</div> : <Empty title="Chưa có chứng nhận" description="Hoàn thành khóa học để gửi yêu cầu nhận chứng nhận." />}
     </>
   );
 }

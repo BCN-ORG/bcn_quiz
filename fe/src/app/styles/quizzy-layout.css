@@ -1,0 +1,450 @@
+/* ==========================================================================
+   QUIZZY LAYOUT — BỐ CỤC THEO FIGMA (đợt 2, kịch bản 05/11/2026 đã duyệt)
+   --------------------------------------------------------------------------
+   Lớp bố cục ráp nối BCN Quiz vào các khung Figma Quizzy:
+   - Khung chung: sidebar 264px, topbar có nút "+ Tạo khóa học"
+     (chỉ tài khoản quản trị).
+   - Dashboard: 4 thẻ số liệu + 2 cột (Khóa học gần đây / Làm bài gần đây).
+   - Khóa học: thẻ lớn chứa tìm kiếm + tab lọc + dòng thẻ ngang.
+   - Chi tiết khóa học: nút quay lại + 4 thẻ số liệu + 2 cột (Chủ đề / Project).
+   - Làm bài: toàn màn hình khi đang làm (body.quiz-playing ẩn sidebar/topbar),
+     topbar riêng của bài, thanh tiến trình, đáp án lưới 2×2.
+   - Quản trị: form 2 cột (Thông tin / Cấu hình), menu ⋮ chỉ Sửa/Xóa,
+     tab đang chọn là pill tím.
+   - Login: GIỮ NGUYÊN như cũ (landing SSO), không dùng bố cục chia đôi.
+
+   Chỉ đổi bố cục. Không đổi API, điều kiện quyền, thứ tự dữ liệu hay
+   bất kỳ logic nào trong .tsx. MÀU DÙNG LẠI MÀU WEB CŨ: file này chỉ dùng
+   biến màu gốc trong globals.css (xanh teal #087f65), không có mã màu tím
+   nào của theme Quizzy, không thêm file theme tím.
+   ========================================================================== */
+
+/* --- Khung chung: sidebar kiểu Figma, rộng 264px (chỉ desktop, mobile giữ drawer cũ) --- */
+@media (min-width: 901px) {
+  .sidebar {
+    width: 264px;
+    padding: 20px 14px;
+  }
+
+  .sidebar nav {
+    margin-top: 24px;
+  }
+
+  .main-column {
+    margin-left: 264px;
+  }
+}
+
+/* --- 4 thẻ số liệu kiểu Figma (Dashboard, Chi tiết khóa học) --- */
+.figma-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.figma-stat {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  display: grid;
+  gap: 6px;
+}
+
+.figma-stat > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.figma-stat > strong {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.figma-stat > small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* --- Chia 2 cột kiểu Figma (Dashboard, Chi tiết khóa học) --- */
+.figma-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.figma-split > * {
+  min-width: 0;
+}
+
+/* --- Danh sách "Cần hoàn thành" (Dashboard): tối đa 4 hàng, quá thì trượt dọc --- */
+.todo-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+/* --- Nút quay lại đầu trang chi tiết --- */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.back-link:hover {
+  color: var(--accent-strong);
+}
+
+/* --- Làm bài toàn màn hình (Figma Quiz playing): ẩn shell của app --- */
+body.quiz-playing .sidebar,
+body.quiz-playing .topbar,
+body.quiz-playing .bottom-nav {
+  display: none;
+}
+
+body.quiz-playing .main-column {
+  margin-left: 0;
+}
+
+body.quiz-playing .page-content {
+  width: min(1280px, 100%);
+}
+
+/* Topbar riêng của bài làm: quay lại | tên chủ đề | thao tác */
+.quiz-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.quiz-topbar h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  font-size: clamp(20px, 3vw, 28px);
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quiz-topbar .list-actions {
+  flex: 0 0 auto;
+}
+
+/* Thanh tiến trình kiểu Figma: "Câu x / y" + thanh tím + % */
+.quiz-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.quiz-progress-bar {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.quiz-progress-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* Đầu thẻ câu hỏi: pill điểm | đồng hồ | trạng thái lưu */
+.quiz-question-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.quiz-points {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.quiz-question-head .topic-clock {
+  margin: 0 auto;
+}
+
+.quiz-question-head .save-status {
+  margin: 0;
+}
+
+/* Đáp án lưới 2×2 kiểu Figma (chỉ desktop, mobile giữ 1 cột) */
+@media (min-width: 901px) {
+  .answer-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Chi tiết bài nộp ở panel duyệt (tab Duyệt project): tên và email/thời gian xếp chồng như trong dòng danh sách. */
+.review-detail strong, .review-detail small { display: block; }
+.review-detail small { color: var(--muted); }
+
+/* Form Quản trị — bố cục chuẩn (08/11/2026, tab Khóa học): chia mục có tiêu đề, ô chọn file kiểu mới, chân form tách riêng. */
+.form-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.form-section-title { display: flex; align-items: baseline; gap: 8px; margin: 0; padding-bottom: 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.form-section-count { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.form .field .required { color: var(--danger); }
+.form-subsection { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--accent-soft); }
+.form-subsection-title { margin: 0; font-size: 14px; font-weight: 700; }
+.file-picker { position: relative; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 8px 12px; border: 1.5px dashed var(--line); border-radius: 11px; background: var(--bg); cursor: pointer; }
+.file-picker:hover { border-color: var(--accent); }
+.file-picker input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.file-picker-button { flex-shrink: 0; padding: 6px 12px; border-radius: 8px; background: var(--surface-2); font-size: 13px; font-weight: 700; }
+.file-picker-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
+.form-footer { display: flex; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.form-footer .button { flex: 1; justify-content: center; }
+.form-footer .button.secondary { flex: 0 0 auto; }
+/* Danh sách chọn chủ đề: tên và slug xếp 2 dòng, không cắt chữ. */
+.admin-grid .form .choice-list label { align-items: flex-start; padding: 8px 10px; }
+.admin-grid .form .choice-list label input { flex-shrink: 0; margin-top: 3px; }
+.choice-text { display: grid; gap: 0; min-width: 0; }
+.choice-text strong { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+.choice-text small { color: var(--muted); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+/* Dòng tick "Có project cuối khóa": chữ đậm + dòng giải thích xếp chồng. */
+.form-section .check-field { align-items: flex-start; }
+.form-section .check-field input { margin-top: 2px; }
+.check-text { display: grid; gap: 2px; min-width: 0; }
+.check-text small { color: var(--muted); font-size: 13px; }
+
+/* Popup tạo/sửa khóa học (08/11/2026): form dài nên đưa vào popup, nút Tạo nằm trên danh sách. */
+.section-title-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dialog-wide { width: min(640px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 22px 0; }
+.dialog-header h2 { margin: 0; font-size: 20px; }
+.dialog-form { display: flex; flex-direction: column; gap: 0; min-height: 0; flex: 1; }
+.dialog-body { display: grid; gap: 16px; overflow-y: auto; padding: 16px 22px; }
+.dialog-footer { display: flex; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--line); }
+.dialog-footer .button { flex: 1; justify-content: center; }
+.dialog-footer .button.secondary { flex: 0 0 auto; }
+/* Trong popup rộng: danh sách chủ đề chia 2 cột cho gọn. */
+.dialog-wide .choice-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Trong popup: 2 ô cạnh nhau không kéo giãn theo ô cao hơn (vd Slug có gợi ý) — 2 input cao bằng nhau. */
+.dialog-wide .form-grid { align-items: start; }
+@media (max-width: 680px) {
+  .dialog-wide .choice-list { grid-template-columns: 1fr; }
+}
+
+/* Hàng đang chọn trong danh sách (tab Duyệt project): tô sáng để biết đang duyệt bài nào. */
+.list-row.selected {
+  outline: 2px solid var(--accent);
+  background: var(--accent-soft);
+  cursor: pointer;
+}
+
+.list-row[role="button"] {
+  cursor: pointer;
+}
+
+/* --- Quản trị: 2 bên (hành động trái, danh sách phải) --- */
+/* Lưới 2 cột lấy từ globals.css (.admin-grid: 0.72fr/1.28fr). Form trong cột trái
+   hẹp thì các ô xếp chồng 1 cột cho đủ rộng để nhập. */
+.admin-grid .form .form-cols {
+  grid-template-columns: 1fr;
+}
+
+.form-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.form-cols > * {
+  min-width: 0;
+}
+
+/* Menu ⋮ ở mỗi dòng (Figma Action Menu), chỉ Sửa/Xóa */
+.row-menu {
+  position: relative;
+}
+
+.row-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 150px;
+  display: grid;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.row-menu-panel button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.row-menu-panel button:hover {
+  background: var(--surface-2);
+}
+
+.row-menu-panel button.danger {
+  color: var(--danger);
+}
+
+.row-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* Tab quản trị: tab đang chọn là pill tím kiểu Figma */
+.tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* --- Bảng xếp hạng: bảng kiểu Figma Students --- */
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leaderboard-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.leaderboard-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.leaderboard-table tr:last-child td {
+  border-bottom: 0;
+}
+
+
+/* --- Mobile: stat 2 cột, form 1 cột, login xếp dọc --- */
+@media (max-width: 900px) {
+  .figma-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .figma-split,
+  .form-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .quiz-topbar {
+    flex-wrap: wrap;
+  }
+
+  .quiz-topbar h1 {
+    order: -1;
+    flex-basis: 100%;
+    text-align: left;
+  }
+
+}
+
+/* Toast Quản trị (08/11/2026): báo tạo/sửa/xóa thành công và lỗi, góc phải dưới, tự tắt sau 4,5 giây. */
+.admin-toasts { position: fixed; right: 22px; bottom: 22px; z-index: 60; display: grid; gap: 10px; width: min(360px, calc(100vw - 32px)); }
+.admin-toast { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: left; cursor: pointer; font-size: 14px; line-height: 1.45; }
+.admin-toast svg { width: 22px; height: 22px; margin-top: 1px; }
+.admin-toast-success { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.admin-toast-success svg { color: var(--accent-strong); }
+.admin-toast-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.admin-toast-error svg { color: var(--danger); }
+
+/* Thanh tìm kiếm Quản trị (08/11/2026): dùng đúng chuẩn form của app (class .search-input: cao 46px, bo 11px, viền line, nền bg), chỉ chừa chỗ cho icon kính lúp bên trái. */
+.admin-search { position: relative; display: block; }
+.admin-search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.admin-search input { padding-left: 42px; }
+/* Ô tìm gọn trong hàng tiêu đề, nằm bên trái nút Tạo (08/11/2026, theo ý anh). */
+.panel.section .section-title { flex-wrap: wrap; }
+.admin-search-compact { width: 240px; flex: none; }
+@media (max-width: 680px) {
+  .admin-search-compact { width: 100%; }
+}
+
+/* Duyệt project (08/11/2026): tên + huy hiệu trạng thái trên 1 hàng; nút Duyệt/Yêu cầu sửa dính đáy panel để luôn bấm được khi cuộn. */
+.review-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.review-actions { position: sticky; bottom: 0; z-index: 2; background: var(--surface); border-top: 1px solid var(--line); padding-top: 14px; margin-top: 6px; }
+
+/* Ô tìm Chứng nhận + Bảng xếp hạng (08/11/2026): icon kính lúp bên trái như ô tìm Quản trị; spinner tải vẫn ở phải. */
+.leaderboard-search input { padding-left: 42px; }
+.leaderboard-search .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+
+/* Hàng duyệt hàng loạt Chứng nhận (08/11/2026): thanh riêng có kẻ trên, checkbox trái + nút phải, hết chật. */
+.bulk-bar { justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; }
+.bulk-check { display: inline-flex; align-items: center; gap: 8px; font-weight: 650; cursor: pointer; }
+.bulk-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* Thu gọn aside (08/11/2026): nút thu gọn nằm ngang với profile ở cuối aside; chỉ desktop, mobile giữ drawer cũ. */
+.sidebar-footer-row { display: flex; align-items: center; gap: 10px; }
+.sidebar-footer-row .profile-trigger { flex: 1; min-width: 0; }
+.sidebar-collapse { flex: none; width: 36px; height: 36px; border-color: transparent; background: transparent; }
+.sidebar-collapse:hover { background: var(--surface-2); }
+.sidebar-collapse svg { width: 18px; height: 18px; }
+@media (min-width: 901px) {
+  .sidebar, .main-column { transition: width .25s ease, margin-left .25s ease; }
+  .app-layout-collapsed .sidebar { width: 104px; padding: 20px 8px; }
+  .app-layout-collapsed .main-column { margin-left: 104px; }
+  .app-layout-collapsed .brand strong { display: none; }
+  .app-layout-collapsed .brand-row { justify-content: center; }
+  .app-layout-collapsed .brand { justify-content: center; }
+  .app-layout-collapsed .sidebar nav a { justify-content: center; padding: 10px 0; }
+  .app-layout-collapsed .sidebar nav a span:not(.nav-rank) { display: none; }
+  .app-layout-collapsed .sidebar nav a .nav-rank { display: none; }
+  .app-layout-collapsed .user-compact > div:last-child { display: none; }
+  .app-layout-collapsed .sidebar-footer-row { gap: 4px; }
+  .app-layout-collapsed .sidebar-footer-row .profile-trigger { flex: none; width: auto; padding: 4px; }
+  .app-layout-collapsed .sidebar-collapse { width: 36px; height: 36px; }
+}
+@media (max-width: 900px) {
+  .sidebar-collapse { display: none; }
+}
+
+/* Animation mở popup (08/11/2026): nền mờ dần + hộp thoại trồi nhẹ từ dưới, áp cho mọi popup tạo/sửa/xóa (ConfirmDialog + dialog-wide). */
+@keyframes dialog-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialog-pop-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.dialog-backdrop { animation: dialog-fade-in .18s ease-out; }
+.dialog { animation: dialog-pop-in .22s cubic-bezier(.2, .7, .3, 1); }

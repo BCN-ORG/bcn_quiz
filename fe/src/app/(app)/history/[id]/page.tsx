@@ -53,7 +53,6 @@ export default function HistoryDetailPage() {
     <>
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Chi tiết lần làm</p>
           <h1>{detail.topic.name}</h1>
           <p>
             Nộp {detail.submittedAt ? new Date(detail.submittedAt).toLocaleString('vi-VN') : '—'}
