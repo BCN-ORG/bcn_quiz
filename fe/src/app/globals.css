@@ -1,5 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 :root {
   color-scheme: light;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Be Vietnam Pro", "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --bg: #f4f7f8;
   --surface: #ffffff;
   --surface-2: #edf2f3;
