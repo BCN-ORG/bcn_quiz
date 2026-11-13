@@ -2,18 +2,20 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle,
   Coins,
   HourglassHigh,
   Lightning,
+  Receipt,
   Sparkle,
   Timer,
   Trophy,
   XCircle,
-  ArrowRight,
-  Receipt,
-  CheckCircle,
 } from '@phosphor-icons/react';
-import { Loading, ErrorState } from '@/components/ui';
+import { Empty, ErrorState, Loading } from '@/components/ui';
+import { serverNow } from '@/lib/api';
 import {
   towerApi,
   TowerOverview,
@@ -34,10 +36,11 @@ export default function TowerPage() {
   const [currentStreak, setCurrentStreak] = useState(0);
   const [requiredStreak, setRequiredStreak] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   // Timer state
   const [remainingSeconds, setRemainingSeconds] = useState(10);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Result & Modals
   const [resultModal, setResultModal] = useState<AnswerResponse | null>(null);
@@ -62,13 +65,16 @@ export default function TowerPage() {
         setCooldownRemaining(0);
       }
 
-      // If there was an active attempt in progress
+      // If there is an active attempt in progress, restore it
       if (data.activeAttempt && data.activeAttempt.currentQuestion) {
         setIsPlaying(true);
         setCurrentFloor(data.activeAttempt.floor);
         setCurrentStreak(data.activeAttempt.currentStreak);
         setRequiredStreak(data.activeAttempt.requiredStreak);
         setCurrentQuestion(data.activeAttempt.currentQuestion);
+      } else {
+        setIsPlaying(false);
+        setCurrentQuestion(null);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể tải thông tin Tháp';
@@ -79,8 +85,29 @@ export default function TowerPage() {
   }, []);
 
   useEffect(() => {
-    fetchOverview();
+    void fetchOverview();
   }, [fetchOverview]);
+
+  // Toggle fullscreen quiz-playing mode on body when actively answering a question
+  useEffect(() => {
+    const playing = Boolean(isPlaying && currentQuestion);
+    document.body.classList.toggle('quiz-playing', playing);
+    return () => {
+      document.body.classList.remove('quiz-playing');
+    };
+  }, [isPlaying, currentQuestion]);
+
+  // Close modals on Escape
+  useEffect(() => {
+    if (!resultModal && !showHistory) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || submittingRef.current) return;
+      if (resultModal) setResultModal(null);
+      if (showHistory) setShowHistory(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [resultModal, showHistory]);
 
   // Cooldown countdown ticker
   useEffect(() => {
@@ -89,7 +116,7 @@ export default function TowerPage() {
       setCooldownRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          fetchOverview();
+          void fetchOverview();
           return 0;
         }
         return prev - 1;
@@ -99,20 +126,22 @@ export default function TowerPage() {
   }, [cooldownRemaining, fetchOverview]);
 
   const handleTimeout = useCallback(async () => {
-    if (submitting) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
-      // Submitting an empty or invalid label triggers backend timeout validation
+      // Submitting 'TIMEOUT' triggers failure; force reason: 'TIMEOUT' in case request lands inside backend 1.5s grace window
       const res = await towerApi.submitAnswer('TIMEOUT');
-      setResultModal(res);
+      setResultModal({ ...res, reason: 'TIMEOUT' });
       setIsPlaying(false);
-      fetchOverview();
+      void fetchOverview();
     } catch {
-      fetchOverview();
+      void fetchOverview();
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [submitting, fetchOverview]);
+  }, [fetchOverview]);
 
   // 10s Question timer countdown
   useEffect(() => {
@@ -124,13 +153,13 @@ export default function TowerPage() {
     const expiresAtMs = new Date(currentQuestion.expiresAt).getTime();
 
     const updateTimer = () => {
-      const now = Date.now();
+      const now = serverNow();
       const diffSec = Math.max(0, Math.ceil((expiresAtMs - now) / 1000));
       setRemainingSeconds(diffSec);
 
       if (diffSec <= 0) {
         if (timerRef.current) clearInterval(timerRef.current);
-        handleTimeout();
+        void handleTimeout();
       }
     };
 
@@ -143,6 +172,8 @@ export default function TowerPage() {
   }, [isPlaying, currentQuestion, handleTimeout]);
 
   const handleStartFloor = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setActionError(null);
     try {
@@ -156,14 +187,16 @@ export default function TowerPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể bắt đầu tầng';
       setActionError(msg);
-      fetchOverview();
+      void fetchOverview();
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleSelectOption = async (label: string) => {
-    if (submitting || !isPlaying) return;
+    if (submittingRef.current || !isPlaying) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setActionError(null);
 
@@ -175,20 +208,17 @@ export default function TowerPage() {
         if (res.nextQuestion) {
           setCurrentQuestion(res.nextQuestion);
         }
-      } else if (res.result === 'FLOOR_COMPLETED') {
+      } else if (res.result === 'FLOOR_COMPLETED' || res.result === 'FAILED') {
         setIsPlaying(false);
         setResultModal(res);
-        fetchOverview();
-      } else if (res.result === 'FAILED') {
-        setIsPlaying(false);
-        setResultModal(res);
-        fetchOverview();
+        void fetchOverview();
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Lỗi gửi đáp án';
       setActionError(msg);
-      fetchOverview();
+      void fetchOverview();
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -213,462 +243,412 @@ export default function TowerPage() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  if (loading) return <main className="center-page"><Loading label="Đang tải dữ liệu Leo Tháp" /></main>;
+  const txStatusClass = (status: TowerRewardTransactionItem['status']) => {
+    if (status === 'SUCCESS') return 'status status-completed';
+    if (status === 'FAILED') return 'status status-rejected';
+    return 'status status-in_progress';
+  };
+
+  const txStatusLabel = (status: TowerRewardTransactionItem['status']) => {
+    if (status === 'SUCCESS') return 'Thành công';
+    if (status === 'FAILED') return 'Thất bại';
+    if (status === 'PENDING') return 'Đang xử lý';
+    return 'Đang đối soát';
+  };
+
+  if (loading) return <Loading label="Đang tải dữ liệu Leo Tháp" />;
   if (error || !overview) {
     return (
-      <main className="center-page">
-        <ErrorState title="Không thể tải dữ liệu Tháp" message={error || 'Đã có lỗi xảy ra'} retry={fetchOverview} />
-      </main>
+      <ErrorState
+        title="Không thể tải dữ liệu Tháp"
+        message={error || 'Đã có lỗi xảy ra'}
+        retry={() => void fetchOverview()}
+      />
     );
   }
 
-  return (
-    <div className="content-container">
-      {/* Header Banner */}
-      <div className="course-header" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span className="badge primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <Sparkle weight="fill" /> {overview.season.name}
-              </span>
-              {cooldownRemaining > 0 && (
-                <span className="badge danger" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <HourglassHigh weight="bold" /> Cooldown: {formatCooldown(cooldownRemaining)}
-                </span>
-              )}
-            </div>
-            <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>
-              Daily Quiz Tower — Leo Tháp Kiến Thức
-            </h1>
-            <p style={{ margin: '4px 0 0 0', color: 'var(--muted)' }}>
-              Chinh phục 100 tầng tháp. Mỗi tầng thưởng 1 Coin. Trả lời đúng liên tiếp, 10 giây/câu!
-            </p>
-          </div>
+  const isAllConquered = overview.progress.highestCompletedFloor >= 100;
+  const streakPercent = requiredStreak
+    ? Math.min(100, Math.round((currentStreak / requiredStreak) * 100))
+    : 0;
 
-          <div style={{ display: 'flex', gap: 10 }}>
+  return (
+    <>
+      {isPlaying && currentQuestion ? (
+        /* Quiz Playing View — follows Quizzy layout in topics/[id]/page.tsx */
+        <>
+          <div className="quiz-topbar">
             <button
               type="button"
               className="button secondary"
-              onClick={handleOpenHistory}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setIsPlaying(false)}
             >
-              <Receipt size={18} /> Lịch sử Coin
+              <ArrowLeft /> Bản đồ tháp
             </button>
-          </div>
-        </div>
-
-        {/* Action Error Banner */}
-        {actionError && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: '10px 16px',
-              borderRadius: 8,
-              background: 'var(--surface-2)',
-              border: '1px solid var(--danger)',
-              color: 'var(--danger)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <span>{actionError}</span>
-            <button
-              type="button"
-              onClick={() => setActionError(null)}
-              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700 }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Stats Row */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: 16,
-            marginTop: 20,
-            paddingTop: 16,
-            borderTop: '1px solid var(--line)',
-          }}
-        >
-          <div className="stat-card" style={{ background: 'var(--surface)', padding: 16, borderRadius: 8 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Tầng hiện tại</span>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--accent)' }}>
-              Tầng {overview.progress.currentFloor}
-            </div>
-          </div>
-          <div className="stat-card" style={{ background: 'var(--surface)', padding: 16, borderRadius: 8 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Kỷ lục mùa này</span>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#10b981' }}>
-              Tầng {overview.progress.highestCompletedFloor}
-            </div>
-          </div>
-          <div className="stat-card" style={{ background: 'var(--surface)', padding: 16, borderRadius: 8 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Coin tích lũy mùa này</span>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Coins weight="fill" /> {overview.progress.highestCompletedFloor} Coins
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Area: Play View or Tower Map */}
-      {isPlaying && currentQuestion ? (
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '2px solid var(--accent)',
-            borderRadius: 12,
-            padding: 24,
-            maxWidth: 800,
-            margin: '0 auto',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-          }}
-        >
-          {/* Question Top Bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span className="badge primary" style={{ fontSize: '0.9rem', padding: '6px 12px' }}>
-                Tầng {currentFloor}
-              </span>
-              <span style={{ fontWeight: 600 }}>
-                Chuỗi đúng: {currentStreak} / {requiredStreak} câu
+            <h1>Leo Tháp — Tầng {currentFloor}</h1>
+            <div className="list-actions">
+              <span className="status status-completed">
+                Chuỗi đúng: {currentStreak}/{requiredStreak}
               </span>
             </div>
-
-            {/* Countdown Badge */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 14px',
-                borderRadius: 20,
-                fontWeight: 700,
-                fontSize: '1.1rem',
-                backgroundColor: remainingSeconds <= 3 ? '#fee2e2' : '#e0f2fe',
-                color: remainingSeconds <= 3 ? '#dc2626' : '#0284c7',
-                border: `2px solid ${remainingSeconds <= 3 ? '#ef4444' : '#38bdf8'}`,
-              }}
-            >
-              <Timer size={22} weight="bold" />
-              <span>{remainingSeconds}s</span>
-            </div>
           </div>
 
-          {/* Streak Progress Track */}
           <div
-            style={{
-              height: 8,
-              background: 'var(--line)',
-              borderRadius: 4,
-              overflow: 'hidden',
-              marginBottom: 24,
-            }}
+            className="quiz-progress"
+            aria-label={`Tiến độ tầng ${currentFloor}: câu ${currentQuestion.currentQuestionNumber} trên ${requiredStreak}`}
           >
-            <div
-              style={{
-                height: '100%',
-                width: `${Math.min(100, (currentStreak / requiredStreak) * 100)}%`,
-                background: 'linear-gradient(90deg, var(--accent) 0%, #10b981 100%)',
-                transition: 'width 0.3s ease',
-              }}
-            />
-          </div>
-
-          {/* Question Text */}
-          <div style={{ marginBottom: 20 }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.5, margin: 0 }}>
-              Câu {currentQuestion.currentQuestionNumber}: {currentQuestion.question}
-            </h2>
-            {currentQuestion.code && (
-              <pre
-                style={{
-                  background: 'var(--surface-2)',
-                  padding: 14,
-                  borderRadius: 6,
-                  marginTop: 12,
-                  overflowX: 'auto',
-                  fontSize: '0.9rem',
-                }}
-              >
-                <code>{currentQuestion.code}</code>
-              </pre>
-            )}
-            {currentQuestion.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={currentQuestion.imageUrl}
-                alt="Question diagram"
-                style={{ maxWidth: '100%', borderRadius: 8, marginTop: 12 }}
-              />
-            )}
-          </div>
-
-          {/* Options Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-            {currentQuestion.options.map((opt) => (
-              <button
-                key={opt.label}
-                type="button"
-                disabled={submitting}
-                onClick={() => handleSelectOption(opt.label)}
-                className="button secondary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  padding: 14,
-                  textAlign: 'left',
-                  borderRadius: 8,
-                  fontSize: '1rem',
-                  border: '1px solid var(--line)',
-                  background: 'var(--surface)',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 32,
-                    height: 32,
-                    borderRadius: '50%',
-                    background: 'var(--surface-2)',
-                    fontWeight: 700,
-                    color: 'var(--accent)',
-                    flexShrink: 0,
-                  }}
-                >
-                  {opt.label}
-                </span>
-                <span style={{ flex: 1 }}>{opt.content}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        /* Overview Stage: Ready to Play */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Action Box */}
-          <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--line)',
-              borderRadius: 12,
-              padding: 24,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              textAlign: 'center',
-              gap: 16,
-            }}
-          >
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                fontSize: '2rem',
-              }}
-            >
-              <Trophy weight="fill" />
+            <span>
+              Câu {currentQuestion.currentQuestionNumber} / {requiredStreak}
+            </span>
+            <div className="quiz-progress-bar">
+              <span style={{ width: `${streakPercent}%` }} />
             </div>
+            <span>{streakPercent}% hoàn thành</span>
+          </div>
 
-            <div>
-              <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>
-                Tầng {overview.progress.currentFloor} / 100
-              </h2>
-              <p style={{ margin: '6px 0 0 0', color: 'var(--muted)' }}>
-                Yêu cầu: Trả lời đúng liên tiếp {overview.progress.currentFloor} câu hỏi.
-                Thời gian: 10 giây mỗi câu.
+          {actionError ? (
+            <div className="notice notice-danger" role="alert" style={{ marginTop: 0, marginBottom: 18 }}>
+              <strong>{actionError}</strong>
+            </div>
+          ) : null}
+
+          <section className="panel quiz-question" style={{ minHeight: 'auto' }}>
+            <div className="quiz-question-head">
+              <span className="quiz-points">Tầng {currentFloor} • +1 Coin</span>
+              <p
+                className={`topic-clock tower-clock ${remainingSeconds <= 3 ? 'is-warning' : ''}`}
+                role="timer"
+                aria-live="off"
+              >
+                <Timer weight="bold" aria-hidden="true" />
+                <span>Còn {remainingSeconds}s</span>
+              </p>
+              <p className="save-status" role="status" aria-live="polite">
+                {submitting
+                  ? 'Đang chấm đáp án…'
+                  : `Cần ${requiredStreak} câu đúng liên tiếp`}
               </p>
             </div>
 
-            {cooldownRemaining > 0 ? (
-              <div
+            <h2 id="tower-question-text" style={{ overflowWrap: 'anywhere' }}>
+              {currentQuestion.question}
+            </h2>
+
+            {currentQuestion.code ? (
+              <pre className="code-block">
+                <code>{currentQuestion.code}</code>
+              </pre>
+            ) : null}
+
+            {currentQuestion.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={currentQuestion.imageUrl}
+                alt="Minh họa cho câu hỏi"
                 style={{
-                  background: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  color: '#991b1b',
-                  padding: '12px 20px',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
+                  width: '100%',
+                  maxHeight: 420,
+                  objectFit: 'contain',
+                  borderRadius: 12,
+                  marginTop: 16,
                 }}
-              >
-                <HourglassHigh size={24} weight="fill" />
-                <div style={{ textAlign: 'left' }}>
-                  <strong>Đang trong thời gian cooldown 4 giờ</strong>
-                  <div>Thử lại sau: <strong>{formatCooldown(cooldownRemaining)}</strong></div>
-                </div>
-              </div>
-            ) : (
+              />
+            ) : null}
+
+            <div
+              className="answer-list"
+              role="radiogroup"
+              aria-labelledby="tower-question-text"
+            >
+              {currentQuestion.options.map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  className="answer"
+                  disabled={submitting}
+                  onClick={() => void handleSelectOption(opt.label)}
+                >
+                  <span>{opt.label}</span>
+                  <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                    {opt.isCode ? (
+                      <code className="tower-code-option">{opt.content}</code>
+                    ) : (
+                      opt.content
+                    )}
+                  </span>
+                  <span />
+                </button>
+              ))}
+            </div>
+
+            <p className="answer-hint">
+              Chọn một đáp án trong vòng 10 giây. Trả lời sai hoặc hết giờ sẽ bị cooldown 4 giờ.
+            </p>
+          </section>
+        </>
+      ) : (
+        /* Overview / Tower Map View */
+        <>
+          <header className="page-heading">
+            <div>
+              <p className="eyebrow">
+                <Sparkle weight="fill" style={{ verticalAlign: '-2px' }} /> {overview.season.name}
+              </p>
+              <h1>Leo Tháp Kiến Thức</h1>
+              <p>
+                Chinh phục 100 tầng tháp mỗi tháng. Vượt qua mỗi tầng nhận ngay +1 Coin. Trả lời đúng liên tiếp với 10 giây mỗi câu!
+              </p>
+            </div>
+            <div className="list-actions">
               <button
                 type="button"
-                className="button primary"
-                onClick={handleStartFloor}
-                disabled={submitting}
-                style={{
-                  fontSize: '1.1rem',
-                  padding: '12px 32px',
-                  borderRadius: 8,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontWeight: 600,
-                }}
+                className="button secondary"
+                onClick={() => void handleOpenHistory()}
               >
-                <Lightning weight="fill" size={20} /> Bắt đầu chinh phục Tầng {overview.progress.currentFloor}
+                <Receipt /> Lịch sử Coin
               </button>
-            )}
-          </div>
+            </div>
+          </header>
 
-          {/* 100-Floor Map Grid */}
-          <div style={{ background: 'var(--surface)', padding: 24, borderRadius: 12, border: '1px solid var(--line)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 600 }}>
-              Bản đồ Tháp Kiến Thức (100 Tầng)
-            </h3>
+          {actionError ? (
             <div
+              className="notice notice-danger"
+              role="alert"
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(68px, 1fr))',
-                gap: 8,
+                marginTop: 0,
+                marginBottom: 20,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
               }}
             >
+              <strong>{actionError}</strong>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setActionError(null)}
+              >
+                Đóng
+              </button>
+            </div>
+          ) : null}
+
+          <div className="figma-stats" aria-label="Số liệu Leo Tháp">
+            <div className="figma-stat">
+              <span>Tầng hiện tại</span>
+              <strong style={{ color: 'var(--accent)' }}>
+                Tầng {overview.progress.currentFloor}
+              </strong>
+              <small>yêu cầu {overview.progress.currentFloor} câu đúng liên tiếp</small>
+            </div>
+            <div className="figma-stat">
+              <span>Kỷ lục mùa này</span>
+              <strong>Tầng {overview.progress.highestCompletedFloor}</strong>
+              <small>trên 100 tầng tháp</small>
+            </div>
+            <div className="figma-stat">
+              <span>Coin tích lũy mùa này</span>
+              <strong
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  color: 'var(--warning)',
+                }}
+              >
+                <Coins weight="fill" /> {overview.progress.highestCompletedFloor}
+              </strong>
+              <small>+1 Coin mỗi tầng vượt qua</small>
+            </div>
+            <div className="figma-stat">
+              <span>Trạng thái</span>
+              {cooldownRemaining > 0 ? (
+                <>
+                  <strong style={{ color: 'var(--danger)' }}>
+                    {formatCooldown(cooldownRemaining)}
+                  </strong>
+                  <small>Đang trong cooldown 4 giờ</small>
+                </>
+              ) : isAllConquered ? (
+                <>
+                  <strong style={{ color: 'var(--accent)' }}>100 / 100</strong>
+                  <small>Đã chinh phục đỉnh tháp</small>
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: 'var(--accent)' }}>Sẵn sàng</strong>
+                  <small>
+                    {overview.activeAttempt
+                      ? `Đang làm dở Tầng ${overview.activeAttempt.floor}`
+                      : 'Có thể leo tháp ngay'}
+                  </small>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="topic-grid">
+            <article className="topic-card">
+              <h2>Thể lệ Leo Tháp</h2>
+              <ul className="topic-rules">
+                <li>
+                  Tháp gồm 100 tầng và được làm mới vào đầu mỗi tháng ({overview.season.name}).
+                </li>
+                <li>
+                  Ở <strong>Tầng N</strong>, bạn cần trả lời đúng liên tiếp <strong>N câu hỏi</strong> trong một lượt chơi để vượt tầng.
+                </li>
+                <li>
+                  Mỗi câu hỏi có tối đa <strong>10 giây</strong> suy nghĩ. Độ khó tăng dần theo tầng (Tầng 1–30: Cơ bản, 31–70: Trung bình, 71–100: Nâng cao).
+                </li>
+                <li>
+                  Vượt tầng thành công nhận ngay <strong>+1 Coin</strong>. Trả lời sai hoặc hết giờ sẽ bị <strong>cooldown 4 giờ</strong> trước khi thử lại.
+                </li>
+              </ul>
+            </article>
+
+            <aside className="topic-card topic-start">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="avatar" aria-hidden="true">
+                  <Trophy weight="fill" size={22} />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0 }}>
+                    {isAllConquered
+                      ? 'Đã chinh phục đỉnh Tháp!'
+                      : `Tầng ${overview.progress.currentFloor} / 100`}
+                  </h2>
+                  <small style={{ color: 'var(--muted)' }}>
+                    Phần thưởng vượt tầng: +1 Coin
+                  </small>
+                </div>
+              </div>
+
+              {isAllConquered ? (
+                <div className="notice notice-success" style={{ marginTop: 0 }}>
+                  <strong>Bạn đã hoàn thành toàn bộ 100 tầng trong mùa giải này!</strong>
+                  <p style={{ margin: '6px 0 0' }}>
+                    Hẹn gặp lại bạn ở mùa giải tiếp theo để tiếp tục săn Coin.
+                  </p>
+                </div>
+              ) : cooldownRemaining > 0 ? (
+                <div className="notice notice-danger" style={{ marginTop: 0 }}>
+                  <strong style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <HourglassHigh weight="fill" /> Đang trong thời gian cooldown 4 giờ
+                  </strong>
+                  <p style={{ margin: '6px 0 0' }}>
+                    Có thể thử lại Tầng {overview.progress.currentFloor} sau:{' '}
+                    <strong>{formatCooldown(cooldownRemaining)}</strong>
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p>
+                    Yêu cầu trả lời đúng liên tiếp{' '}
+                    <strong>{overview.progress.currentFloor} câu hỏi</strong> (10 giây/câu).
+                  </p>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => void handleStartFloor()}
+                    disabled={submitting}
+                  >
+                    <Lightning weight="fill" />{' '}
+                    {submitting
+                      ? 'Đang chuẩn bị…'
+                      : overview.activeAttempt
+                        ? `Tiếp tục Tầng ${overview.activeAttempt.floor}`
+                        : `Bắt đầu chinh phục Tầng ${overview.progress.currentFloor}`}
+                  </button>
+                </>
+              )}
+            </aside>
+          </div>
+
+          <section className="panel" style={{ marginTop: 20 }}>
+            <div className="section-title" style={{ flexWrap: 'wrap' }}>
+              <h2>Bản đồ Tháp Kiến Thức (100 Tầng)</h2>
+              <div className="list-actions">
+                <span className="status status-completed">✓ Đã vượt (+1 Coin)</span>
+                <span className="status status-in_progress">Tầng hiện tại</span>
+                <span className="status">Khóa</span>
+              </div>
+            </div>
+
+            <div className="tower-floor-grid">
               {Array.from({ length: 100 }, (_, i) => i + 1).map((floorNum) => {
                 const isPassed = floorNum <= overview.progress.highestCompletedFloor;
-                const isCurrent = floorNum === overview.progress.currentFloor;
-
-                let bg = 'var(--surface-2)';
-                let color = 'var(--muted)';
-                let borderColor = 'var(--line)';
-
-                if (isPassed) {
-                  bg = '#ecfdf5';
-                  color = '#065f46';
-                  borderColor = '#10b981';
-                } else if (isCurrent) {
-                  bg = '#fef3c7';
-                  color = '#92400e';
-                  borderColor = '#f59e0b';
-                }
+                const isCurrent =
+                  !isAllConquered && floorNum === overview.progress.currentFloor;
+                const cellClass = isPassed
+                  ? 'tower-floor-cell is-passed'
+                  : isCurrent
+                    ? 'tower-floor-cell is-current'
+                    : 'tower-floor-cell';
 
                 return (
-                  <div
-                    key={floorNum}
-                    style={{
-                      border: `1px solid ${borderColor}`,
-                      background: bg,
-                      color,
-                      borderRadius: 6,
-                      padding: '8px 4px',
-                      textAlign: 'center',
-                      fontSize: '0.85rem',
-                      fontWeight: isCurrent ? 700 : 500,
-                    }}
-                  >
-                    <div>{floorNum}</div>
-                    <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>
-                      {isPassed ? '✓ 1 coin' : isCurrent ? 'Hiện tại' : 'Khóa'}
-                    </div>
+                  <div key={floorNum} className={cellClass}>
+                    <strong>Tầng {floorNum}</strong>
+                    <small>
+                      {isPassed ? '✓ +1 Coin' : isCurrent ? 'Hiện tại' : 'Khóa'}
+                    </small>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </div>
+          </section>
+        </>
       )}
 
       {/* Result Modal */}
-      {resultModal && (
+      {resultModal ? (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-            zIndex: 1000,
-          }}
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={() => setResultModal(null)}
         >
           <div
-            style={{
-              background: 'var(--surface)',
-              borderRadius: 12,
-              padding: 24,
-              maxWidth: 480,
-              width: '100%',
-              textAlign: 'center',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-            }}
+            className="dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="tower-result-title"
+            style={{ width: 'min(480px, 100%)', textAlign: 'center' }}
+            onClick={(event) => event.stopPropagation()}
           >
             {resultModal.result === 'FLOOR_COMPLETED' ? (
               <>
-                <div
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: '50%',
-                    background: '#ecfdf5',
-                    color: '#059669',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 16px auto',
-                  }}
-                >
-                  <CheckCircle size={36} weight="fill" />
+                <div className="tower-result-icon" aria-hidden="true">
+                  <CheckCircle size={32} weight="fill" />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: '#059669' }}>
-                  Chúc mừng hoàn thành Tầng {resultModal.completedFloor}!
-                </h2>
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: '#fef3c7',
-                    color: '#b45309',
-                    padding: '8px 16px',
-                    borderRadius: 20,
-                    fontWeight: 700,
-                    margin: '16px 0',
-                  }}
-                >
-                  <Coins size={22} weight="fill" />
-                  <span>+1 Coin đã được cộng vào tài khoản</span>
+                <strong id="tower-result-title" style={{ fontSize: 20 }}>
+                  Chúc mừng vượt Tầng {resultModal.completedFloor}!
+                </strong>
+                <div style={{ margin: '12px 0 16px' }}>
+                  <span className="status status-completed" style={{ fontSize: 13, padding: '6px 12px' }}>
+                    <Coins weight="fill" style={{ marginRight: 6 }} />
+                    +{resultModal.rewardCoins ?? 1} Coin đã được cộng vào tài khoản
+                  </span>
                 </div>
-                {resultModal.explanation && (
-                  <p style={{ fontSize: '0.9rem', color: 'var(--muted)', textAlign: 'left', background: 'var(--surface-2)', padding: 12, borderRadius: 6 }}>
-                    <strong>Giải thích:</strong> {resultModal.explanation}
-                  </p>
-                )}
-                <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'center' }}>
-                  <button
-                    type="button"
-                    className="button primary"
-                    onClick={() => {
-                      setResultModal(null);
-                      handleStartFloor();
-                    }}
-                  >
-                    Tiếp tục Tầng {resultModal.nextFloor} <ArrowRight />
-                  </button>
+                {resultModal.explanation ? (
+                  <div className="review-explain" style={{ textAlign: 'left', marginTop: 0, marginBottom: 18 }}>
+                    <strong>Giải thích câu cuối</strong>
+                    <p style={{ margin: 0, color: 'var(--text)' }}>{resultModal.explanation}</p>
+                  </div>
+                ) : null}
+                <div className="list-actions" style={{ justifyContent: 'center' }}>
+                  {(resultModal.completedFloor ?? 0) < 100 ? (
+                    <button
+                      type="button"
+                      className="button"
+                      disabled={submitting}
+                      onClick={() => {
+                        setResultModal(null);
+                        void handleStartFloor();
+                      }}
+                    >
+                      Tiếp tục Tầng {resultModal.nextFloor} <ArrowRight />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="button secondary"
@@ -680,90 +660,61 @@ export default function TowerPage() {
               </>
             ) : (
               <>
-                <div
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: '50%',
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 16px auto',
-                  }}
-                >
-                  <XCircle size={36} weight="fill" />
+                <div className="tower-result-icon is-danger" aria-hidden="true">
+                  <XCircle size={32} weight="fill" />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: '#dc2626' }}>
+                <strong id="tower-result-title" style={{ fontSize: 20, color: 'var(--danger)' }}>
                   Chưa vượt qua Tầng {currentFloor}
-                </h2>
-                <p style={{ margin: '8px 0', color: 'var(--muted)' }}>
+                </strong>
+                <p style={{ marginTop: 8 }}>
                   {resultModal.reason === 'TIMEOUT'
                     ? 'Bạn đã hết thời gian 10 giây để trả lời câu hỏi.'
-                    : `Bạn đã trả lời chưa chính xác. Đáp án đúng là: ${resultModal.correctAnswer ?? ''}`}
+                    : `Bạn đã trả lời chưa chính xác.${
+                        resultModal.correctAnswer
+                          ? ` Đáp án đúng là: ${resultModal.correctAnswer}.`
+                          : ''
+                      }`}
                 </p>
-                {resultModal.explanation && (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--muted)', textAlign: 'left', background: 'var(--surface-2)', padding: 10, borderRadius: 6 }}>
-                    <strong>Giải thích:</strong> {resultModal.explanation}
-                  </p>
-                )}
-                <div
-                  style={{
-                    background: '#fef2f2',
-                    border: '1px solid #fecaca',
-                    color: '#b91c1c',
-                    padding: '10px',
-                    borderRadius: 8,
-                    margin: '16px 0',
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  Cooldown 4 giờ trước khi được chơi lại tầng này.
+                {resultModal.explanation ? (
+                  <div className="review-explain" style={{ textAlign: 'left', marginTop: 0, marginBottom: 16 }}>
+                    <strong>Giải thích</strong>
+                    <p style={{ margin: 0, color: 'var(--text)' }}>{resultModal.explanation}</p>
+                  </div>
+                ) : null}
+                <div className="notice notice-danger" style={{ marginTop: 0, marginBottom: 18 }}>
+                  <strong>Cooldown 4 giờ trước khi được thử lại tầng này.</strong>
                 </div>
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={() => setResultModal(null)}
-                >
-                  Đóng
-                </button>
+                <div className="list-actions" style={{ justifyContent: 'center' }}>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => setResultModal(null)}
+                  >
+                    Đóng
+                  </button>
+                </div>
               </>
             )}
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Transactions History Drawer */}
-      {showHistory && (
+      {/* Transactions History Modal */}
+      {showHistory ? (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 16,
-          }}
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={() => setShowHistory(false)}
         >
           <div
-            style={{
-              background: 'var(--surface)',
-              borderRadius: 12,
-              padding: 24,
-              maxWidth: 640,
-              width: '100%',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-            }}
+            className="dialog dialog-wide"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tower-history-title"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>
-                Lịch sử nhận Coin Tháp
-              </h3>
+            <div className="dialog-header">
+              <h2 id="tower-history-title">Lịch sử nhận Coin Tháp</h2>
               <button
                 type="button"
                 className="button secondary"
@@ -772,60 +723,45 @@ export default function TowerPage() {
                 Đóng
               </button>
             </div>
-
-            {loadingHistory ? (
-              <Loading label="Đang tải lịch sử giao dịch..." />
-            ) : transactions.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--muted)', margin: '32px 0' }}>
-                Chưa có giao dịch thưởng coin nào trong mùa giải này.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {transactions.map((tx) => (
-                  <div
-                    key={tx.id}
-                    style={{
-                      border: '1px solid var(--line)',
-                      borderRadius: 8,
-                      padding: 12,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600 }}>Tầng {tx.floor}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
-                        Mã: {tx.idempotencyKey}
+            <div className="dialog-body">
+              {loadingHistory ? (
+                <Loading label="Đang tải lịch sử giao dịch" />
+              ) : transactions.length === 0 ? (
+                <Empty
+                  title="Chưa có giao dịch thưởng Coin"
+                  description="Khi bạn vượt qua một tầng tháp, lịch sử cộng Coin sẽ hiển thị tại đây."
+                />
+              ) : (
+                <div className="list">
+                  {transactions.map((tx) => (
+                    <div key={tx.id} className="list-row">
+                      <div>
+                        <strong>
+                          Tầng {tx.floor} {tx.season?.name ? `· ${tx.season.name}` : ''}
+                        </strong>
+                        <small style={{ overflowWrap: 'anywhere' }}>
+                          {new Date(tx.createdAt).toLocaleString('vi-VN')} · Mã: {tx.idempotencyKey}
+                        </small>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
-                        {new Date(tx.createdAt).toLocaleString('vi-VN')}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 700, color: '#f59e0b' }}>
-                        +{tx.rewardCoins} Coin
-                      </div>
-                      <span
-                        className={`badge ${
-                          tx.status === 'SUCCESS'
-                            ? 'primary'
-                            : tx.status === 'PENDING'
-                            ? 'warning'
-                            : 'danger'
-                        }`}
-                        style={{ fontSize: '0.7rem' }}
+                      <div
+                        className="list-actions"
+                        style={{ alignItems: 'center', flexShrink: 0 }}
                       >
-                        {tx.status}
-                      </span>
+                        <strong style={{ color: 'var(--warning)' }}>
+                          +{tx.rewardCoins} Coin
+                        </strong>
+                        <span className={txStatusClass(tx.status)}>
+                          {txStatusLabel(tx.status)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      )}
-    </div>
+      ) : null}
+    </>
   );
 }

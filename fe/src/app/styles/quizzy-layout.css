@@ -448,3 +448,104 @@ body.quiz-playing .page-content {
 @keyframes dialog-pop-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .dialog-backdrop { animation: dialog-fade-in .18s ease-out; }
 .dialog { animation: dialog-pop-in .22s cubic-bezier(.2, .7, .3, 1); }
+
+/* --- Daily Quiz Tower (/tower): đồng hồ 10s, đáp án code, lưới 100 tầng tương thích Sáng/Tối --- */
+.tower-clock {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+
+.tower-clock.is-warning {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  color: var(--danger);
+}
+
+.tower-code-option {
+  display: inline-block;
+  max-width: 100%;
+  font: 600 13.5px/1.5 var(--font-mono), ui-monospace, monospace;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.tower-floor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+}
+
+.tower-floor-cell {
+  display: grid;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tower-floor-cell strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tower-floor-cell small {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tower-floor-cell.is-passed {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.tower-floor-cell.is-passed strong {
+  color: var(--accent-strong);
+}
+
+.tower-floor-cell.is-current {
+  border-color: color-mix(in srgb, var(--warning) 65%, var(--line));
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface));
+  color: var(--warning);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 45%, transparent);
+}
+
+.tower-floor-cell.is-current strong {
+  color: var(--warning);
+  font-weight: 800;
+}
+
+.tower-result-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  border-radius: 16px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.tower-result-icon.is-danger {
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  color: var(--danger);
+}
+
+@media (max-width: 680px) {
+  .tower-floor-grid {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    gap: 6px;
+  }
+}
