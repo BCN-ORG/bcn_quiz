@@ -20,10 +20,12 @@ const TIME_LIMIT_SECONDS = 10;
 const NETWORK_GRACE_MS = 1500;
 const COOLDOWN_HOURS = 4;
 const MAX_FLOOR = 100;
+const VN_OFFSET_MS = 7 * 3600 * 1000; // Asia/Ho_Chi_Minh (UTC+7)
 
 @Injectable()
 export class TowerService {
   private readonly logger = new Logger(TowerService.name);
+  private readonly userStartLocks = new Map<string, Promise<unknown>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -32,11 +34,13 @@ export class TowerService {
 
   /**
    * Computes or retrieves the active monthly season.
-   * Format: YYYY-MM based on UTC / Asia/Ho_Chi_Minh.
+   * Format: YYYY-MM strictly anchored to Asia/Ho_Chi_Minh (UTC+7).
    */
   async getOrCreateCurrentSeason(now = new Date()) {
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const vnTime = new Date(now.getTime() + VN_OFFSET_MS);
+    const year = vnTime.getUTCFullYear();
+    const monthIndex = vnTime.getUTCMonth();
+    const month = String(monthIndex + 1).padStart(2, '0');
     const seasonKey = `${year}-${month}`;
 
     let season = await this.prisma.towerSeason.findUnique({
@@ -44,8 +48,12 @@ export class TowerService {
     });
 
     if (!season) {
-      const startsAt = new Date(Date.UTC(year, now.getMonth(), 1, 0, 0, 0, 0));
-      const endsAt = new Date(Date.UTC(year, now.getMonth() + 1, 0, 23, 59, 59, 999));
+      const startsAt = new Date(
+        Date.UTC(year, monthIndex, 1, 0, 0, 0, 0) - VN_OFFSET_MS,
+      );
+      const endsAt = new Date(
+        Date.UTC(year, monthIndex + 1, 0, 23, 59, 59, 999) - VN_OFFSET_MS,
+      );
 
       try {
         season = await this.prisma.towerSeason.create({
@@ -157,24 +165,23 @@ export class TowerService {
       const expiresAtMs = activeAttempt.currentQuestionExpiresAt?.getTime() ?? 0;
       if (expiresAtMs > 0 && now > expiresAtMs + NETWORK_GRACE_MS) {
         // Expired -> Mark FAILED, trigger cooldown
-        const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
-        await this.prisma.$transaction([
-          this.prisma.towerFloorAttempt.update({
-            where: { id: activeAttempt.id },
-            data: {
-              status: 'FAILED',
-              failedReason: 'TIMEOUT',
-            },
-          }),
-          this.prisma.towerUserProgress.update({
+        const expiredUpdate = await this.prisma.towerFloorAttempt.updateMany({
+          where: { id: activeAttempt.id, status: 'IN_PROGRESS' },
+          data: {
+            status: 'FAILED',
+            failedReason: 'TIMEOUT',
+          },
+        });
+        if (expiredUpdate.count > 0) {
+          const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
+          await this.prisma.towerUserProgress.update({
             where: { id: progress.id },
             data: { cooldownUntil },
-          }),
-        ]);
-
-        isCooldownActive = true;
-        cooldownRemainingSeconds = COOLDOWN_HOURS * 3600;
-        progress.cooldownUntil = cooldownUntil;
+          });
+          isCooldownActive = true;
+          cooldownRemainingSeconds = COOLDOWN_HOURS * 3600;
+          progress.cooldownUntil = cooldownUntil;
+        }
       } else if (activeAttempt.currentQuizId) {
         // Active and valid -> fetch quiz details
         const quiz = await this.prisma.quiz.findUnique({
@@ -196,6 +203,12 @@ export class TowerService {
               activeAttempt.currentQuestionExpiresAt ?? new Date(now + TIME_LIMIT_SECONDS * 1000),
             ),
           };
+        } else {
+          // Quiz was deleted by admin mid-attempt -> cancel attempt without cooldown penalty
+          await this.prisma.towerFloorAttempt.updateMany({
+            where: { id: activeAttempt.id, status: 'IN_PROGRESS' },
+            data: { status: 'FAILED', failedReason: 'QUIZ_DELETED' },
+          });
         }
       }
     }
@@ -220,9 +233,24 @@ export class TowerService {
   }
 
   /**
-   * Starts a new floor attempt for the current floor.
+   * Starts a new floor attempt for the current floor, serialized per user.
    */
   async startFloorAttempt(userId: string) {
+    const prev = this.userStartLocks.get(userId) ?? Promise.resolve();
+    const run = prev
+      .catch(() => undefined)
+      .then(() => this.startFloorAttemptInternal(userId));
+    this.userStartLocks.set(userId, run);
+    try {
+      return await run;
+    } finally {
+      if (this.userStartLocks.get(userId) === run) {
+        this.userStartLocks.delete(userId);
+      }
+    }
+  }
+
+  private async startFloorAttemptInternal(userId: string) {
     const season = await this.getOrCreateCurrentSeason();
     const progress = await this.getOrCreateUserProgress(userId, season.id);
 
@@ -280,19 +308,25 @@ export class TowerService {
             ),
           };
         }
+
+        // Quiz was deleted by admin -> cancel orphaned attempt without cooldown and create a fresh one
+        await this.prisma.towerFloorAttempt.updateMany({
+          where: { id: existing.id, status: 'IN_PROGRESS' },
+          data: { status: 'FAILED', failedReason: 'QUIZ_DELETED' },
+        });
       } else {
         // Expired -> mark FAILED and apply 4-hour cooldown penalty (INV3)!
         const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
-        await this.prisma.$transaction([
-          this.prisma.towerFloorAttempt.update({
-            where: { id: existing.id },
-            data: { status: 'FAILED', failedReason: 'TIMEOUT' },
-          }),
-          this.prisma.towerUserProgress.update({
+        const expiredUpdate = await this.prisma.towerFloorAttempt.updateMany({
+          where: { id: existing.id, status: 'IN_PROGRESS' },
+          data: { status: 'FAILED', failedReason: 'TIMEOUT' },
+        });
+        if (expiredUpdate.count > 0) {
+          await this.prisma.towerUserProgress.update({
             where: { id: progress.id },
             data: { cooldownUntil },
-          }),
-        ]);
+          });
+        }
 
         throw new HttpException(
           {
@@ -306,32 +340,66 @@ export class TowerService {
       }
     }
 
-    // 3. Pick first random quiz
-    const quiz = await this.getRandomQuiz([]);
+    // 3. Pick first random quiz according to floor difficulty tier
+    const floor = Math.min(Math.max(progress.currentFloor, 1), MAX_FLOOR);
+    const quiz = await this.getRandomQuiz([], floor);
     if (!quiz) {
       throw new BadRequestException('Hiện chưa có câu hỏi nào trong hệ thống');
     }
 
-    const floor = Math.min(Math.max(progress.currentFloor, 1), MAX_FLOOR);
     const requiredStreak = floor; // Floor 1 requires 1, Floor 2 requires 2, ..., Floor 100 requires 100
     const startedAt = new Date();
     const expiresAt = new Date(startedAt.getTime() + TIME_LIMIT_SECONDS * 1000);
 
-    const attempt = await this.prisma.towerFloorAttempt.create({
-      data: {
-        userId,
-        seasonId: season.id,
-        floor,
-        requiredStreak,
-        currentStreak: 0,
-        status: 'IN_PROGRESS',
-        currentQuizId: quiz.id,
-        currentQuestionStartedAt: startedAt,
-        currentQuestionExpiresAt: expiresAt,
-        currentQuestionNumber: 1,
-        usedQuizIds: [quiz.id],
-      },
-    });
+    let attempt;
+    try {
+      attempt = await this.prisma.towerFloorAttempt.create({
+        data: {
+          userId,
+          seasonId: season.id,
+          floor,
+          requiredStreak,
+          currentStreak: 0,
+          status: 'IN_PROGRESS',
+          currentQuizId: quiz.id,
+          currentQuestionStartedAt: startedAt,
+          currentQuestionExpiresAt: expiresAt,
+          currentQuestionNumber: 1,
+          usedQuizIds: [quiz.id],
+        },
+      });
+    } catch (err: unknown) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        const concurrent = await this.prisma.towerFloorAttempt.findFirst({
+          where: { userId, seasonId: season.id, status: 'IN_PROGRESS' },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (concurrent && concurrent.currentQuizId) {
+          const cQuiz = await this.prisma.quiz.findUnique({
+            where: { id: concurrent.currentQuizId },
+            include: { options: true },
+          });
+          if (cQuiz) {
+            return {
+              attemptId: concurrent.id,
+              floor: concurrent.floor,
+              currentStreak: concurrent.currentStreak,
+              requiredStreak: concurrent.requiredStreak,
+              question: this.mapQuizToQuestionDto(
+                cQuiz,
+                concurrent.currentQuestionNumber,
+                concurrent.requiredStreak,
+                concurrent.currentQuestionExpiresAt!,
+              ),
+            };
+          }
+        }
+      }
+      throw err;
+    }
 
     return {
       attemptId: attempt.id,
@@ -368,6 +436,15 @@ export class TowerService {
       throw new BadRequestException('Không tìm thấy lượt chơi đang hoạt động');
     }
 
+    // Prevent stale/duplicate floor attempt from regressing user's floor
+    if (attempt.floor !== progress.currentFloor) {
+      await this.prisma.towerFloorAttempt.updateMany({
+        where: { id: attempt.id, status: 'IN_PROGRESS' },
+        data: { status: 'FAILED', failedReason: 'STALE_FLOOR' },
+      });
+      throw new BadRequestException('Lượt chơi không khớp với tầng hiện tại');
+    }
+
     const now = Date.now();
     const expiresAt = attempt.currentQuestionExpiresAt?.getTime() ?? 0;
 
@@ -375,19 +452,26 @@ export class TowerService {
     if (now > expiresAt + NETWORK_GRACE_MS) {
       const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
 
-      await this.prisma.$transaction([
-        this.prisma.towerFloorAttempt.updateMany({
-          where: { id: attempt.id, status: 'IN_PROGRESS' },
-          data: {
-            status: 'FAILED',
-            failedReason: 'TIMEOUT',
-          },
-        }),
-        this.prisma.towerUserProgress.update({
-          where: { id: progress.id },
-          data: { cooldownUntil },
-        }),
-      ]);
+      const timeoutUpdate = await this.prisma.towerFloorAttempt.updateMany({
+        where: {
+          id: attempt.id,
+          status: 'IN_PROGRESS',
+          currentQuizId: attempt.currentQuizId,
+        },
+        data: {
+          status: 'FAILED',
+          failedReason: 'TIMEOUT',
+        },
+      });
+
+      if (timeoutUpdate.count === 0) {
+        throw new BadRequestException('Câu hỏi này đã được trả lời');
+      }
+
+      await this.prisma.towerUserProgress.update({
+        where: { id: progress.id },
+        data: { cooldownUntil },
+      });
 
       return {
         result: 'FAILED',
@@ -403,28 +487,40 @@ export class TowerService {
     });
 
     if (!quiz) {
+      // Quiz was deleted by admin mid-attempt -> cancel attempt without imposing 4h cooldown
+      await this.prisma.towerFloorAttempt.updateMany({
+        where: { id: attempt.id, status: 'IN_PROGRESS' },
+        data: { status: 'FAILED', failedReason: 'QUIZ_DELETED' },
+      });
       throw new BadRequestException('Câu hỏi không tồn tại');
     }
 
     const isCorrect = optionLabel.trim().toUpperCase() === quiz.answer.trim().toUpperCase();
 
     if (!isCorrect) {
-      // Failed: wrong answer -> 4 hours cooldown
+      // Failed: wrong answer -> 4 hours cooldown (only if atomic state transition succeeds)
       const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
 
-      await this.prisma.$transaction([
-        this.prisma.towerFloorAttempt.updateMany({
-          where: { id: attempt.id, status: 'IN_PROGRESS' },
-          data: {
-            status: 'FAILED',
-            failedReason: 'WRONG_ANSWER',
-          },
-        }),
-        this.prisma.towerUserProgress.update({
-          where: { id: progress.id },
-          data: { cooldownUntil },
-        }),
-      ]);
+      const wrongUpdate = await this.prisma.towerFloorAttempt.updateMany({
+        where: {
+          id: attempt.id,
+          status: 'IN_PROGRESS',
+          currentQuizId: attempt.currentQuizId,
+        },
+        data: {
+          status: 'FAILED',
+          failedReason: 'WRONG_ANSWER',
+        },
+      });
+
+      if (wrongUpdate.count === 0) {
+        throw new BadRequestException('Câu hỏi này đã được trả lời');
+      }
+
+      await this.prisma.towerUserProgress.update({
+        where: { id: progress.id },
+        data: { cooldownUntil },
+      });
 
       return {
         result: 'FAILED',
@@ -441,7 +537,7 @@ export class TowerService {
 
     if (nextStreak >= attempt.requiredStreak) {
       // --- FLOOR COMPLETED! ---
-      const nextFloor = Math.min(attempt.floor + 1, MAX_FLOOR);
+      const nextFloor = Math.min(Math.max(progress.currentFloor, attempt.floor + 1), MAX_FLOOR);
       const newHighest = Math.max(progress.highestCompletedFloor, attempt.floor);
 
       const updateResult = await this.prisma.towerFloorAttempt.updateMany({
@@ -466,6 +562,7 @@ export class TowerService {
         data: {
           currentFloor: nextFloor,
           highestCompletedFloor: newHighest,
+          cooldownUntil: null,
         },
       });
 
@@ -493,7 +590,7 @@ export class TowerService {
       ? (attempt.usedQuizIds as string[])
       : [];
 
-    const nextQuiz = await this.getRandomQuiz(usedIds);
+    const nextQuiz = await this.getRandomQuiz(usedIds, attempt.floor);
     if (!nextQuiz) {
       throw new BadRequestException('Không còn câu hỏi khả dụng cho tầng này');
     }
@@ -558,24 +655,65 @@ export class TowerService {
 
   /**
    * Selects a random quiz from the database excluding already used quiz IDs.
+   * Applies floor-based difficulty weighting (Floors 1-30: foundation/conceptual,
+   * Floors 31-70: intermediate mix, Floors 71-100: advanced/code-heavy) with
+   * non-repeating random fallback when the question pool is smaller than the floor streak.
    */
-  private async getRandomQuiz(excludeIds: string[]) {
-    const where: Prisma.QuizWhereInput = excludeIds.length > 0
-      ? { id: { notIn: excludeIds } }
-      : {};
+  private async getRandomQuiz(excludeIds: string[], floor = 1) {
+    const baseWhere: Prisma.QuizWhereInput =
+      excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {};
 
-    const count = await this.prisma.quiz.count({ where });
-    if (count === 0) {
-      // Fallback if all quizzes were used
+    // Determine difficulty preference probability based on floor tier
+    // Tier 1 (1..30): 20% code-analysis | Tier 2 (31..70): 50% code-analysis | Tier 3 (71..100): 80% code-analysis
+    const codeProbability = floor <= 30 ? 0.2 : floor <= 70 ? 0.5 : 0.8;
+    const preferCode = Math.random() < codeProbability;
+    const tierWhere: Prisma.QuizWhereInput = {
+      ...baseWhere,
+      code: preferCode ? { not: null } : null,
+    };
+
+    const tierCount = await this.prisma.quiz.count({ where: tierWhere });
+    if (tierCount > 0) {
+      const skip = Math.floor(Math.random() * tierCount);
+      const picked = await this.prisma.quiz.findFirst({
+        where: tierWhere,
+        skip,
+        include: { options: true },
+      });
+      if (picked) return picked;
+    }
+
+    // Fallback 1: Any unasked quiz in the general pool
+    const count = await this.prisma.quiz.count({ where: baseWhere });
+    if (count > 0) {
+      const skip = Math.floor(Math.random() * count);
       return this.prisma.quiz.findFirst({
+        where: baseWhere,
+        skip,
         include: { options: true },
       });
     }
 
-    const skip = Math.floor(Math.random() * count);
+    // Fallback 2: Pool exhausted (total quizzes in DB < floor requiredStreak).
+    // Exclude only the immediately preceding question to avoid back-to-back repeats,
+    // and pick a random offset across the entire pool rather than repeating index 0.
+    const lastAskedId =
+      excludeIds.length > 0 ? excludeIds[excludeIds.length - 1] : null;
+    const cycleWhere: Prisma.QuizWhereInput = lastAskedId
+      ? { id: { notIn: [lastAskedId] } }
+      : {};
+    const cycleCount = await this.prisma.quiz.count({ where: cycleWhere });
+    if (cycleCount > 0) {
+      const skip = Math.floor(Math.random() * cycleCount);
+      return this.prisma.quiz.findFirst({
+        where: cycleWhere,
+        skip,
+        include: { options: true },
+      });
+    }
+
+    // Ultimate fallback when DB has only 1 quiz total
     return this.prisma.quiz.findFirst({
-      where,
-      skip,
       include: { options: true },
     });
   }

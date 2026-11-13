@@ -55,7 +55,7 @@ export class TowerCoinService {
       },
     });
 
-    if (existing) {
+    if (existing && existing.status !== 'FAILED') {
       this.logger.warn(
         `[TowerCoinService] Reward already initiated or processed for user=${userId}, season=${seasonKey}, floor=${floor}, status=${existing.status}`,
       );
@@ -73,35 +73,37 @@ export class TowerCoinService {
       },
     };
 
-    // 2. Insert PENDING transaction in DB first (Outbox pattern)
-    let transaction;
-    try {
-      transaction = await this.prisma.towerRewardTransaction.create({
-        data: {
-          userId,
-          seasonId,
-          floor,
-          rewardCoins: 1,
-          idempotencyKey,
-          status: 'PENDING',
-          requestPayload: requestPayload as unknown as Prisma.InputJsonValue,
-          retryCount: 0,
-        },
-      });
-    } catch (err: unknown) {
-      // Prisma unique constraint violation code is P2002
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2002'
-      ) {
-        this.logger.warn(
-          `[TowerCoinService] Concurrent reward insert blocked by unique key for idempotencyKey=${idempotencyKey}`,
-        );
-        return await this.prisma.towerRewardTransaction.findUnique({
-          where: { idempotencyKey },
+    // 2. Insert PENDING transaction in DB first (Outbox pattern) or reuse existing FAILED row for retry
+    let transaction = existing;
+    if (!transaction) {
+      try {
+        transaction = await this.prisma.towerRewardTransaction.create({
+          data: {
+            userId,
+            seasonId,
+            floor,
+            rewardCoins: 1,
+            idempotencyKey,
+            status: 'PENDING',
+            requestPayload: requestPayload as unknown as Prisma.InputJsonValue,
+            retryCount: 0,
+          },
         });
+      } catch (err: unknown) {
+        // Prisma unique constraint violation code is P2002
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002'
+        ) {
+          this.logger.warn(
+            `[TowerCoinService] Concurrent reward insert blocked by unique key for idempotencyKey=${idempotencyKey}`,
+          );
+          return await this.prisma.towerRewardTransaction.findUnique({
+            where: { idempotencyKey },
+          });
+        }
+        throw err;
       }
-      throw err;
     }
 
     if (!transaction) {

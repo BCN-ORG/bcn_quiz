@@ -100,7 +100,7 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
         status: 'IN_PROGRESS',
       });
 
-      mockPrisma.towerFloorAttempt.update.mockResolvedValue({});
+      mockPrisma.towerFloorAttempt.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.towerUserProgress.update.mockResolvedValue({});
 
       await expect(service.startFloorAttempt('u1')).rejects.toThrow(
@@ -110,9 +110,9 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
       );
 
       // Verify old attempt marked as FAILED with TIMEOUT and cooldown set
-      expect(mockPrisma.towerFloorAttempt.update).toHaveBeenCalledWith(
+      expect(mockPrisma.towerFloorAttempt.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'att-expired' },
+          where: { id: 'att-expired', status: 'IN_PROGRESS' },
           data: expect.objectContaining({
             status: 'FAILED',
             failedReason: 'TIMEOUT',
@@ -369,6 +369,54 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
         1,
         'att-1',
       );
+    });
+
+    it('does NOT set 4-hour cooldown when a concurrent wrong answer loses the race (updateMany count === 0)', async () => {
+      mockPrisma.towerUserProgress.findUnique.mockResolvedValue({
+        id: 'prog-1',
+        userId: 'u1',
+        seasonId: sampleSeason.id,
+        currentFloor: 1,
+      });
+
+      const expiresAt = new Date(Date.now() + 8000);
+      mockPrisma.towerFloorAttempt.findFirst.mockResolvedValue({
+        id: 'att-1',
+        userId: 'u1',
+        seasonId: sampleSeason.id,
+        floor: 1,
+        currentQuizId: 'q-1',
+        currentQuestionExpiresAt: expiresAt,
+        status: 'IN_PROGRESS',
+      });
+
+      mockPrisma.quiz.findUnique.mockResolvedValue({
+        id: 'q-1',
+        answer: 'A',
+        explanation: 'A is right',
+      });
+
+      // Another request already completed the attempt -> updateMany returns 0
+      mockPrisma.towerFloorAttempt.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.answerFloorQuestion('u1', 'B')).rejects.toThrow(
+        'Câu hỏi này đã được trả lời',
+      );
+      expect(mockPrisma.towerUserProgress.update).not.toHaveBeenCalled();
+    });
+
+    it('computes monthly season strictly in Asia/Ho_Chi_Minh (UTC+7) even at UTC month boundary', async () => {
+      mockPrisma.towerSeason.findUnique.mockResolvedValue(null);
+      mockPrisma.towerSeason.create.mockImplementation(({ data }) =>
+        Promise.resolve({ id: 's-dec', ...data }),
+      );
+
+      // 2026-11-30T17:30:00Z is 2026-12-01 00:30:00 in Vietnam (UTC+7)
+      const season = await service.getOrCreateCurrentSeason(
+        new Date('2026-11-30T17:30:00Z'),
+      );
+      expect(season.seasonKey).toBe('2026-12');
+      expect(season.startsAt.toISOString()).toBe('2026-11-30T17:00:00.000Z');
     });
   });
 });

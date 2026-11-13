@@ -60,6 +60,7 @@ CREATE TABLE "tower_floor_attempts" (
 
 CREATE INDEX "tower_floor_attempts_userId_seasonId_floor_status_idx" ON "tower_floor_attempts"("userId", "seasonId", "floor", "status");
 CREATE INDEX "tower_floor_attempts_userId_status_currentQuestionExpiresAt_idx" ON "tower_floor_attempts"("userId", "status", "currentQuestionExpiresAt");
+CREATE UNIQUE INDEX "tower_floor_attempts_one_active_per_user_season_idx" ON "tower_floor_attempts"("userId", "seasonId") WHERE "status" = 'IN_PROGRESS';
 
 ALTER TABLE "tower_floor_attempts" ADD CONSTRAINT "tower_floor_attempts_seasonId_fkey"
   FOREIGN KEY ("seasonId") REFERENCES "tower_seasons"("id") ON DELETE CASCADE ON UPDATE CASCADE;
