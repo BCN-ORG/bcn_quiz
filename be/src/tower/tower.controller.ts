@@ -56,7 +56,9 @@ export class TowerController {
     @Query('limit') limit?: string,
   ) {
     const userId = this.extractUserId(req);
-    const parsedLimit = limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 50;
+    const parsedLimit = limit
+      ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100)
+      : 50;
     return this.towerService.getUserTransactions(userId, parsedLimit);
   }
 

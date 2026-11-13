@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import { TowerService } from './tower.service';
@@ -182,7 +182,9 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
       expect(result.question.id).toBe('q-101');
       expect(result.question.timeLimitSeconds).toBe(10);
       // Answer must NOT be leaked
-      expect((result.question as unknown as { answer?: string }).answer).toBeUndefined();
+      expect(
+        (result.question as unknown as { answer?: string }).answer,
+      ).toBeUndefined();
     });
   });
 

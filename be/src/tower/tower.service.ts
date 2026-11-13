@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -13,7 +12,6 @@ import {
   AnswerResponseDto,
   TowerOverviewDto,
   TowerQuestionDto,
-  TowerQuestionOptionDto,
 } from './dto/tower.dto';
 
 const TIME_LIMIT_SECONDS = 10;
@@ -162,7 +160,8 @@ export class TowerService {
 
     if (activeAttempt) {
       // Check if attempt question expired
-      const expiresAtMs = activeAttempt.currentQuestionExpiresAt?.getTime() ?? 0;
+      const expiresAtMs =
+        activeAttempt.currentQuestionExpiresAt?.getTime() ?? 0;
       if (expiresAtMs > 0 && now > expiresAtMs + NETWORK_GRACE_MS) {
         // Expired -> Mark FAILED, trigger cooldown
         const expiredUpdate = await this.prisma.towerFloorAttempt.updateMany({
@@ -200,7 +199,8 @@ export class TowerService {
               quiz,
               activeAttempt.currentQuestionNumber,
               activeAttempt.requiredStreak,
-              activeAttempt.currentQuestionExpiresAt ?? new Date(now + TIME_LIMIT_SECONDS * 1000),
+              activeAttempt.currentQuestionExpiresAt ??
+                new Date(now + TIME_LIMIT_SECONDS * 1000),
             ),
           };
         } else {
@@ -224,7 +224,9 @@ export class TowerService {
       progress: {
         currentFloor: progress.currentFloor,
         highestCompletedFloor: progress.highestCompletedFloor,
-        cooldownUntil: progress.cooldownUntil ? progress.cooldownUntil.toISOString() : null,
+        cooldownUntil: progress.cooldownUntil
+          ? progress.cooldownUntil.toISOString()
+          : null,
         isCooldownActive,
         cooldownRemainingSeconds,
       },
@@ -258,7 +260,9 @@ export class TowerService {
 
     // 1. Verify cooldown
     if (progress.cooldownUntil && progress.cooldownUntil.getTime() > now) {
-      const remainingSeconds = Math.ceil((progress.cooldownUntil.getTime() - now) / 1000);
+      const remainingSeconds = Math.ceil(
+        (progress.cooldownUntil.getTime() - now) / 1000,
+      );
       throw new HttpException(
         {
           statusCode: HttpStatus.FORBIDDEN,
@@ -272,7 +276,9 @@ export class TowerService {
 
     // Check if player has already conquered all 100 floors this season
     if (progress.highestCompletedFloor >= MAX_FLOOR) {
-      throw new BadRequestException('Bạn đã chinh phục toàn bộ 100 tầng của Tháp trong mùa giải này!');
+      throw new BadRequestException(
+        'Bạn đã chinh phục toàn bộ 100 tầng của Tháp trong mùa giải này!',
+      );
     }
 
     // 2. Check existing active attempt
@@ -406,19 +412,17 @@ export class TowerService {
       floor: attempt.floor,
       currentStreak: attempt.currentStreak,
       requiredStreak: attempt.requiredStreak,
-      question: this.mapQuizToQuestionDto(
-        quiz,
-        1,
-        requiredStreak,
-        expiresAt,
-      ),
+      question: this.mapQuizToQuestionDto(quiz, 1, requiredStreak, expiresAt),
     };
   }
 
   /**
    * Evaluates the submitted answer for the active floor attempt.
    */
-  async answerFloorQuestion(userId: string, optionLabel: string): Promise<AnswerResponseDto> {
+  async answerFloorQuestion(
+    userId: string,
+    optionLabel: string,
+  ): Promise<AnswerResponseDto> {
     const season = await this.getOrCreateCurrentSeason();
     const progress = await this.getOrCreateUserProgress(userId, season.id);
 
@@ -495,7 +499,8 @@ export class TowerService {
       throw new BadRequestException('Câu hỏi không tồn tại');
     }
 
-    const isCorrect = optionLabel.trim().toUpperCase() === quiz.answer.trim().toUpperCase();
+    const isCorrect =
+      optionLabel.trim().toUpperCase() === quiz.answer.trim().toUpperCase();
 
     if (!isCorrect) {
       // Failed: wrong answer -> 4 hours cooldown (only if atomic state transition succeeds)
@@ -537,8 +542,14 @@ export class TowerService {
 
     if (nextStreak >= attempt.requiredStreak) {
       // --- FLOOR COMPLETED! ---
-      const nextFloor = Math.min(Math.max(progress.currentFloor, attempt.floor + 1), MAX_FLOOR);
-      const newHighest = Math.max(progress.highestCompletedFloor, attempt.floor);
+      const nextFloor = Math.min(
+        Math.max(progress.currentFloor, attempt.floor + 1),
+        MAX_FLOOR,
+      );
+      const newHighest = Math.max(
+        progress.highestCompletedFloor,
+        attempt.floor,
+      );
 
       const updateResult = await this.prisma.towerFloorAttempt.updateMany({
         where: {
@@ -596,7 +607,9 @@ export class TowerService {
     }
 
     const questionStartedAt = new Date();
-    const questionExpiresAt = new Date(questionStartedAt.getTime() + TIME_LIMIT_SECONDS * 1000);
+    const questionExpiresAt = new Date(
+      questionStartedAt.getTime() + TIME_LIMIT_SECONDS * 1000,
+    );
     const updatedUsedIds = [...usedIds, nextQuiz.id];
     const nextQuestionNumber = attempt.currentQuestionNumber + 1;
 

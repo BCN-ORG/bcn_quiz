@@ -22,7 +22,7 @@ export class MockCoinProvider implements CoinServiceProvider {
   // Configurable for testing failure and reconciliation behaviors
   public nextOutcomeOverride?: 'SUCCESS' | 'PENDING' | 'FAILED' | 'TIMEOUT';
 
-  async creditReward(req: CreditRewardRequest): Promise<CreditRewardResponse> {
+  creditReward(req: CreditRewardRequest): Promise<CreditRewardResponse> {
     this.logger.log(
       `[MockCoinProvider] creditReward called: userId=${req.userId}, amount=${req.amount}, idempotencyKey=${req.idempotencyKey}`,
     );
@@ -33,17 +33,19 @@ export class MockCoinProvider implements CoinServiceProvider {
       this.logger.log(
         `[MockCoinProvider] Idempotency hit for ${req.idempotencyKey}, status=${existing.status}`,
       );
-      return {
+      return Promise.resolve({
         success: existing.status === 'SUCCESS',
         externalTxId: existing.externalTxId,
         status: existing.status,
-      };
+      });
     }
 
     if (this.nextOutcomeOverride === 'TIMEOUT') {
       this.nextOutcomeOverride = undefined;
       // Simulate external API timeout without updating ledger
-      throw new Error('External Coin Service Gateway Timeout (504)');
+      return Promise.reject(
+        new Error('External Coin Service Gateway Timeout (504)'),
+      );
     }
 
     const outcome = this.nextOutcomeOverride ?? 'SUCCESS';
@@ -59,29 +61,29 @@ export class MockCoinProvider implements CoinServiceProvider {
     });
 
     if (outcome === 'FAILED') {
-      return {
+      return Promise.resolve({
         success: false,
         status: 'FAILED',
         errorMessage: 'External coin account rejected reward credit',
-      };
+      });
     }
 
-    return {
+    return Promise.resolve({
       success: outcome === 'SUCCESS',
       externalTxId,
       status: outcome,
-    };
+    });
   }
 
-  async checkStatus(idempotencyKey: string): Promise<CheckStatusResponse> {
+  checkStatus(idempotencyKey: string): Promise<CheckStatusResponse> {
     const entry = this.ledger.get(idempotencyKey);
     if (!entry) {
-      return { status: 'NOT_FOUND' };
+      return Promise.resolve({ status: 'NOT_FOUND' });
     }
-    return {
+    return Promise.resolve({
       status: entry.status,
       externalTxId: entry.externalTxId,
-    };
+    });
   }
 
   // Helper for test assertions

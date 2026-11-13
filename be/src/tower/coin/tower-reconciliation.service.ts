@@ -29,8 +29,16 @@ export class TowerReconciliationService {
    */
   async reconcilePendingAndUnknown(batchSize = 50) {
     if (this.isRunning) {
-      this.logger.warn('[TowerReconciliationService] Reconciliation already running. Skipping concurrent trigger.');
-      return { total: 0, reconciledSuccess: 0, reconciledFailed: 0, stillPending: 0, skipped: true };
+      this.logger.warn(
+        '[TowerReconciliationService] Reconciliation already running. Skipping concurrent trigger.',
+      );
+      return {
+        total: 0,
+        reconciledSuccess: 0,
+        reconciledFailed: 0,
+        stillPending: 0,
+        skipped: true,
+      };
     }
     this.isRunning = true;
 
@@ -48,7 +56,12 @@ export class TowerReconciliationService {
       });
 
       if (pendingList.length === 0) {
-        return { total: 0, reconciledSuccess: 0, reconciledFailed: 0, stillPending: 0 };
+        return {
+          total: 0,
+          reconciledSuccess: 0,
+          reconciledFailed: 0,
+          stillPending: 0,
+        };
       }
 
       this.logger.log(
@@ -81,7 +94,8 @@ export class TowerReconciliationService {
               where: { id: tx.id },
               data: {
                 status: 'FAILED',
-                errorMessage: check.errorMessage ?? 'Provider reported transaction failed',
+                errorMessage:
+                  check.errorMessage ?? 'Provider reported transaction failed',
                 processedAt: new Date(),
               },
             });

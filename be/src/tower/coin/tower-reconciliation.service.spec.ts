@@ -33,7 +33,9 @@ describe('TowerReconciliationService (Automated Failure Recovery)', () => {
       ],
     }).compile();
 
-    service = module.get<TowerReconciliationService>(TowerReconciliationService);
+    service = module.get<TowerReconciliationService>(
+      TowerReconciliationService,
+    );
   });
 
   it('reconciles UNKNOWN transaction to SUCCESS when provider confirms external credit', async () => {
