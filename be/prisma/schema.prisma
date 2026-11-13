@@ -401,3 +401,107 @@ model Notification {
   @@index([userId, createdAt])
   @@map("notifications")
 }
+
+// ----------------------------------------------------------------------------
+// DAILY QUIZ TOWER MODULE (LEO THÁP KIẾN THỨC)
+// ----------------------------------------------------------------------------
+
+enum TowerAttemptStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum TowerRewardStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  UNKNOWN
+}
+
+model TowerSeason {
+  id        String   @id @default(cuid())
+  seasonKey String   @unique
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  progresses   TowerUserProgress[]
+  attempts     TowerFloorAttempt[]
+  transactions TowerRewardTransaction[]
+
+  @@index([isActive, startsAt, endsAt])
+  @@map("tower_seasons")
+}
+
+model TowerUserProgress {
+  id                    String    @id @default(cuid())
+  userId                String
+  seasonId              String
+  currentFloor          Int       @default(1)
+  highestCompletedFloor Int       @default(0)
+  cooldownUntil         DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  season TowerSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, seasonId])
+  @@index([userId, seasonId])
+  @@map("tower_user_progresses")
+}
+
+model TowerFloorAttempt {
+  id                       String             @id @default(cuid())
+  userId                   String
+  seasonId                 String
+  floor                    Int
+  requiredStreak           Int
+  currentStreak            Int                @default(0)
+  status                   TowerAttemptStatus @default(IN_PROGRESS)
+  currentQuizId            String?
+  currentQuestionStartedAt DateTime?
+  currentQuestionExpiresAt DateTime?
+  currentQuestionNumber    Int                @default(1)
+  usedQuizIds              Json               @default("[]")
+  failedReason             String?
+  startedAt                DateTime           @default(now())
+  completedAt              DateTime?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  season TowerSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seasonId, floor, status])
+  @@index([userId, status, currentQuestionExpiresAt])
+  @@map("tower_floor_attempts")
+}
+
+model TowerRewardTransaction {
+  id              String            @id @default(cuid())
+  userId          String
+  seasonId        String
+  floor           Int
+  rewardCoins     Int               @default(1)
+  idempotencyKey  String            @unique
+  externalTxId    String?
+  status          TowerRewardStatus @default(PENDING)
+  requestPayload  Json?
+  responsePayload Json?
+  retryCount      Int               @default(0)
+  errorMessage    String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  processedAt     DateTime?
+
+  season TowerSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, seasonId, floor])
+  @@index([status, retryCount, createdAt])
+  @@index([userId, createdAt])
+  @@map("tower_reward_transactions")
+}
+

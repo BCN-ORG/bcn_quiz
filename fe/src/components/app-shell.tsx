@@ -12,6 +12,7 @@ import {
   SignOut,
   Trophy,
   List,
+  Lightning,
   Moon,
   GearSix,
   Plus,
@@ -31,6 +32,7 @@ import { NotificationCenter } from './notification-center';
 const primary = [
   { href: '/dashboard', label: 'Tổng quan', icon: Gauge, allow: () => true },
   { href: '/courses', label: 'Khóa học', icon: BookOpen, allow: canReadQuestions },
+  { href: '/tower', label: 'Leo Tháp', icon: Lightning, allow: canReadQuestions },
   { href: '/leaderboard', label: 'Xếp hạng', icon: Trophy, allow: canReadQuestions },
   { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise, allow: canReadResults },
   { href: '/certificates', label: 'Chứng nhận', icon: Certificate, allow: canReadResults },

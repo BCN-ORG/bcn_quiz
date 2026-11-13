@@ -21,6 +21,7 @@ import { createRedisClient } from './redis/redis.factory';
 import { RedisModule } from './redis/redis.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { NotificationModule } from './notification/notification.module';
+import { TowerModule } from './tower/tower.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { NotificationModule } from './notification/notification.module';
     CertificateModule,
     LeaderboardModule,
     NotificationModule,
+    TowerModule,
   ],
   controllers: [AppController],
   providers: [
