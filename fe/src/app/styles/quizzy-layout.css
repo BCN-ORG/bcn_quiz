@@ -549,3 +549,865 @@ body.quiz-playing .page-content {
     gap: 6px;
   }
 }
+
+/* ==========================================================================
+   GAMIFIED HOMEPAGE (/dashboard) — 4 phần: Hero+Streak, Tháp, Nhiệm vụ+BXH, Khóa học+Todo
+   Tương thích Light/Dark qua biến màu hệ thống. Không tràn nội dung: mọi cột con đều min-width: 0.
+   ========================================================================== */
+
+/* --- 1. Hero + 7-day streak strip --- */
+.gamified-hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  margin-bottom: 20px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, var(--accent-soft), transparent 58%),
+    radial-gradient(90% 120% at 0% 100%, color-mix(in srgb, var(--warning) 10%, transparent), transparent 55%),
+    var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.gamified-hero-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+}
+
+.gamified-hero-main {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gamified-hero-main h1 {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 13px 5px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.level-badge svg {
+  width: 16px;
+  height: 16px;
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.level-badge-num {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: 800 12px/1.3 var(--font-mono), ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.xp-bar-wrap {
+  display: grid;
+  gap: 6px;
+  max-width: 560px;
+}
+
+.xp-bar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.xp-bar-meta strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.xp-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.xp-bar-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gamified-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.stat-pill-icon {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--accent-strong);
+}
+
+.stat-pill svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.stat-pill > div:not(.stat-pill-icon) {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.stat-pill span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.stat-pill strong {
+  color: var(--text);
+  font: 800 15px/1.2 var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stat-pill-coin {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--line));
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+}
+
+.stat-pill-coin .stat-pill-icon,
+.stat-pill-streak .stat-pill-icon {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 18%, var(--surface));
+}
+
+.stat-pill-coin strong {
+  color: var(--warning);
+}
+
+.stat-pill-streak {
+  border-color: color-mix(in srgb, var(--warning) 48%, var(--line));
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+
+.stat-pill-rank {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.stat-pill-rank .stat-pill-icon {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.stat-pill-rank strong {
+  color: var(--accent-strong);
+}
+
+/* Streak strip inside hero */
+.hero-streak-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  align-items: center;
+  gap: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.hero-streak-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  color: var(--warning);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.hero-streak-status svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.hero-streak-status span {
+  min-width: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.hero-streak-status strong {
+  color: var(--text);
+}
+
+.hero-streak-status.is-done {
+  color: var(--accent-strong);
+}
+
+.streak-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.streak-day {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 2px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.streak-day small {
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.streak-day strong {
+  max-width: 100%;
+  color: var(--text);
+  font: 700 12px/1.1 var(--font-mono), ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+.streak-day-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.streak-day.is-done {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.streak-day.is-done strong {
+  color: var(--accent-strong);
+}
+
+.streak-day.is-done .streak-day-dot {
+  background: var(--accent);
+  color: #fff;
+}
+
+.streak-day.is-today {
+  border: 1.5px solid color-mix(in srgb, var(--warning) 75%, var(--line));
+}
+
+.streak-day.is-today.is-done {
+  border-color: var(--accent-strong);
+}
+
+/* --- 2. Tower spotlight (full width, 2 cột bên trong) --- */
+@keyframes tower-node-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 32%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--warning) 0%, transparent);
+  }
+}
+
+.tower-spotlight {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  margin-bottom: 20px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 22px;
+  background:
+    radial-gradient(130% 120% at 100% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%),
+    radial-gradient(90% 100% at 0% 100%, color-mix(in srgb, var(--warning) 12%, transparent), transparent 60%),
+    var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.tower-spotlight-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 28px;
+}
+
+.tower-spotlight-info,
+.tower-spotlight-map {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.tower-spotlight-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.tower-spotlight-eyebrow .eyebrow {
+  margin: 0;
+}
+
+.tower-spotlight-info h2 {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: clamp(22px, 2.6vw, 28px);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+
+.tower-spotlight-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.tower-spotlight-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tower-season-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font: 700 12px/1.2 var(--font-mono), ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+.tower-season-timer svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.tower-spotlight-map .progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.tower-spotlight-map .progress-meta span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.tower-spotlight-map .progress-meta strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.tower-floor-preview {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tower-step-node {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tower-step-node strong {
+  max-width: 100%;
+  color: var(--text);
+  font: 800 13px/1.15 var(--font-mono), ui-monospace, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tower-step-node span,
+.tower-step-node small {
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tower-step-node.is-done {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.tower-step-node.is-done strong {
+  color: var(--accent-strong);
+}
+
+.tower-step-node.is-current {
+  border: 1.5px solid color-mix(in srgb, var(--warning) 72%, var(--line));
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface));
+  color: var(--warning);
+  transform: translateY(-2px);
+  animation: tower-node-pulse 2.2s ease-in-out infinite;
+}
+
+.tower-step-node.is-current strong {
+  color: var(--warning);
+}
+
+.tower-step-node.is-locked {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.tower-cooldown-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 50%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--warning) 14%, var(--surface));
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tower-cooldown-banner svg {
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.tower-cooldown-banner strong {
+  color: var(--warning);
+  font: 800 15px/1.2 var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 3. Nhiệm vụ + Bảng xếp hạng (2 cột cân bằng, cao bằng nhau) --- */
+.gamified-grid-main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.gamified-grid-main > * {
+  min-width: 0;
+}
+
+.missions-card,
+.leaderboard-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.missions-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mission-item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.mission-item > * {
+  min-width: 0;
+}
+
+.mission-item.is-completed {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface));
+}
+
+.mission-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--accent-strong);
+}
+
+.mission-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mission-item.is-completed .mission-icon {
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
+}
+
+.mission-body {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.mission-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.mission-body strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.mission-item .button {
+  white-space: nowrap;
+}
+
+.mission-progress-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mission-progress-mini .progress-track {
+  flex: 1 1 48px;
+  min-width: 48px;
+  height: 6px;
+  background: var(--surface);
+}
+
+.mission-progress-mini > span {
+  min-width: 0;
+  color: var(--muted);
+  font: 700 11px/1.3 var(--font-mono), ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+
+.mission-reward {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface));
+  color: var(--warning);
+  font: 700 11px/1.3 var(--font-mono), ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+.mission-item.is-completed .mission-reward {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.leaderboard-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+.leaderboard-my-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.leaderboard-my-rank svg {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+}
+
+.leaderboard-my-rank strong {
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-achievement-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mini-achievement-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mini-achievement-tag svg {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-strong);
+}
+
+.mini-leaderboard-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mini-leaderboard-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-2);
+}
+
+.mini-leaderboard-row > * {
+  min-width: 0;
+}
+
+.mini-leaderboard-row .leaderboard-player {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mini-leaderboard-row .leaderboard-player-name,
+.mini-leaderboard-row .leaderboard-name-clip {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-leaderboard-row.is-me {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: var(--accent-soft);
+}
+
+.mini-leaderboard-score {
+  color: var(--text);
+  font: 800 14px/1.15 var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.mini-leaderboard-score small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* --- 4. Khóa học + Cần hoàn thành --- */
+.figma-split .section-title {
+  margin-bottom: 14px;
+}
+
+.todo-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.todo-list .list-row {
+  min-width: 0;
+}
+
+.todo-row-info {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo-row-info strong,
+.todo-row-info small {
+  display: block;
+}
+
+.todo-row-info small {
+  color: var(--muted);
+}
+
+/* --- Responsive --- */
+@media (max-width: 960px) {
+  .gamified-grid-main {
+    grid-template-columns: 1fr;
+  }
+
+  .gamified-hero-top {
+    grid-template-columns: 1fr;
+  }
+
+  .gamified-hero-badges {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .tower-spotlight-body,
+  .hero-streak-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .gamified-hero,
+  .tower-spotlight {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+
+  .gamified-hero-badges {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .tower-floor-preview {
+    gap: 6px;
+  }
+
+  .tower-step-node strong {
+    font-size: 11px;
+  }
+
+  .tower-step-node span,
+  .tower-step-node small {
+    font-size: 10px;
+  }
+
+  .streak-week-grid {
+    gap: 4px;
+  }
+
+  .streak-day strong {
+    font-size: 10px;
+  }
+
+  .mission-item {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .mission-item > .button,
+  .mission-item > a {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: center;
+  }
+}
