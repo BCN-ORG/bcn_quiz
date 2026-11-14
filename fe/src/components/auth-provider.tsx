@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, apiUrl, request } from '@/lib/api';
 import type { User } from '@/lib/types';
 
@@ -56,10 +56,12 @@ function normalizeUser(raw: unknown): User | null {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const lastReloadRef = useRef<number>(0);
 
   const reload = useCallback(async () => {
     try {
       setUser(normalizeUser(await request.get<unknown>('/auth/me')));
+      lastReloadRef.current = Date.now();
     } catch (error) {
       // 401 here already survived a token refresh, so the session is really gone. A dropped connection, 429 or 5xx
       // is not a sign-out: keep the current user instead of bouncing them to the login screen.
@@ -74,9 +76,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [reload]);
 
   // Re-fetch roles when returning to the tab (Profiles may have changed RBAC).
+  // Throttle to at most once per 30 seconds to avoid request storms on rapid focus switches.
   useEffect(() => {
     const onFocus = () => {
-      if (document.visibilityState === 'visible') void reload();
+      if (document.visibilityState === 'visible' && Date.now() - lastReloadRef.current > 30_000) {
+        void reload();
+      }
     };
     document.addEventListener('visibilitychange', onFocus);
     window.addEventListener('focus', onFocus);

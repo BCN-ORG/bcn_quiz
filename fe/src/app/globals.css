@@ -471,10 +471,10 @@ img { display: block; max-width: 100%; }
 .save-status.is-error { color: var(--danger); font-weight: 700; }
 .answer > span:first-child { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--surface-2); font: 700 13px/1 var(--font-mono), ui-monospace, monospace; }
 .answer.review { cursor: default; }
-.answer.review.correct { border-color: var(--accent); background: var(--accent-soft); }
-.answer.review.correct > span:first-child { background: var(--accent); color: #fff; }
-.answer.review.wrong { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
-.answer.review.wrong > span:first-child { background: var(--danger); color: #fff; }
+.answer.review.correct, .answer.is-correct { border-color: var(--accent); background: var(--accent-soft); }
+.answer.review.correct > span:first-child, .answer.is-correct > span:first-child { background: var(--accent); color: #fff; }
+.answer.review.wrong, .answer.is-incorrect { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
+.answer.review.wrong > span:first-child, .answer.is-incorrect > span:first-child { background: var(--danger); color: #fff; }
 .answer.review.neutral { color: var(--muted); }
 .answer.review.correct:hover { border-color: var(--accent); background: var(--accent-soft); }
 .answer.review.wrong:hover { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }

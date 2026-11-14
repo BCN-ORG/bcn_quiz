@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
-import { AttemptSessionStatus, Prisma } from '@prisma/client';
+import { AttemptSessionStatus, Prisma, XpSourceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitAttemptDto } from './dto/submit-attempt.dto';
 import { AttemptQueryDto } from './dto/attempt-query.dto';
@@ -17,6 +17,7 @@ import { CourseProgressService } from '../course/course-progress.service';
 import { ProfilesService } from '../profiles/profiles.service';
 import { LeaderboardService } from '../leaderboard/leaderboard.service';
 import { NotificationService } from '../notification/notification.service';
+import { XpService, isTopicXpEligible } from '../xp/xp.service';
 import {
   businessDate,
   calculateTopicLeaderboardScore,
@@ -36,6 +37,7 @@ export class AttemptService {
     private readonly profilesService: ProfilesService,
     private readonly leaderboardService: LeaderboardService,
     private readonly notificationService: NotificationService,
+    private readonly xpService: XpService,
   ) {}
 
   async startTopicSession(
@@ -474,6 +476,25 @@ export class AttemptService {
       });
 
     await this.notificationService.publishCreated(notifications);
+
+    // Official XP: committed SUBMITTED transition only, and only with real answers (>=1 correct, >=half answered).
+    // Keyed per topic, so the first qualifying submit earns it (a practice retry can still earn it once).
+    const answeredCount = attemptPayloads.filter(
+      (item) => item.selectedAnswer !== '',
+    ).length;
+    try {
+      if (isTopicXpEligible(totalQuizCount, answeredCount, correctCount)) {
+        await this.xpService.award(
+          userId,
+          XpSourceType.TOPIC_FIRST_SUBMIT,
+          session.topicId,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `XP award failed (TOPIC_FIRST_SUBMIT) userId=${userId} topicId=${session.topicId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     await this.safeReevaluateCourseProgressByTopic(
       userId,

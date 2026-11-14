@@ -122,7 +122,13 @@ maybeDescribe('Certificate approval on real PostgreSQL', () => {
     process.env.DATABASE_URL = integrationUrl;
     prisma = new PrismaService();
     await prisma.$connect();
-    progress = new CourseProgressService(prisma, profiles as never);
+    progress = new CourseProgressService(
+      prisma,
+      profiles as never,
+      {
+        award: jest.fn().mockResolvedValue({ awarded: true, amount: 0 }),
+      } as never,
+    );
     certificates = new CertificateService(prisma);
     service = new CertificateRequestService(
       prisma,
@@ -130,6 +136,9 @@ maybeDescribe('Certificate approval on real PostgreSQL', () => {
       progress,
       new NotificationService(prisma, new NotificationRealtimeService()),
       profiles as never,
+      {
+        award: jest.fn().mockResolvedValue({ awarded: true, amount: 0 }),
+      } as never,
     );
   });
 

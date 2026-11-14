@@ -191,12 +191,38 @@ function TopicQuizPage() {
       if (event.key === 'PageDown' && current < quizzes.length - 1) { event.preventDefault(); setCurrent(current + 1); return; }
       if (event.key === 'PageUp' && current > 0) { event.preventDefault(); setCurrent(current - 1); return; }
       const options = optionsOf(quiz);
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (options.length === 0) return;
+        event.preventDefault();
+        const currentAnswer = answers[quiz.id];
+        const currentIndex = options.findIndex(([, label]) => label === currentAnswer);
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        const nextIndex = currentIndex === -1
+          ? (step === 1 ? 0 : options.length - 1)
+          : (currentIndex + step + options.length) % options.length;
+        choose(options[nextIndex][0], options[nextIndex][1]);
+        return;
+      }
+      if (event.key === 'ArrowLeft' && current > 0) {
+        if (!target.closest('.answer-list')) {
+          event.preventDefault();
+          setCurrent((c) => c - 1);
+          return;
+        }
+      }
+      if (event.key === 'ArrowRight' && current < quizzes.length - 1) {
+        if (!target.closest('.answer-list')) {
+          event.preventDefault();
+          setCurrent((c) => c + 1);
+          return;
+        }
+      }
       const index = /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : options.findIndex(([, label]) => label.toLowerCase() === event.key.toLowerCase());
       if (event.key.length === 1 && index >= 0 && index < options.length) { event.preventDefault(); choose(options[index][0], options[index][1]); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [session, result, confirmSubmit, confirmRestart, quiz, quizzes.length, current, choose]);
+  }, [session, result, confirmSubmit, confirmRestart, quiz, quizzes.length, current, choose, answers]);
 
   useEffect(() => {
     document.querySelector('.question-map button.current')?.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -337,9 +363,9 @@ function TopicQuizPage() {
       <div className="quiz-layout">
         <section className="panel quiz-question">
           <div className="quiz-question-head">
-            <span className="quiz-points">≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu</span>
+            <span className="quiz-points"><Target aria-hidden="true" /> ≈ {weightLabel(topic.leaderboard?.questionWeight ?? 0)} điểm/câu</span>
             {topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}
-            <p className={`save-status ${failedSave ? 'is-error' : ''}`} role="status" aria-live="polite">{saveLabel}</p>
+            <p className={`save-status ${failedSave ? 'is-error' : savingCount > 0 ? 'is-saving' : ''}`} role="status" aria-live="polite">{saveLabel}</p>
           </div>
           <h2 id="question-text">{content.text}</h2>
           {content.code ? <pre className="code-block"><code>{content.code}</code></pre> : null}
@@ -355,9 +381,25 @@ function TopicQuizPage() {
               choose(options[next][0], options[next][1]);
               (event.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
             };
-            return <button key={optionId} type="button" role="radio" aria-checked={selected} tabIndex={tabbable ? 0 : -1} className={`answer ${selected ? 'selected' : ''}`} disabled={saving || sessionLost} onKeyDown={onArrow} onClick={() => choose(optionId, label)}><span>{label}</span><span>{text}</span>{selected ? <Check weight="bold" aria-hidden="true" /> : null}</button>;
+            return (
+              <button
+                key={optionId}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                tabIndex={tabbable ? 0 : -1}
+                className={`answer ${selected ? 'selected' : ''}`}
+                disabled={saving || sessionLost}
+                onKeyDown={onArrow}
+                onClick={() => choose(optionId, label)}
+              >
+                <span>{label}</span>
+                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{text}</span>
+                {selected ? <Check weight="bold" aria-hidden="true" /> : <span />}
+              </button>
+            );
           })}</div>
-          <p className="answer-hint">Chọn một đáp án. Phím tắt: bấm A–D hoặc 1–4 để chọn, phím mũi tên để đổi đáp án, PageUp/PageDown để đổi câu.</p>
+          <p className="answer-hint">Chọn một đáp án. Phím tắt: bấm A–D hoặc 1–4 để chọn, phím mũi tên ↑/↓ để đổi đáp án, ←/→ hoặc PageUp/PageDown để chuyển câu.</p>
           <button type="button" className={`button secondary quiz-flag ${flagged[quiz.id] ? 'is-flagged' : ''}`} aria-pressed={Boolean(flagged[quiz.id])} onClick={toggleFlag}><Flag weight={flagged[quiz.id] ? 'fill' : 'regular'} /> {flagged[quiz.id] ? 'Bỏ đánh dấu xem lại' : 'Đánh dấu xem lại'}</button>
           <div className="list-actions" style={{ justifyContent: 'space-between', marginTop: 24 }}>
             <button className="button secondary" disabled={current === 0} onClick={() => setCurrent((value) => value - 1)}><ArrowLeft /> Câu trước</button>
@@ -365,11 +407,39 @@ function TopicQuizPage() {
           </div>
           {current < quizzes.length - 1 ? <button type="button" className="button secondary quiz-submit-inline" disabled={saving} onClick={() => setConfirmSubmit(true)}><PaperPlaneTilt /> Nộp bài</button> : null}
         </section>
-        <aside className="panel quiz-nav"><h3>Danh sách câu</h3><div className="question-map">{quizzes.map((item, index) => {
-          const done = Boolean(answers[item.id]);
-          const flag = Boolean(flagged[item.id]);
-          return <button key={item.id} type="button" className={`${index === current ? 'current' : ''} ${done ? 'answered' : ''} ${flag ? 'flagged' : ''}`} aria-current={index === current ? 'step' : undefined} aria-label={`Câu ${index + 1}: ${done ? 'đã làm' : 'chưa làm'}${flag ? ', đánh dấu xem lại' : ''}${index === current ? ', đang xem' : ''}`} onClick={() => setCurrent(index)}>{index + 1}</button>;
-        })}</div><p className="map-legend">✓ đã làm · ⚑ đánh dấu xem lại · khung đậm: câu đang xem</p><button className="button quiz-nav-submit" disabled={saving} onClick={() => setConfirmSubmit(true)}><PaperPlaneTilt /> Nộp bài</button></aside>
+        <aside className="panel quiz-nav">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h3 style={{ margin: 0 }}>Danh sách câu</h3>
+            <span className="status status-completed" style={{ fontSize: 12, padding: '3px 8px' }}>
+              {answeredCount}/{quizzes.length} đã làm
+            </span>
+          </div>
+          {flaggedCount > 0 ? (
+            <p className="review-score" style={{ color: 'var(--warning)', margin: '0 0 10px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Flag weight="fill" size={14} /> {flaggedCount} câu đánh dấu xem lại
+            </p>
+          ) : null}
+          <div className="question-map">{quizzes.map((item, index) => {
+            const done = Boolean(answers[item.id]);
+            const flag = Boolean(flagged[item.id]);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`${index === current ? 'current' : ''} ${done ? 'answered' : ''} ${flag ? 'flagged' : ''}`}
+                aria-current={index === current ? 'step' : undefined}
+                aria-label={`Câu ${index + 1}: ${done ? 'đã làm' : 'chưa làm'}${flag ? ', đánh dấu xem lại' : ''}${index === current ? ', đang xem' : ''}`}
+                onClick={() => setCurrent(index)}
+              >
+                {index + 1}
+              </button>
+            );
+          })}</div>
+          <p className="map-legend">✓ đã làm · ⚑ đánh dấu xem lại · khung đậm: câu đang xem</p>
+          <button className="button quiz-nav-submit" disabled={saving} onClick={() => setConfirmSubmit(true)}>
+            <PaperPlaneTilt /> Nộp bài
+          </button>
+        </aside>
       </div>
       <ConfirmDialog
         open={confirmSubmit}

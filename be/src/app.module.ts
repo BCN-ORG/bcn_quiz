@@ -22,6 +22,19 @@ import { RedisModule } from './redis/redis.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { NotificationModule } from './notification/notification.module';
 import { TowerModule } from './tower/tower.module';
+import { BossModule } from './boss/boss.module';
+import { XpModule } from './xp/xp.module';
+
+/** Env value only when it is a finite number above 0 (a blank `KEY=` would otherwise become 0 = block everything). */
+function positiveNumber(raw: unknown, fallback: number): number {
+  const parsed = Number(raw);
+  return raw !== undefined &&
+    raw !== '' &&
+    Number.isFinite(parsed) &&
+    parsed > 0
+    ? parsed
+    : fallback;
+}
 
 @Module({
   imports: [
@@ -38,11 +51,13 @@ import { TowerModule } from './tower/tower.module';
           keyPrefix: `${prefix}throttler:`,
           lazyConnect: false,
         });
+        const isDev = config.get<string>('NODE_ENV') === 'development';
+        const defaultLimit = isDev ? 1000 : 300;
         return {
           throttlers: [
             {
-              ttl: 60_000,
-              limit: 100,
+              ttl: positiveNumber(config.get('THROTTLE_TTL_MS'), 60_000),
+              limit: positiveNumber(config.get('THROTTLE_LIMIT'), defaultLimit),
             },
           ],
           storage: new ThrottlerStorageRedisService(redis),
@@ -61,6 +76,8 @@ import { TowerModule } from './tower/tower.module';
     LeaderboardModule,
     NotificationModule,
     TowerModule,
+    BossModule,
+    XpModule,
   ],
   controllers: [AppController],
   providers: [

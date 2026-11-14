@@ -3,10 +3,12 @@ import {
   CertificateRequestStatus,
   CourseProgressStatus,
   ProjectSubmissionStatus,
+  XpSourceType,
   type UserCourseProgress,
 } from '@prisma/client';
 import type { Request as ExpressRequest } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
+import { XpService } from '../xp/xp.service';
 import { ProfilesService } from '../profiles/profiles.service';
 
 type CourseForProgressEval = {
@@ -27,6 +29,7 @@ export class CourseProgressService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profilesService: ProfilesService,
+    private readonly xpService: XpService,
   ) {}
 
   /**
@@ -593,6 +596,21 @@ export class CourseProgressService {
       this.logger.log(
         `[evaluateCourseProgress] reopen demote userId=${userId} courseId=${course.id} ${existing.status} -> ${status} progress=${progressPercent}`,
       );
+    }
+
+    if (status === CourseProgressStatus.COMPLETED) {
+      // Official XP: idempotent per course (a retry here also heals a past failure); never breaks progress.
+      try {
+        await this.xpService.award(
+          userId,
+          XpSourceType.COURSE_COMPLETED,
+          course.id,
+        );
+      } catch (error) {
+        this.logger.error(
+          `XP award failed (COURSE_COMPLETED) userId=${userId} courseId=${course.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     await this.syncCertificateRequest(

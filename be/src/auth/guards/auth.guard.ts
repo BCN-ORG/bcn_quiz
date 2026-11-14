@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  HttpException,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -58,11 +59,14 @@ export class BearerAuthGuard implements CanActivate {
         `[guard] auth success ${req.method} ${req.originalUrl} tokenSource=${tokenSource}`,
       );
       return true;
-    } catch {
+    } catch (error) {
       RequestContext.recordAuthDuration(Date.now() - authStartedAt);
       this.logger.warn(
-        `[guard] auth failed ${req.method} ${req.originalUrl} tokenSource=${tokenSource}`,
+        `[guard] auth failed ${req.method} ${req.originalUrl} tokenSource=${tokenSource} reason=${error instanceof Error ? error.message : String(error)}`,
       );
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid token or unauthorized');
     }
   }

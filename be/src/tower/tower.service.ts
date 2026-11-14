@@ -5,9 +5,10 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, XpSourceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TowerCoinService } from './coin/tower-coin.service';
+import { XpService } from '../xp/xp.service';
 import {
   AnswerResponseDto,
   TowerOverviewDto,
@@ -16,7 +17,7 @@ import {
 
 const TIME_LIMIT_SECONDS = 10;
 const NETWORK_GRACE_MS = 1500;
-const COOLDOWN_HOURS = 4;
+const DEFAULT_COOLDOWN_SECONDS = 14400; // 4 hours in production
 const MAX_FLOOR = 100;
 const VN_OFFSET_MS = 7 * 3600 * 1000; // Asia/Ho_Chi_Minh (UTC+7)
 
@@ -28,7 +29,61 @@ export class TowerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly coinService: TowerCoinService,
+    private readonly xpService: XpService,
   ) {}
+
+  /**
+   * Retrieves the configured cooldown duration in seconds.
+   * If TOWER_COOLDOWN_ENABLED=false or TOWER_COOLDOWN_SECONDS=0 (typical in dev/test),
+   * returns 0 (no cooldown applied).
+   * Otherwise defaults to DEFAULT_COOLDOWN_SECONDS (14400 = 4 hours) in production.
+   */
+  getCooldownSeconds(): number {
+    const rawEnabled = process.env.TOWER_COOLDOWN_ENABLED;
+    if (rawEnabled !== undefined) {
+      const normalized = rawEnabled.trim().toLowerCase();
+      if (
+        normalized === 'false' ||
+        normalized === '0' ||
+        normalized === 'off' ||
+        normalized === 'no'
+      ) {
+        return 0;
+      }
+    }
+
+    const rawSec = process.env.TOWER_COOLDOWN_SECONDS;
+    if (rawSec !== undefined && rawSec.trim() !== '') {
+      const parsed = Number(rawSec);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        return parsed;
+      }
+    }
+
+    const rawHours = process.env.TOWER_COOLDOWN_HOURS;
+    if (rawHours !== undefined && rawHours.trim() !== '') {
+      const parsed = Number(rawHours);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        return parsed * 3600;
+      }
+    }
+
+    return DEFAULT_COOLDOWN_SECONDS;
+  }
+
+  /**
+   * Retrieves the question time limit in seconds (default: 10s).
+   */
+  getTimeLimitSeconds(): number {
+    const rawLimit = process.env.TOWER_QUESTION_TIME_LIMIT_SECONDS;
+    if (rawLimit !== undefined && rawLimit.trim() !== '') {
+      const parsed = Number(rawLimit);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return TIME_LIMIT_SECONDS;
+  }
 
   /**
    * Computes or retrieves the active monthly season.
@@ -135,14 +190,18 @@ export class TowerService {
     const progress = await this.getOrCreateUserProgress(userId, season.id);
 
     const now = Date.now();
+    const cooldownSeconds = this.getCooldownSeconds();
     let isCooldownActive = false;
     let cooldownRemainingSeconds = 0;
 
     if (progress.cooldownUntil) {
       const diff = progress.cooldownUntil.getTime() - now;
-      if (diff > 0) {
+      if (diff > 0 && cooldownSeconds > 0) {
         isCooldownActive = true;
         cooldownRemainingSeconds = Math.ceil(diff / 1000);
+      } else if (cooldownSeconds === 0) {
+        isCooldownActive = false;
+        cooldownRemainingSeconds = 0;
       }
     }
 
@@ -163,7 +222,7 @@ export class TowerService {
       const expiresAtMs =
         activeAttempt.currentQuestionExpiresAt?.getTime() ?? 0;
       if (expiresAtMs > 0 && now > expiresAtMs + NETWORK_GRACE_MS) {
-        // Expired -> Mark FAILED, trigger cooldown
+        // Expired -> Mark FAILED, trigger cooldown if enabled
         const expiredUpdate = await this.prisma.towerFloorAttempt.updateMany({
           where: { id: activeAttempt.id, status: 'IN_PROGRESS' },
           data: {
@@ -172,13 +231,14 @@ export class TowerService {
           },
         });
         if (expiredUpdate.count > 0) {
-          const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
+          const cooldownUntil =
+            cooldownSeconds > 0 ? new Date(now + cooldownSeconds * 1000) : null;
           await this.prisma.towerUserProgress.update({
             where: { id: progress.id },
             data: { cooldownUntil },
           });
-          isCooldownActive = true;
-          cooldownRemainingSeconds = COOLDOWN_HOURS * 3600;
+          isCooldownActive = cooldownSeconds > 0;
+          cooldownRemainingSeconds = cooldownSeconds;
           progress.cooldownUntil = cooldownUntil;
         }
       } else if (activeAttempt.currentQuizId) {
@@ -257,9 +317,14 @@ export class TowerService {
     const progress = await this.getOrCreateUserProgress(userId, season.id);
 
     const now = Date.now();
+    const cooldownSeconds = this.getCooldownSeconds();
 
     // 1. Verify cooldown
-    if (progress.cooldownUntil && progress.cooldownUntil.getTime() > now) {
+    if (
+      cooldownSeconds > 0 &&
+      progress.cooldownUntil &&
+      progress.cooldownUntil.getTime() > now
+    ) {
       const remainingSeconds = Math.ceil(
         (progress.cooldownUntil.getTime() - now) / 1000,
       );
@@ -321,28 +386,31 @@ export class TowerService {
           data: { status: 'FAILED', failedReason: 'QUIZ_DELETED' },
         });
       } else {
-        // Expired -> mark FAILED and apply 4-hour cooldown penalty (INV3)!
-        const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
+        // Expired -> mark FAILED
+        const cooldownUntil =
+          cooldownSeconds > 0 ? new Date(now + cooldownSeconds * 1000) : null;
         const expiredUpdate = await this.prisma.towerFloorAttempt.updateMany({
           where: { id: existing.id, status: 'IN_PROGRESS' },
           data: { status: 'FAILED', failedReason: 'TIMEOUT' },
         });
-        if (expiredUpdate.count > 0) {
+        if (expiredUpdate.count > 0 && cooldownSeconds > 0) {
           await this.prisma.towerUserProgress.update({
             where: { id: progress.id },
             data: { cooldownUntil },
           });
         }
 
-        throw new HttpException(
-          {
-            statusCode: HttpStatus.FORBIDDEN,
-            message: `Lượt chơi trước đã quá thời gian 10 giây. Bạn đang bị cooldown 4 giờ.`,
-            cooldownRemainingSeconds: COOLDOWN_HOURS * 3600,
-            cooldownUntil: cooldownUntil.toISOString(),
-          },
-          HttpStatus.FORBIDDEN,
-        );
+        if (cooldownSeconds > 0 && cooldownUntil) {
+          throw new HttpException(
+            {
+              statusCode: HttpStatus.FORBIDDEN,
+              message: `Lượt chơi trước đã quá thời gian 10 giây. Bạn đang bị cooldown ${Math.ceil(cooldownSeconds / 3600)} giờ.`,
+              cooldownRemainingSeconds: cooldownSeconds,
+              cooldownUntil: cooldownUntil.toISOString(),
+            },
+            HttpStatus.FORBIDDEN,
+          );
+        }
       }
     }
 
@@ -354,8 +422,9 @@ export class TowerService {
     }
 
     const requiredStreak = floor; // Floor 1 requires 1, Floor 2 requires 2, ..., Floor 100 requires 100
+    const timeLimit = this.getTimeLimitSeconds();
     const startedAt = new Date();
-    const expiresAt = new Date(startedAt.getTime() + TIME_LIMIT_SECONDS * 1000);
+    const expiresAt = new Date(startedAt.getTime() + timeLimit * 1000);
 
     let attempt;
     try {
@@ -454,7 +523,9 @@ export class TowerService {
 
     // 2. Check 10s timer (+ grace)
     if (now > expiresAt + NETWORK_GRACE_MS) {
-      const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
+      const cooldownSeconds = this.getCooldownSeconds();
+      const cooldownUntil =
+        cooldownSeconds > 0 ? new Date(now + cooldownSeconds * 1000) : null;
 
       const timeoutUpdate = await this.prisma.towerFloorAttempt.updateMany({
         where: {
@@ -480,8 +551,8 @@ export class TowerService {
       return {
         result: 'FAILED',
         reason: 'TIMEOUT',
-        cooldownUntil: cooldownUntil.toISOString(),
-        cooldownRemainingSeconds: COOLDOWN_HOURS * 3600,
+        cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
+        cooldownRemainingSeconds: cooldownSeconds,
       };
     }
 
@@ -503,8 +574,10 @@ export class TowerService {
       optionLabel.trim().toUpperCase() === quiz.answer.trim().toUpperCase();
 
     if (!isCorrect) {
-      // Failed: wrong answer -> 4 hours cooldown (only if atomic state transition succeeds)
-      const cooldownUntil = new Date(now + COOLDOWN_HOURS * 3600 * 1000);
+      // Failed: wrong answer -> cooldown if enabled (only if atomic state transition succeeds)
+      const cooldownSeconds = this.getCooldownSeconds();
+      const cooldownUntil =
+        cooldownSeconds > 0 ? new Date(now + cooldownSeconds * 1000) : null;
 
       const wrongUpdate = await this.prisma.towerFloorAttempt.updateMany({
         where: {
@@ -532,8 +605,8 @@ export class TowerService {
         reason: 'WRONG_ANSWER',
         correctAnswer: quiz.answer,
         explanation: quiz.explanation,
-        cooldownUntil: cooldownUntil.toISOString(),
-        cooldownRemainingSeconds: COOLDOWN_HOURS * 3600,
+        cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
+        cooldownRemainingSeconds: cooldownSeconds,
       };
     }
 
@@ -577,6 +650,19 @@ export class TowerService {
         },
       });
 
+      // Official XP: only after the atomic COMPLETED claim above (count === 1), idempotent per season floor.
+      try {
+        await this.xpService.award(
+          userId,
+          XpSourceType.TOWER_FLOOR,
+          `${season.id}:${attempt.floor}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `XP award failed (TOWER_FLOOR) userId=${userId} season=${season.id} floor=${attempt.floor}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
       // Dispatch 1 coin reward
       const rewardTx = await this.coinService.rewardFloorCompletion(
         userId,
@@ -606,9 +692,10 @@ export class TowerService {
       throw new BadRequestException('Không còn câu hỏi khả dụng cho tầng này');
     }
 
+    const timeLimit = this.getTimeLimitSeconds();
     const questionStartedAt = new Date();
     const questionExpiresAt = new Date(
-      questionStartedAt.getTime() + TIME_LIMIT_SECONDS * 1000,
+      questionStartedAt.getTime() + timeLimit * 1000,
     );
     const updatedUsedIds = [...usedIds, nextQuiz.id];
     const nextQuestionNumber = attempt.currentQuestionNumber + 1;
