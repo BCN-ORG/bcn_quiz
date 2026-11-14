@@ -48,6 +48,10 @@ describe('AttemptService', () => {
     publishCreated: jest.fn().mockResolvedValue(undefined),
   };
 
+  const xpService = {
+    award: jest.fn().mockResolvedValue({ awarded: true, amount: 50 }),
+  };
+
   let service: AttemptService;
 
   const req = { user: { id: 'user-1' } } as never;
@@ -68,6 +72,7 @@ describe('AttemptService', () => {
       profilesService as never,
       leaderboardService as never,
       notifications as never,
+      xpService as never,
     );
     prisma.topic.findUnique.mockResolvedValue(openTopic);
   });
@@ -396,6 +401,97 @@ describe('AttemptService', () => {
           score: 1,
         },
       });
+    });
+  });
+
+  describe('submitSession XP award', () => {
+    const arrange = (
+      txFails = false,
+      answers: Record<string, string> = { q1: 'A' },
+    ) => {
+      prisma.attemptSession.findUnique.mockResolvedValue({
+        id: 'sess-xp',
+        userId: 'user-1',
+        topicId: 'topic-1',
+        status: AttemptSessionStatus.IN_PROGRESS,
+        expiresAt: new Date(Date.now() + 60_000),
+        answers,
+        currentQuizId: null,
+        startedAt: new Date(Date.now() - 60_000),
+        lastSeenAt: new Date(),
+      });
+      prisma.quiz.findMany.mockResolvedValue([
+        {
+          id: 'q1',
+          quizCode: 'Q1',
+          question: 'Q?',
+          code: null,
+          answer: 'A',
+          explanation: '',
+          imageUrl: null,
+          options: [{ label: 'A', content: 'yes', isCode: false }],
+        },
+      ]);
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: unknown) => Promise<unknown>) =>
+          cb({
+            quizAttempt: { createMany: jest.fn() },
+            topicLeaderboardResult: {
+              createMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
+            attemptSession: {
+              updateMany: jest
+                .fn()
+                .mockResolvedValue({ count: txFails ? 0 : 1 }),
+            },
+            topicProgress: {
+              findUnique: jest.fn().mockResolvedValue(null),
+              create: jest.fn(),
+              update: jest.fn(),
+            },
+            quiz: { count: jest.fn().mockResolvedValue(1) },
+            $queryRaw: submitQueries(),
+            $executeRaw: jest.fn().mockResolvedValue(1),
+          }),
+      );
+      courseProgressService.evaluateCoursesByTopic.mockResolvedValue(undefined);
+    };
+
+    it('awards TOPIC_FIRST_SUBMIT keyed by topicId after a committed submit', async () => {
+      arrange();
+      await service.submitSession('sess-xp', req);
+      expect(xpService.award).toHaveBeenCalledTimes(1);
+      expect(xpService.award).toHaveBeenCalledWith(
+        'user-1',
+        'TOPIC_FIRST_SUBMIT',
+        'topic-1',
+      );
+    });
+
+    it('does not award XP for an empty submit (no answers)', async () => {
+      arrange(false, {});
+      const result = await service.submitSession('sess-xp', req);
+      expect(result.sessionId).toBe('sess-xp');
+      expect(xpService.award).not.toHaveBeenCalled();
+    });
+
+    it('does not award XP when every answer is wrong', async () => {
+      arrange(false, { q1: 'Z' });
+      await service.submitSession('sess-xp', req);
+      expect(xpService.award).not.toHaveBeenCalled();
+    });
+
+    it('does not award when the submit transition fails', async () => {
+      arrange(true);
+      await expect(service.submitSession('sess-xp', req)).rejects.toBeDefined();
+      expect(xpService.award).not.toHaveBeenCalled();
+    });
+
+    it('does not fail the submit when the XP award throws', async () => {
+      arrange();
+      xpService.award.mockRejectedValueOnce(new Error('xp down'));
+      const result = await service.submitSession('sess-xp', req);
+      expect(result.sessionId).toBe('sess-xp');
     });
   });
 

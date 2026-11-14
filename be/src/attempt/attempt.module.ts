@@ -6,6 +6,7 @@ import { CourseModule } from '../course/course.module';
 import { ProfilesModule } from '../profiles/profiles.module';
 import { LeaderboardModule } from '../leaderboard/leaderboard.module';
 import { NotificationModule } from '../notification/notification.module';
+import { XpModule } from '../xp/xp.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { NotificationModule } from '../notification/notification.module';
     ProfilesModule,
     LeaderboardModule,
     NotificationModule,
+    XpModule,
   ],
   controllers: [AttemptController],
   providers: [AttemptService, AttemptSessionCleanupService],

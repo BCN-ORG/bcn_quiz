@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import { TowerService } from './tower.service';
 import { TowerCoinService } from './coin/tower-coin.service';
+import { XpService } from '../xp/xp.service';
 
 describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
   let service: TowerService;
@@ -35,6 +36,10 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
     rewardFloorCompletion: jest.fn(),
   };
 
+  const mockXp = {
+    award: jest.fn().mockResolvedValue({ awarded: true, amount: 30 }),
+  };
+
   const sampleSeason = {
     id: 'season-2026-11',
     seasonKey: '2026-11',
@@ -52,6 +57,7 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
         TowerService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TowerCoinService, useValue: mockCoinService },
+        { provide: XpService, useValue: mockXp },
       ],
     }).compile();
 
@@ -373,6 +379,75 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
       );
     });
 
+    describe('XP award on floor completion', () => {
+      const arrange = (claimCount = 1) => {
+        mockPrisma.towerUserProgress.findUnique.mockResolvedValue({
+          id: 'prog-1',
+          userId: 'u1',
+          seasonId: sampleSeason.id,
+          currentFloor: 2,
+          highestCompletedFloor: 1,
+        });
+        mockPrisma.towerFloorAttempt.findFirst.mockResolvedValue({
+          id: 'att-xp',
+          userId: 'u1',
+          seasonId: sampleSeason.id,
+          floor: 2,
+          requiredStreak: 1,
+          currentStreak: 0,
+          currentQuestionNumber: 1,
+          currentQuizId: 'q-1',
+          usedQuizIds: ['q-1'],
+          currentQuestionExpiresAt: new Date(Date.now() + 8000),
+          status: 'IN_PROGRESS',
+        });
+        mockPrisma.quiz.findUnique.mockResolvedValue({
+          id: 'q-1',
+          answer: 'D',
+          explanation: '',
+        });
+        mockPrisma.towerFloorAttempt.updateMany.mockResolvedValue({
+          count: claimCount,
+        });
+        mockPrisma.towerUserProgress.update.mockResolvedValue({});
+        mockCoinService.rewardFloorCompletion.mockResolvedValue({
+          status: 'SUCCESS',
+        });
+      };
+
+      it('awards TOWER_FLOOR keyed by seasonId:floor', async () => {
+        arrange();
+        await service.answerFloorQuestion('u1', 'D');
+        expect(mockXp.award).toHaveBeenCalledWith(
+          'u1',
+          'TOWER_FLOOR',
+          `${sampleSeason.id}:2`,
+        );
+      });
+
+      it('does not award on a wrong answer', async () => {
+        arrange();
+        await service.answerFloorQuestion('u1', 'A');
+        expect(mockXp.award).not.toHaveBeenCalled();
+      });
+
+      it('does not award when the completion claim was lost to a concurrent request', async () => {
+        arrange(0);
+        await expect(
+          service.answerFloorQuestion('u1', 'D'),
+        ).rejects.toBeDefined();
+        expect(mockXp.award).not.toHaveBeenCalled();
+      });
+
+      it('still completes the floor when the XP award throws', async () => {
+        arrange();
+        mockXp.award.mockRejectedValueOnce(new Error('xp down'));
+        const response = await service.answerFloorQuestion('u1', 'D');
+        expect(response.result).toBe('FLOOR_COMPLETED');
+        expect(mockCoinService.rewardFloorCompletion).toHaveBeenCalled();
+      });
+    });
+
     it('does NOT set 4-hour cooldown when a concurrent wrong answer loses the race (updateMany count === 0)', async () => {
       mockPrisma.towerUserProgress.findUnique.mockResolvedValue({
         id: 'prog-1',
@@ -419,6 +494,74 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
       );
       expect(season.seasonKey).toBe('2026-12');
       expect(season.startsAt.toISOString()).toBe('2026-11-30T17:00:00.000Z');
+    });
+
+    describe('environment-controlled cooldown (dev vs prod)', () => {
+      const origEnabled = process.env.TOWER_COOLDOWN_ENABLED;
+      const origSeconds = process.env.TOWER_COOLDOWN_SECONDS;
+
+      afterEach(() => {
+        if (origEnabled !== undefined)
+          process.env.TOWER_COOLDOWN_ENABLED = origEnabled;
+        else delete process.env.TOWER_COOLDOWN_ENABLED;
+        if (origSeconds !== undefined)
+          process.env.TOWER_COOLDOWN_SECONDS = origSeconds;
+        else delete process.env.TOWER_COOLDOWN_SECONDS;
+      });
+
+      it('disables cooldown in dev when TOWER_COOLDOWN_ENABLED=false', async () => {
+        process.env.TOWER_COOLDOWN_ENABLED = 'false';
+
+        expect(service.getCooldownSeconds()).toBe(0);
+
+        mockPrisma.towerUserProgress.findUnique.mockResolvedValue({
+          id: 'prog-1',
+          userId: 'u1',
+          seasonId: sampleSeason.id,
+          currentFloor: 1,
+        });
+
+        const expiresAt = new Date(Date.now() + 8000);
+        mockPrisma.towerFloorAttempt.findFirst.mockResolvedValue({
+          id: 'att-1',
+          userId: 'u1',
+          seasonId: sampleSeason.id,
+          floor: 1,
+          currentQuizId: 'q-1',
+          currentQuestionExpiresAt: expiresAt,
+          status: 'IN_PROGRESS',
+        });
+
+        mockPrisma.quiz.findUnique.mockResolvedValue({
+          id: 'q-1',
+          answer: 'A',
+          explanation: 'A is right',
+        });
+
+        mockPrisma.towerFloorAttempt.updateMany.mockResolvedValue({ count: 1 });
+        mockPrisma.towerUserProgress.update.mockResolvedValue({});
+
+        // Wrong answer
+        const res = await service.answerFloorQuestion('u1', 'B');
+        expect(res.result).toBe('FAILED');
+        expect(res.reason).toBe('WRONG_ANSWER');
+        expect(res.cooldownRemainingSeconds).toBe(0);
+        expect(res.cooldownUntil).toBeNull();
+        expect(mockPrisma.towerUserProgress.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: { cooldownUntil: null },
+          }),
+        );
+      });
+
+      it('customizes cooldown seconds when TOWER_COOLDOWN_SECONDS is specified', () => {
+        delete process.env.TOWER_COOLDOWN_ENABLED;
+        process.env.TOWER_COOLDOWN_SECONDS = '7200'; // 2 hours
+        expect(service.getCooldownSeconds()).toBe(7200);
+
+        process.env.TOWER_COOLDOWN_SECONDS = '0';
+        expect(service.getCooldownSeconds()).toBe(0);
+      });
     });
   });
 });

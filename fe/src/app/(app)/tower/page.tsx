@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
+  ArrowClockwise,
   ArrowLeft,
   ArrowRight,
   CheckCircle,
@@ -10,12 +11,11 @@ import {
   Lightning,
   Receipt,
   Sparkle,
-  Timer,
   Trophy,
+  X,
   XCircle,
 } from '@phosphor-icons/react';
 import { Empty, ErrorState, Loading } from '@/components/ui';
-import { serverNow } from '@/lib/api';
 import {
   towerApi,
   TowerOverview,
@@ -23,6 +23,7 @@ import {
   AnswerResponse,
   TowerRewardTransactionItem,
 } from '@/lib/tower';
+import { QuizTimer, type TimerTier } from '@/components/quiz-timer';
 
 export default function TowerPage() {
   const [loading, setLoading] = useState(true);
@@ -32,15 +33,13 @@ export default function TowerPage() {
   // Gameplay state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState<TowerQuestion | null>(null);
+  const [lastQuestion, setLastQuestion] = useState<TowerQuestion | null>(null);
   const [currentFloor, setCurrentFloor] = useState(1);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [requiredStreak, setRequiredStreak] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [cardTimerTier, setCardTimerTier] = useState<TimerTier>('normal');
   const submittingRef = useRef(false);
-
-  // Timer state
-  const [remainingSeconds, setRemainingSeconds] = useState(10);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Result & Modals
   const [resultModal, setResultModal] = useState<AnswerResponse | null>(null);
@@ -72,6 +71,7 @@ export default function TowerPage() {
         setCurrentStreak(data.activeAttempt.currentStreak);
         setRequiredStreak(data.activeAttempt.requiredStreak);
         setCurrentQuestion(data.activeAttempt.currentQuestion);
+        setLastQuestion(data.activeAttempt.currentQuestion);
       } else {
         setIsPlaying(false);
         setCurrentQuestion(null);
@@ -96,6 +96,11 @@ export default function TowerPage() {
       document.body.classList.remove('quiz-playing');
     };
   }, [isPlaying, currentQuestion]);
+
+  // Reset card ambient timer color when question changes
+  useEffect(() => {
+    setCardTimerTier('normal');
+  }, [currentQuestion?.id]);
 
   // Close modals on Escape
   useEffect(() => {
@@ -129,11 +134,17 @@ export default function TowerPage() {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
+    if (currentQuestion) {
+      setLastQuestion(currentQuestion);
+    }
     try {
       // Submitting 'TIMEOUT' triggers failure; force reason: 'TIMEOUT' in case request lands inside backend 1.5s grace window
       const res = await towerApi.submitAnswer('TIMEOUT');
       setResultModal({ ...res, reason: 'TIMEOUT' });
       setIsPlaying(false);
+      if (res.cooldownRemainingSeconds) {
+        setCooldownRemaining(res.cooldownRemainingSeconds);
+      }
       void fetchOverview();
     } catch {
       void fetchOverview();
@@ -141,35 +152,7 @@ export default function TowerPage() {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [fetchOverview]);
-
-  // 10s Question timer countdown
-  useEffect(() => {
-    if (!isPlaying || !currentQuestion) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      return;
-    }
-
-    const expiresAtMs = new Date(currentQuestion.expiresAt).getTime();
-
-    const updateTimer = () => {
-      const now = serverNow();
-      const diffSec = Math.max(0, Math.ceil((expiresAtMs - now) / 1000));
-      setRemainingSeconds(diffSec);
-
-      if (diffSec <= 0) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        void handleTimeout();
-      }
-    };
-
-    updateTimer();
-    timerRef.current = setInterval(updateTimer, 200);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isPlaying, currentQuestion, handleTimeout]);
+  }, [currentQuestion, fetchOverview]);
 
   const handleStartFloor = async () => {
     if (submittingRef.current) return;
@@ -182,6 +165,7 @@ export default function TowerPage() {
       setCurrentStreak(res.currentStreak);
       setRequiredStreak(res.requiredStreak);
       setCurrentQuestion(res.question);
+      setLastQuestion(res.question);
       setIsPlaying(true);
       setResultModal(null);
     } catch (err: unknown) {
@@ -194,11 +178,14 @@ export default function TowerPage() {
     }
   };
 
-  const handleSelectOption = async (label: string) => {
+  const handleSelectOption = useCallback(async (label: string) => {
     if (submittingRef.current || !isPlaying) return;
     submittingRef.current = true;
     setSubmitting(true);
     setActionError(null);
+    if (currentQuestion) {
+      setLastQuestion(currentQuestion);
+    }
 
     try {
       const res = await towerApi.submitAnswer(label);
@@ -207,10 +194,14 @@ export default function TowerPage() {
         setCurrentStreak(res.currentStreak ?? currentStreak + 1);
         if (res.nextQuestion) {
           setCurrentQuestion(res.nextQuestion);
+          setLastQuestion(res.nextQuestion);
         }
       } else if (res.result === 'FLOOR_COMPLETED' || res.result === 'FAILED') {
         setIsPlaying(false);
         setResultModal(res);
+        if (res.cooldownRemainingSeconds) {
+          setCooldownRemaining(res.cooldownRemainingSeconds);
+        }
         void fetchOverview();
       }
     } catch (err: unknown) {
@@ -221,7 +212,26 @@ export default function TowerPage() {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  };
+  }, [isPlaying, currentQuestion, currentStreak, fetchOverview]);
+
+  // Keyboard shortcuts for Tower options: A-D or 1-4
+  useEffect(() => {
+    if (!isPlaying || !currentQuestion || submitting || resultModal) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || event.ctrlKey || event.metaKey || event.altKey) return;
+      const opts = currentQuestion.options;
+      const index = /^[1-9]$/.test(event.key)
+        ? Number(event.key) - 1
+        : opts.findIndex((o) => o.label.toLowerCase() === event.key.toLowerCase());
+      if (index >= 0 && index < opts.length) {
+        event.preventDefault();
+        void handleSelectOption(opts[index].label);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isPlaying, currentQuestion, submitting, resultModal, handleSelectOption]);
 
   const handleOpenHistory = async () => {
     setShowHistory(true);
@@ -287,8 +297,14 @@ export default function TowerPage() {
             </button>
             <h1>Leo Tháp — Tầng {currentFloor}</h1>
             <div className="list-actions">
+              <span className="quiz-floor-badge">
+                <Trophy weight="fill" /> Tầng {currentFloor}
+              </span>
+              <span className="quiz-streak-badge">
+                <Lightning weight="fill" /> Chuỗi: {currentStreak}/{requiredStreak}
+              </span>
               <span className="status status-completed">
-                Chuỗi đúng: {currentStreak}/{requiredStreak}
+                <Coins weight="fill" /> +1 Coin
               </span>
             </div>
           </div>
@@ -312,17 +328,16 @@ export default function TowerPage() {
             </div>
           ) : null}
 
-          <section className="panel quiz-question" style={{ minHeight: 'auto' }}>
+          <section
+            className={`panel quiz-question is-timer-card timer-card-${cardTimerTier}`}
+            style={{ minHeight: 'auto' }}
+          >
+            <div className="tower-quiz-layout">
+            <div className="tower-quiz-main">
             <div className="quiz-question-head">
-              <span className="quiz-points">Tầng {currentFloor} • +1 Coin</span>
-              <p
-                className={`topic-clock tower-clock ${remainingSeconds <= 3 ? 'is-warning' : ''}`}
-                role="timer"
-                aria-live="off"
-              >
-                <Timer weight="bold" aria-hidden="true" />
-                <span>Còn {remainingSeconds}s</span>
-              </p>
+              <span className="quiz-points">
+                <Coins weight="fill" /> +1 Coin khi vượt tầng
+              </span>
               <p className="save-status" role="status" aria-live="polite">
                 {submitting
                   ? 'Đang chấm đáp án…'
@@ -364,6 +379,8 @@ export default function TowerPage() {
                 <button
                   key={opt.label}
                   type="button"
+                  role="radio"
+                  aria-checked={false}
                   className="answer"
                   disabled={submitting}
                   onClick={() => void handleSelectOption(opt.label)}
@@ -382,8 +399,31 @@ export default function TowerPage() {
             </div>
 
             <p className="answer-hint">
-              Chọn một đáp án trong vòng 10 giây. Trả lời sai hoặc hết giờ sẽ bị cooldown 4 giờ.
+              Chọn một đáp án trong vòng 10 giây (phím tắt: A–D hoặc 1–4). Trả lời sai hoặc hết giờ sẽ bị cooldown 4 giờ.
             </p>
+            </div>
+            <aside className={`tower-countdown tower-countdown-${cardTimerTier}`} aria-label="Đếm ngược">
+              <QuizTimer
+                expiresAt={currentQuestion.expiresAt}
+                durationSeconds={10}
+                onTimeout={handleTimeout}
+                onTierChange={setCardTimerTier}
+                isPaused={submitting}
+                size={120}
+                showSoundToggle
+                showBadge
+              />
+              <p className="tower-countdown-hint">
+                {cardTimerTier === 'timeout'
+                  ? 'Hết giờ!'
+                  : cardTimerTier === 'urgent'
+                    ? 'Sắp hết giờ! Chọn đáp án ngay'
+                    : cardTimerTier === 'warning'
+                      ? 'Còn ít thời gian — nhanh lên'
+                      : 'Chọn đáp án trong 10 giây'}
+              </p>
+            </aside>
+            </div>
           </section>
         </>
       ) : (
@@ -601,103 +641,211 @@ export default function TowerPage() {
       )}
 
       {/* Result Modal */}
-      {resultModal ? (
-        <div
-          className="dialog-backdrop"
-          role="presentation"
-          onClick={() => setResultModal(null)}
-        >
+      {resultModal ? (() => {
+        const isVictory = resultModal.result === 'FLOOR_COMPLETED';
+        const correctOption = (lastQuestion || currentQuestion)?.options?.find(
+          (o) => o.label === resultModal.correctAnswer
+        );
+
+        return (
           <div
-            className="dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="tower-result-title"
-            style={{ width: 'min(480px, 100%)', textAlign: 'center' }}
-            onClick={(event) => event.stopPropagation()}
+            className="dialog-backdrop"
+            role="presentation"
+            onClick={() => setResultModal(null)}
           >
-            {resultModal.result === 'FLOOR_COMPLETED' ? (
-              <>
-                <div className="tower-result-icon" aria-hidden="true">
-                  <CheckCircle size={32} weight="fill" />
-                </div>
-                <strong id="tower-result-title" style={{ fontSize: 20 }}>
-                  Chúc mừng vượt Tầng {resultModal.completedFloor}!
-                </strong>
-                <div style={{ margin: '12px 0 16px' }}>
-                  <span className="status status-completed" style={{ fontSize: 13, padding: '6px 12px' }}>
-                    <Coins weight="fill" style={{ marginRight: 6 }} />
-                    +{resultModal.rewardCoins ?? 1} Coin đã được cộng vào tài khoản
-                  </span>
-                </div>
-                {resultModal.explanation ? (
-                  <div className="review-explain" style={{ textAlign: 'left', marginTop: 0, marginBottom: 18 }}>
-                    <strong>Giải thích câu cuối</strong>
-                    <p style={{ margin: 0, color: 'var(--text)' }}>{resultModal.explanation}</p>
+            <div
+              className={`dialog tower-result-dialog ${isVictory ? 'is-victory' : 'is-defeat'}`}
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="tower-result-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="dialog-close-btn"
+                onClick={() => setResultModal(null)}
+                title="Đóng hộp thoại"
+                aria-label="Đóng"
+              >
+                <X size={16} weight="bold" />
+              </button>
+
+              {isVictory ? (
+                <>
+                  <div className="tower-result-badge-halo is-victory" aria-hidden="true">
+                    <Trophy size={40} weight="fill" />
                   </div>
-                ) : null}
-                <div className="list-actions" style={{ justifyContent: 'center' }}>
-                  {(resultModal.completedFloor ?? 0) < 100 ? (
+
+                  <h3 id="tower-result-title" className="tower-result-heading is-victory">
+                    Chúc mừng vượt Tầng {resultModal.completedFloor}!
+                  </h3>
+
+                  <div className="tower-result-reward-badges">
+                    <span className="reward-chip is-coin">
+                      <Coins size={16} weight="fill" /> +{resultModal.rewardCoins ?? 1} Coin nhận được
+                    </span>
+                    <span className="reward-chip is-record">
+                      <Trophy size={16} weight="fill" /> Kỷ lục: Tầng {resultModal.completedFloor}
+                    </span>
+                  </div>
+
+                  {resultModal.explanation ? (
+                    <div className="tower-result-review-card">
+                      <div className="review-explanation-section">
+                        <div className="review-explanation-header">
+                          <Sparkle size={13} weight="fill" /> Giải thích câu hoàn thành
+                        </div>
+                        <p className="review-explanation-text">{resultModal.explanation}</p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="dialog-action-buttons">
+                    {(resultModal.completedFloor ?? 0) < 100 ? (
+                      <button
+                        type="button"
+                        className="button primary full-width"
+                        disabled={submitting}
+                        onClick={() => {
+                          setResultModal(null);
+                          void handleStartFloor();
+                        }}
+                      >
+                        Tiếp tục Tầng {resultModal.nextFloor} <ArrowRight size={18} weight="bold" />
+                      </button>
+                    ) : null}
                     <button
                       type="button"
-                      className="button"
-                      disabled={submitting}
-                      onClick={() => {
-                        setResultModal(null);
-                        void handleStartFloor();
-                      }}
+                      className="button secondary full-width"
+                      onClick={() => setResultModal(null)}
                     >
-                      Tiếp tục Tầng {resultModal.nextFloor} <ArrowRight />
+                      Về bản đồ tháp
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => setResultModal(null)}
-                  >
-                    Về bản đồ tháp
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="tower-result-icon is-danger" aria-hidden="true">
-                  <XCircle size={32} weight="fill" />
-                </div>
-                <strong id="tower-result-title" style={{ fontSize: 20, color: 'var(--danger)' }}>
-                  Chưa vượt qua Tầng {currentFloor}
-                </strong>
-                <p style={{ marginTop: 8 }}>
-                  {resultModal.reason === 'TIMEOUT'
-                    ? 'Bạn đã hết thời gian 10 giây để trả lời câu hỏi.'
-                    : `Bạn đã trả lời chưa chính xác.${
-                        resultModal.correctAnswer
-                          ? ` Đáp án đúng là: ${resultModal.correctAnswer}.`
-                          : ''
-                      }`}
-                </p>
-                {resultModal.explanation ? (
-                  <div className="review-explain" style={{ textAlign: 'left', marginTop: 0, marginBottom: 16 }}>
-                    <strong>Giải thích</strong>
-                    <p style={{ margin: 0, color: 'var(--text)' }}>{resultModal.explanation}</p>
                   </div>
-                ) : null}
-                <div className="notice notice-danger" style={{ marginTop: 0, marginBottom: 18 }}>
-                  <strong>Cooldown 4 giờ trước khi được thử lại tầng này.</strong>
-                </div>
-                <div className="list-actions" style={{ justifyContent: 'center' }}>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => setResultModal(null)}
-                  >
-                    Đóng
-                  </button>
-                </div>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  <div className="tower-result-badge-halo is-defeat" aria-hidden="true">
+                    {resultModal.reason === 'TIMEOUT' ? (
+                      <HourglassHigh size={38} weight="fill" />
+                    ) : (
+                      <XCircle size={40} weight="fill" />
+                    )}
+                  </div>
+
+                  <h3 id="tower-result-title" className="tower-result-heading is-defeat">
+                    Chưa vượt qua Tầng {currentFloor}
+                  </h3>
+
+                  <div className="tower-result-meta-row">
+                    {resultModal.reason === 'TIMEOUT' ? (
+                      <span className="tower-reason-chip is-timeout">
+                        <HourglassHigh size={14} weight="fill" /> Hết 10 giây suy nghĩ
+                      </span>
+                    ) : (
+                      <span className="tower-reason-chip is-wrong">
+                        <XCircle size={14} weight="fill" /> Đáp án chưa chính xác
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="tower-result-lead">
+                    {resultModal.reason === 'TIMEOUT'
+                      ? 'Bạn đã không kịp chọn đáp án trong 10 giây quy định của tầng.'
+                      : 'Bạn đã chọn câu trả lời chưa chính xác cho câu hỏi này.'}
+                  </p>
+
+                  {(resultModal.correctAnswer || resultModal.explanation) && (
+                    <div className="tower-result-review-card">
+                      {resultModal.correctAnswer ? (
+                        <div className="review-answer-row">
+                          <span className="review-answer-badge">
+                            <CheckCircle size={14} weight="fill" /> Đáp án đúng
+                          </span>
+                          <div className="review-answer-content">
+                            <span className="review-answer-label">{resultModal.correctAnswer}</span>
+                            <span className="review-answer-text">
+                              {correctOption?.content && correctOption.content !== resultModal.correctAnswer
+                                ? correctOption.content
+                                : `Lựa chọn ${resultModal.correctAnswer}`}
+                            </span>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {resultModal.correctAnswer && resultModal.explanation ? (
+                        <div className="review-card-divider" />
+                      ) : null}
+
+                      {resultModal.explanation ? (
+                        <div className="review-explanation-section">
+                          <div className="review-explanation-header">
+                            <Sparkle size={13} weight="fill" /> Giải thích chi tiết
+                          </div>
+                          <p className="review-explanation-text">{resultModal.explanation}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {cooldownRemaining > 0 ? (
+                    <div className="tower-result-cooldown-card is-active">
+                      <div className="cooldown-header">
+                        <span className="cooldown-title">
+                          <HourglassHigh size={15} weight="fill" /> Thời gian hồi chiêu
+                        </span>
+                        <span className="cooldown-badge is-counting">
+                          {formatCooldown(cooldownRemaining)}
+                        </span>
+                      </div>
+                      <p className="cooldown-desc">
+                        Bạn có thể thử lại Tầng {currentFloor} sau khi hết thời gian hồi chiêu.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="tower-result-cooldown-card is-ready">
+                      <div className="cooldown-header">
+                        <span className="cooldown-title">
+                          <Lightning size={15} weight="fill" /> Sẵn sàng thử lại ngay
+                        </span>
+                        <span className="cooldown-badge is-instant">
+                          Không phải chờ
+                        </span>
+                      </div>
+                      <p className="cooldown-desc">
+                        Không bị khóa hồi chiêu. Bạn có thể chinh phục lại Tầng {currentFloor} ngay bây giờ!
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="dialog-action-buttons">
+                    {cooldownRemaining <= 0 ? (
+                      <button
+                        type="button"
+                        className="button primary full-width"
+                        disabled={submitting}
+                        onClick={() => {
+                          setResultModal(null);
+                          void handleStartFloor();
+                        }}
+                      >
+                        <ArrowClockwise size={18} weight="bold" /> Thử lại Tầng {currentFloor}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={`button ${cooldownRemaining > 0 ? 'primary full-width' : 'secondary full-width'}`}
+                      onClick={() => setResultModal(null)}
+                    >
+                      Về bản đồ tháp
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      ) : null}
+        );
+      })() : null}
 
       {/* Transactions History Modal */}
       {showHistory ? (

@@ -12,6 +12,7 @@ import {
   NotificationType,
   Prisma,
   ProjectSubmissionStatus,
+  XpSourceType,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import type { Request as ExpressRequest } from 'express';
@@ -19,6 +20,7 @@ import { CourseProgressService } from '../course/course-progress.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
+import { XpService } from '../xp/xp.service';
 import { CertificateService } from './certificate.service';
 import {
   BulkApproveCertificateRequestsDto,
@@ -49,6 +51,7 @@ export class CertificateRequestService {
     private readonly progress: CourseProgressService,
     private readonly notifications: NotificationService,
     private readonly profiles: ProfilesService,
+    private readonly xpService: XpService,
   ) {}
 
   // ---- learner -----------------------------------------------------------------------------------------------
@@ -492,6 +495,18 @@ export class CertificateRequestService {
       });
       return issued;
     });
+    // Official XP: only after the approval transaction committed; idempotent per certificate (reinstating is a no-op).
+    try {
+      await this.xpService.award(
+        request.userId,
+        XpSourceType.CERTIFICATE_ISSUED,
+        certificate.id,
+      );
+    } catch (error) {
+      this.logger.error(
+        `XP award failed (CERTIFICATE_ISSUED) userId=${request.userId} certificateId=${certificate.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     await this.notify(
       request.userId,
       NotificationType.CERTIFICATE_APPROVED,

@@ -22,7 +22,7 @@ export default function HomePage() {
         <Link href="/" className="brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/bcn-card-back.webp" alt="BCN" className="brand-logo" width={36} height={36} />
-          <strong>BCN Quiz</strong>
+          <strong>BCN Arena</strong>
         </Link>
         <div className="landing-actions">
           <Link className="text-link" href="/verify">
@@ -75,12 +75,12 @@ export default function HomePage() {
             </div>
             <div className="device device-tablet">
               <div className="device-screen">
-                <img src="/brand/shot-dashboard.png" alt="Màn hình Tổng quan của BCN Quiz trên tablet" />
+                <img src="/brand/shot-dashboard.png" alt="Màn hình Tổng quan của BCN Arena trên tablet" />
               </div>
             </div>
             <div className="device device-phone">
               <div className="device-screen">
-                <img src="/brand/shot-quiz-mobile.png" alt="Màn hình làm bài của BCN Quiz trên điện thoại" />
+                <img src="/brand/shot-quiz-mobile.png" alt="Màn hình làm bài của BCN Arena trên điện thoại" />
               </div>
             </div>
           </div>

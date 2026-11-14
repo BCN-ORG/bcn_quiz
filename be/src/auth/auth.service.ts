@@ -1,5 +1,7 @@
 import {
   BadGatewayException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   OnModuleInit,
@@ -492,6 +494,12 @@ export class AuthService implements OnModuleInit {
       }
       if (status !== undefined && status >= 500) {
         throw new BadGatewayException('Profiles auth service error');
+      }
+      if (status === 429) {
+        throw new HttpException(
+          'Profiles auth service rate limited',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
     } else {
       this.logger.error(`[${context}] unexpected error`, error as Error);

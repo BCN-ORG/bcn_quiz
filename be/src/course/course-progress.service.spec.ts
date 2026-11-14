@@ -1,5 +1,9 @@
 import { CourseProgressService } from './course-progress.service';
 
+const xpService = {
+  award: jest.fn().mockResolvedValue({ awarded: true, amount: 200 }),
+};
+
 describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
   const prisma = {
     topicProgress: { updateMany: jest.fn() },
@@ -21,6 +25,7 @@ describe('CourseProgressService.reopenTopicProgressAndCourses', () => {
     service = new CourseProgressService(
       prisma as never,
       profilesService as never,
+      xpService as never,
     );
   });
 
@@ -162,6 +167,7 @@ describe('CourseProgressService progress rules', () => {
     service = new CourseProgressService(
       prisma as never,
       profilesService as never,
+      xpService as never,
     );
   });
 
@@ -464,6 +470,7 @@ describe('CourseProgressService coverage reevaluation', () => {
     service = new CourseProgressService(
       prisma as never,
       profilesService as never,
+      xpService as never,
     );
     reevaluateCourse = jest
       .spyOn(service, 'reevaluateAllUsersForCourse')

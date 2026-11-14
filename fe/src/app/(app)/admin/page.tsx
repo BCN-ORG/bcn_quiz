@@ -17,6 +17,7 @@ import { optionContent, toDatetimeLocal } from '@/lib/format';
 import { downloadQuizImportTemplate, parseQuizSpreadsheet } from '@/lib/quiz-import';
 import { AdminCertificates } from '@/components/admin-certificates';
 import { AdminLeaderboard } from '@/components/admin-leaderboard';
+import { AdminBoss } from '@/components/admin-boss';
 import {
   canCreateContent,
   canDeleteContent,
@@ -25,8 +26,8 @@ import {
 } from '@/lib/permissions';
 import type { Course, Pagination, Quiz, Submission, Topic } from '@/lib/types';
 
-type Tab = 'courses' | 'topics' | 'quizzes' | 'reviews' | 'certificates' | 'leaderboards';
-const labels: Record<Tab, string> = { courses: 'Khóa học', topics: 'Chủ đề', quizzes: 'Câu hỏi', reviews: 'Duyệt project', certificates: 'Chứng nhận', leaderboards: 'Bảng xếp hạng' };
+type Tab = 'courses' | 'topics' | 'quizzes' | 'reviews' | 'certificates' | 'leaderboards' | 'boss';
+const labels: Record<Tab, string> = { courses: 'Khóa học', topics: 'Chủ đề', quizzes: 'Câu hỏi', reviews: 'Duyệt project', certificates: 'Chứng nhận', leaderboards: 'Bảng xếp hạng', boss: 'Sự kiện Boss' };
 const EMPTY_PAGE = { page: 1, limit: 10, total: 0, totalPages: 1 };
 
 function slugify(value: string) {
@@ -555,8 +556,9 @@ export default function AdminPage() {
   return (
     <>
       <header className="page-heading"><div><h1>Quiz Studio</h1><p>Quản lý lộ trình, câu hỏi, đề project và bài nộp tại một nơi.</p></div></header>
-      <div className="tabs" role="tablist">{(Object.keys(labels) as Tab[]).filter((item) => !['reviews', 'certificates', 'leaderboards'].includes(item) || allowUpdate).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} key={item} onClick={() => { setTab(item); resetCreateForm(); setError(''); setNotice(''); if (item === 'reviews') void loadReviews(courseId, 1); if (item === 'quizzes') void loadTopicQuizzes(quizTopicId, 1); }}>{labels[item]}</button>)}</div>
+      <div className="tabs" role="tablist">{(Object.keys(labels) as Tab[]).filter((item) => !['reviews', 'certificates', 'leaderboards', 'boss'].includes(item) || allowUpdate).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} key={item} onClick={() => { setTab(item); resetCreateForm(); setError(''); setNotice(''); if (item === 'reviews') void loadReviews(courseId, 1); if (item === 'quizzes') void loadTopicQuizzes(quizTopicId, 1); }}>{labels[item]}</button>)}</div>
       {tab === 'leaderboards' && allowUpdate ? <AdminLeaderboard /> : null}
+      {tab === 'boss' && allowUpdate ? <AdminBoss /> : null}
       {tab === 'certificates' && allowUpdate ? <AdminCertificates /> : null}
       {error ? <p className="form-error" style={{ marginTop: 16 }} role="alert">{error}</p> : null}
       {notice ? <p className="form-success" style={{ marginTop: 16 }} role="status">{notice}</p> : null}

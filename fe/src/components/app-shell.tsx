@@ -10,6 +10,7 @@ import {
   Gauge,
   ClockCounterClockwise,
   SignOut,
+  Sword,
   Trophy,
   List,
   Lightning,
@@ -33,6 +34,7 @@ const primary = [
   { href: '/dashboard', label: 'Tổng quan', icon: Gauge, allow: () => true },
   { href: '/courses', label: 'Khóa học', icon: BookOpen, allow: canReadQuestions },
   { href: '/tower', label: 'Leo Tháp', icon: Lightning, allow: canReadQuestions },
+  { href: '/boss', label: 'Săn Boss', icon: Sword, allow: canReadQuestions },
   { href: '/leaderboard', label: 'Xếp hạng', icon: Trophy, allow: canReadQuestions },
   { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise, allow: canReadResults },
   { href: '/certificates', label: 'Chứng nhận', icon: Certificate, allow: canReadResults },
@@ -143,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard" className="brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/bcn-card-back.webp" alt="BCN" className="brand-logo" width={36} height={36} />
-            <strong>BCN Quiz</strong>
+            <strong>BCN Arena</strong>
           </Link>
           <button className="icon-button mobile-only" onClick={() => setMenu(false)} aria-label="Đóng menu"><X /></button>
         </div>

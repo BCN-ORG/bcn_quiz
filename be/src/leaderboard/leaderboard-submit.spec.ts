@@ -171,6 +171,9 @@ describe('official topic leaderboard submit', () => {
         recordOfficial: jest.fn().mockResolvedValue([]),
         publishCreated: jest.fn().mockResolvedValue(undefined),
       } as never,
+      {
+        award: jest.fn().mockResolvedValue({ awarded: true, amount: 0 }),
+      } as never,
     );
     const req = { user: { id: 'user-1' } } as never;
 

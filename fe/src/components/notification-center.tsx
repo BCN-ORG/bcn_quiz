@@ -36,8 +36,10 @@ export function NotificationCenter() {
   const [unread, setUnread] = useState(0);
   const [toast, setToast] = useState<Notification | null>(null);
   const seen = useRef(new Set<string>());
+  const lastRefreshRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    lastRefreshRef.current = Date.now();
     const [page, count] = await Promise.all([
       request.get<NotificationPage>('/notifications?limit=20'),
       request.get<{ count: number }>('/notifications/unread-count'),
@@ -75,8 +77,17 @@ export function NotificationCenter() {
       }
     };
     stream.addEventListener('notification', onNotification);
-    stream.onopen = () => { if (active) void refresh().catch(() => undefined); };
-    const onFocus = () => { if (active) void refresh().catch(() => undefined); };
+    // Recover over REST after every reconnect (AGENTS.md invariant); the first open is a no-op because mount already refreshed.
+    let firstOpen = true;
+    stream.onopen = () => {
+      if (firstOpen) { firstOpen = false; return; }
+      if (active) void refresh().catch(() => undefined);
+    };
+    const onFocus = () => {
+      if (active && Date.now() - lastRefreshRef.current > 30_000) {
+        void refresh().catch(() => undefined);
+      }
+    };
     window.addEventListener('focus', onFocus);
     return () => {
       active = false;

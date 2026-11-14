@@ -602,6 +602,9 @@ maybeDescribe('Leaderboard on real PostgreSQL', () => {
         { createTimelineEvent: jest.fn() } as never,
         leaderboard,
         new NotificationService(prisma, new NotificationRealtimeService()),
+        {
+          award: jest.fn().mockResolvedValue({ awarded: true, amount: 0 }),
+        } as never,
       );
     });
 

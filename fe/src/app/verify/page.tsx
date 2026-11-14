@@ -85,7 +85,7 @@ export default function VerifyCertificatePage() {
         <Link href="/" className="brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/bcn-card-back.webp" alt="BCN" className="brand-logo" width={36} height={36} />
-          <strong>BCN Quiz</strong>
+          <strong>BCN Arena</strong>
         </Link>
         <Link className="button secondary" href="/">
           Trang chủ
