@@ -281,6 +281,7 @@ describe('BossService', () => {
         id: 'session-active',
         seasonId: 'season-1',
         score: 15,
+        idleStreak: 0,
         combo: 4,
         maxCombo: 7,
         currentQuestionNumber: 16,
@@ -307,6 +308,296 @@ describe('BossService', () => {
       expect(res.score).toBe(15);
       expect(res.combo).toBe(4);
       expect(res.question?.id).toBe('q-active');
+    });
+  });
+
+  describe('idle (AFK) handling', () => {
+    const season = {
+      id: 'season-1',
+      weekKey: '2026-W46',
+      name: 'Tuần 46',
+      bossName: 'Ma Vương',
+      bossMaxHp: 1500,
+      milestoneConfig: [],
+      startsAt: new Date(),
+      endsAt: new Date(Date.now() + 86400000),
+      isActive: true,
+      isSettled: false,
+    };
+    const makeSession = (over: Record<string, unknown> = {}) => ({
+      id: 'session-idle',
+      userId: 'user-1',
+      seasonId: 'season-1',
+      status: 'IN_PROGRESS',
+      score: 3,
+      combo: 0,
+      maxCombo: 3,
+      correctCount: 3,
+      wrongCount: 0,
+      totalAnswered: 3,
+      idleStreak: 0,
+      currentQuestionId: 'q-curr',
+      currentQuestionNumber: 4,
+      currentQuestionExpiresAt: new Date(Date.now() - 100),
+      expiresAt: new Date(Date.now() + 200000),
+      usedQuestionIds: ['q-curr'],
+      ...over,
+    });
+    const arrangeSubmit = (session: ReturnType<typeof makeSession>) => {
+      mockPrismaService.bossBattleSession.findFirst.mockResolvedValue(session);
+      mockPrismaService.bossBattleSession.findUnique.mockResolvedValue(session);
+      mockPrismaService.quiz.findUnique.mockResolvedValue({
+        id: 'q-curr',
+        explanation: null,
+        answer: 'A',
+        options: [{ label: 'A', content: 'A', isCode: false }],
+      });
+      mockPrismaService.quiz.count.mockResolvedValue(5);
+      mockPrismaService.quiz.findFirst.mockResolvedValue({
+        id: 'q-next',
+        question: 'Q',
+        code: null,
+        imageUrl: null,
+        answer: 'A',
+        options: [{ label: 'A', content: 'A', isCode: false }],
+      });
+      mockPrismaService.bossUserWeeklyStat.findUnique.mockResolvedValue({
+        highestScore: 3,
+      });
+    };
+
+    it('counts a timed-out question toward the streak and keeps playing below 5', async () => {
+      arrangeSubmit(makeSession({ idleStreak: 3 }));
+      const res = await service.submitAnswer('user-1', 'TIMEOUT');
+      expect(res.result).toBe('TIMEOUT');
+      expect(
+        mockPrismaService.bossBattleSession.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ idleStreak: 4 }),
+        }),
+      );
+    });
+
+    it('ends the session as IDLE_TIMEOUT on the 5th unanswered question in a row', async () => {
+      arrangeSubmit(makeSession({ idleStreak: 4 }));
+      const res = await service.submitAnswer('user-1', 'TIMEOUT');
+      expect(res).toMatchObject({
+        result: 'SESSION_COMPLETED',
+        endReason: 'IDLE_TIMEOUT',
+        score: 3,
+      });
+    });
+
+    it('counts time spent away: returning 45s late burns 5 questions at once', async () => {
+      arrangeSubmit(
+        makeSession({
+          idleStreak: 0,
+          currentQuestionExpiresAt: new Date(Date.now() - 45000),
+        }),
+      );
+      const res = await service.submitAnswer('user-1', 'TIMEOUT');
+      expect(res).toMatchObject({
+        result: 'SESSION_COMPLETED',
+        endReason: 'IDLE_TIMEOUT',
+      });
+    });
+
+    it('resets the streak on a correct answer and on a wrong answer', async () => {
+      arrangeSubmit(
+        makeSession({
+          idleStreak: 4,
+          currentQuestionExpiresAt: new Date(Date.now() + 5000),
+        }),
+      );
+      await service.submitAnswer('user-1', 'A');
+      expect(
+        mockPrismaService.bossBattleSession.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ idleStreak: 0, score: 4 }),
+        }),
+      );
+      mockPrismaService.bossBattleSession.updateMany.mockClear();
+      await service.submitAnswer('user-1', 'B');
+      expect(
+        mockPrismaService.bossBattleSession.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ idleStreak: 0, wrongCount: 1 }),
+        }),
+      );
+    });
+
+    it('nextQuestion after a wrong-answer pause does not count as idle', async () => {
+      arrangeSubmit(makeSession({ idleStreak: 4, currentQuestionId: null }));
+      const res = await service.nextQuestion('user-1');
+      expect(res.result).toBe('NEXT_QUESTION');
+    });
+
+    it('nextQuestion on an unanswered question ends the session at the limit', async () => {
+      arrangeSubmit(makeSession({ idleStreak: 4 }));
+      const res = await service.nextQuestion('user-1');
+      expect(res).toMatchObject({ endReason: 'IDLE_TIMEOUT' });
+    });
+
+    it('overview ends an abandoned session (reload / other page) and flags idleEnded', async () => {
+      mockPrismaService.bossWeeklySeason.findUnique.mockResolvedValue(season);
+      mockPrismaService.bossBattleSession.findFirst.mockResolvedValue(
+        makeSession({
+          idleStreak: 0,
+          currentQuestionExpiresAt: new Date(Date.now() - 45000),
+        }),
+      );
+      mockPrismaService.bossBattleSession.findUnique.mockResolvedValue(
+        makeSession(),
+      );
+      mockPrismaService.bossUserWeeklyStat.findMany.mockResolvedValue([]);
+      mockPrismaService.bossUserWeeklyStat.findUnique.mockResolvedValue(null);
+      const overview = await service.getOverview('user-1');
+      expect(overview.idleEnded).toBe(true);
+      expect(overview.activeSession).toBeNull();
+      expect(
+        mockPrismaService.bossBattleSession.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'COMPLETED',
+            endReason: 'IDLE_TIMEOUT',
+          }),
+        }),
+      );
+    });
+
+    it('overview keeps a session that was away for fewer than 5 questions', async () => {
+      mockPrismaService.bossWeeklySeason.findUnique.mockResolvedValue(season);
+      mockPrismaService.bossBattleSession.findFirst.mockResolvedValue(
+        makeSession({
+          idleStreak: 0,
+          currentQuestionExpiresAt: new Date(Date.now() - 20000),
+        }),
+      );
+      mockPrismaService.quiz.findUnique.mockResolvedValue({
+        id: 'q-curr',
+        question: 'Q',
+        code: null,
+        imageUrl: null,
+        answer: 'A',
+        options: [{ label: 'A', content: 'A', isCode: false }],
+      });
+      mockPrismaService.bossUserWeeklyStat.findMany.mockResolvedValue([]);
+      mockPrismaService.bossUserWeeklyStat.findUnique.mockResolvedValue(null);
+      const overview = await service.getOverview('user-1');
+      expect(overview.idleEnded).toBeUndefined();
+      expect(overview.activeSession).not.toBeNull();
+    });
+  });
+
+  describe('submitAnswer live boss hit', () => {
+    const baseSession = {
+      id: 'session-live',
+      userId: 'user-1',
+      seasonId: 'season-1',
+      status: 'IN_PROGRESS',
+      score: 19,
+      combo: 1,
+      maxCombo: 1,
+      correctCount: 19,
+      wrongCount: 0,
+      totalAnswered: 19,
+      currentQuestionId: 'q-curr',
+      currentQuestionNumber: 20,
+      currentQuestionExpiresAt: new Date(Date.now() + 5000),
+      expiresAt: new Date(Date.now() + 200000),
+      usedQuestionIds: ['q-curr'],
+    };
+    const arrange = (best: number | null) => {
+      mockPrismaService.bossBattleSession.findFirst.mockResolvedValue(
+        baseSession,
+      );
+      mockPrismaService.quiz.findUnique.mockResolvedValue({
+        id: 'q-curr',
+        explanation: null,
+        answer: 'A',
+        options: [{ label: 'A', content: 'A', isCode: false }],
+      });
+      mockPrismaService.quiz.count.mockResolvedValue(5);
+      mockPrismaService.quiz.findFirst.mockResolvedValue({
+        id: 'q-next',
+        question: 'Q',
+        code: null,
+        imageUrl: null,
+        answer: 'A',
+        options: [{ label: 'A', content: 'A', isCode: false }],
+      });
+      mockPrismaService.bossUserWeeklyStat.findUnique.mockResolvedValue(
+        best === null ? null : { highestScore: best },
+      );
+      mockPrismaService.bossUserWeeklyStat.findMany.mockResolvedValue([
+        { highestScore: 20 },
+        { highestScore: 500 },
+      ]);
+    };
+
+    it('persists the new best immediately and reports the damage once the record is beaten', async () => {
+      arrange(18);
+      const res = await service.submitAnswer('user-1', 'A');
+      expect(
+        mockPrismaService.bossUserWeeklyStat.updateMany,
+      ).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-1',
+          seasonId: 'season-1',
+          highestScore: { lt: 20 },
+        },
+        data: { highestScore: 20 },
+      });
+      expect(res).toMatchObject({
+        result: 'CORRECT',
+        score: 20,
+        bossDamage: 2,
+        personalBest: 20,
+        communityScore: 120, // 20 + capped 100
+      });
+    });
+
+    it('does not touch the stat or report damage while the score has not beaten the record', async () => {
+      arrange(20);
+      const res = await service.submitAnswer('user-1', 'A');
+      expect(
+        mockPrismaService.bossUserWeeklyStat.updateMany,
+      ).not.toHaveBeenCalled();
+      expect(res).toMatchObject({ result: 'CORRECT', score: 20 });
+      expect(res).not.toHaveProperty('bossDamage');
+    });
+
+    it('reports no damage when a concurrent write already raised the best (no double deduction)', async () => {
+      arrange(18);
+      mockPrismaService.bossUserWeeklyStat.updateMany.mockResolvedValueOnce({
+        count: 0,
+      });
+      const res = await service.submitAnswer('user-1', 'A');
+      expect(res).not.toHaveProperty('bossDamage');
+    });
+
+    it('caps the reported damage at the community contribution cap', async () => {
+      arrange(98);
+      mockPrismaService.bossBattleSession.findFirst.mockResolvedValue({
+        ...baseSession,
+        score: 109,
+      });
+      const res = await service.submitAnswer('user-1', 'A');
+      expect(res).toMatchObject({ score: 110, bossDamage: 2 });
+    });
+
+    it('still answers when persisting the hit fails (endSession raises the best later)', async () => {
+      arrange(18);
+      mockPrismaService.bossUserWeeklyStat.updateMany.mockRejectedValueOnce(
+        new Error('db down'),
+      );
+      const res = await service.submitAnswer('user-1', 'A');
+      expect(res).toMatchObject({ result: 'CORRECT', score: 20 });
+      expect(res).not.toHaveProperty('bossDamage');
     });
   });
 

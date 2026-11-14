@@ -1,9 +1,18 @@
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsInt,
+  IsUrl,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class SubmitBossAnswerDto {
@@ -62,6 +71,7 @@ export interface BossOverviewDto {
     weekKey: string;
     name: string;
     bossName: string;
+    bossImageUrl: string | null;
     bossMaxHp: number;
     startsAt: string;
     endsAt: string;
@@ -91,4 +101,82 @@ export interface BossOverviewDto {
     sessionRemainingSeconds: number;
     currentQuestion: BossQuestionDto | null;
   } | null;
+  /** True when this read ended the player's session for 5 unanswered questions in a row. */
+  idleEnded?: boolean;
+}
+
+export interface BossLiveParticipantDto {
+  /** Session id: stable key for the client, carries no user identity. */
+  sessionId: string;
+  name: string;
+  avatarUrl: string | null;
+  score: number;
+  isYou: boolean;
+}
+
+export interface BossLiveFighterDto extends BossLiveParticipantDto {
+  combo: number;
+}
+
+export interface BossLiveHitDto extends BossLiveParticipantDto {
+  maxCombo: number;
+  endedAt: string;
+}
+
+/** Read-only, side-effect free snapshot for the "fighting together" strip. No user ids, no emails. */
+export interface BossLiveDto {
+  serverTime: string;
+  community: BossOverviewDto['community'];
+  milestones: BossMilestoneStatusDto[];
+  fightingNow: number;
+  fighters: BossLiveFighterDto[];
+  recentHits: BossLiveHitDto[];
+}
+
+export class BossMilestoneInputDto {
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  at!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(1000)
+  coin!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  name!: string;
+}
+
+/** Admin config for a season that has not started yet. */
+export class UpsertBossSeasonDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  name!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  bossName!: string;
+
+  /** Uploaded boss art (https URL from the image upload signature); null/omitted = built-in image. */
+  @IsOptional()
+  @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
+  @MaxLength(500)
+  bossImageUrl?: string | null;
+
+  @IsInt()
+  @Min(100)
+  @Max(100_000)
+  bossMaxHp!: number;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => BossMilestoneInputDto)
+  milestones!: BossMilestoneInputDto[];
 }

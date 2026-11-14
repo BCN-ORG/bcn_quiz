@@ -554,6 +554,7 @@ model BossWeeklySeason {
   weekKey         String    @unique // e.g. "2026-W46"
   name            String
   bossName        String    @default("Ma Vương Hư Không")
+  bossImageUrl    String?   // optional custom boss art set by admin; null = built-in image
   bossMaxHp       Int       @default(1500)
   milestoneConfig Json      @default("[{\"at\":300,\"coin\":5,\"name\":\"Rương Đồng\"},{\"at\":600,\"coin\":5,\"name\":\"Rương Bạc\"},{\"at\":900,\"coin\":5,\"name\":\"Rương Vàng\"},{\"at\":1200,\"coin\":5,\"name\":\"Rương Bạch Kim\"},{\"at\":1500,\"coin\":5,\"name\":\"Rương Kim Cương\"}]")
   startsAt        DateTime
@@ -588,10 +589,11 @@ model BossBattleSession {
   currentQuestionStartedAt DateTime?
   currentQuestionExpiresAt DateTime?
   usedQuestionIds          Json              @default("[]")
+  idleStreak               Int               @default(0) // consecutive unanswered (timed-out) questions
   startedAt                DateTime          @default(now())
   expiresAt                DateTime          // startedAt + 300 seconds (5 mins)
   endedAt                  DateTime?
-  endReason                String?           // TIME_UP_5M, GIVE_UP, COMPLETED
+  endReason                String?           // TIME_UP_5M, GIVE_UP, IDLE_TIMEOUT, COMPLETED
   createdAt                DateTime          @default(now())
   updatedAt                DateTime          @updatedAt
 
@@ -599,6 +601,8 @@ model BossBattleSession {
 
   @@index([userId, seasonId, status])
   @@index([userId, status, expiresAt])
+  @@index([seasonId, status, expiresAt])
+  @@index([seasonId, status, endedAt])
   @@map("boss_battle_sessions")
 }
 

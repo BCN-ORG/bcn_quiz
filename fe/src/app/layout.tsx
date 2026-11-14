@@ -4,7 +4,7 @@ import './globals.css';
 import './styles/quizzy-layout.css';
 
 export const metadata: Metadata = {
-  title: { default: 'BCN Quiz', template: '%s | BCN Quiz' },
+  title: { default: 'BCN Arena', template: '%s | BCN Arena' },
   description: 'Học, luyện tập và theo dõi tiến độ cùng BCN.',
 };
 

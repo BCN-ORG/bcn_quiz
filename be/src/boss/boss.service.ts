@@ -18,7 +18,9 @@ import {
   BossQuestionOptionDto,
 } from './dto/boss.dto';
 
-const DEFAULT_MILESTONES: BossMilestoneConfigItem[] = [
+export const BOSS_DEFAULT_MAX_HP = 1500;
+
+export const DEFAULT_MILESTONES: BossMilestoneConfigItem[] = [
   { at: 300, coin: 5, name: 'Rương Đồng' },
   { at: 600, coin: 5, name: 'Rương Bạc' },
   { at: 900, coin: 5, name: 'Rương Vàng' },
@@ -29,6 +31,7 @@ const DEFAULT_MILESTONES: BossMilestoneConfigItem[] = [
 export const BOSS_SESSION_DURATION_SECONDS = 300; // 5 minutes
 export const BOSS_QUESTION_TIME_LIMIT_SECONDS = 10; // 10 seconds per question
 export const BOSS_QUESTION_GRACE_PERIOD_MS = 1500; // 1.5s network grace period
+export const BOSS_IDLE_TIMEOUT_LIMIT = 5; // consecutive unanswered questions that end a session
 
 @Injectable()
 export class BossService {
@@ -86,6 +89,26 @@ export class BossService {
     return { weekKey, startsAt, endsAt, year, weekNumber };
   }
 
+  /** Current week's season if it already exists; never creates one (used by read-only endpoints). */
+  async findCurrentSeason(): Promise<{
+    id: string;
+    bossMaxHp: number;
+    milestoneConfig: BossMilestoneConfigItem[];
+  } | null> {
+    const { weekKey } = this.getWeekBoundaries();
+    const season = await this.prisma.bossWeeklySeason.findUnique({
+      where: { weekKey },
+    });
+    if (!season) return null;
+    return {
+      id: season.id,
+      bossMaxHp: season.bossMaxHp,
+      milestoneConfig: Array.isArray(season.milestoneConfig)
+        ? (season.milestoneConfig as unknown as BossMilestoneConfigItem[])
+        : DEFAULT_MILESTONES,
+    };
+  }
+
   /**
    * Retrieves or lazily creates the current active weekly boss season.
    */
@@ -94,6 +117,7 @@ export class BossService {
     weekKey: string;
     name: string;
     bossName: string;
+    bossImageUrl: string | null;
     bossMaxHp: number;
     milestoneConfig: BossMilestoneConfigItem[];
     startsAt: Date;
@@ -114,7 +138,7 @@ export class BossService {
             weekKey,
             name: `Tuần ${weekNumber}: Đại Ma Vương Hư Không`,
             bossName: 'Ma Vương Hư Không',
-            bossMaxHp: 1500,
+            bossMaxHp: BOSS_DEFAULT_MAX_HP,
             milestoneConfig:
               DEFAULT_MILESTONES as unknown as Prisma.InputJsonValue,
             startsAt,
@@ -153,6 +177,58 @@ export class BossService {
   }
 
   /**
+   * Community boss HP and milestone state (read-only; shared by the overview and the live feed).
+   * Each user's personal best counts up to BOSS_COMMUNITY_CONTRIB_CAP.
+   */
+  async getCommunityStatus(season: {
+    id: string;
+    bossMaxHp: number;
+    milestoneConfig: BossMilestoneConfigItem[];
+  }): Promise<{
+    community: BossOverviewDto['community'];
+    milestones: BossMilestoneStatusDto[];
+  }> {
+    const communityRows = await this.prisma.bossUserWeeklyStat.findMany({
+      where: {
+        seasonId: season.id,
+        hasParticipated: true,
+      },
+      select: { highestScore: true },
+    });
+
+    const communityScore = communityRows.reduce(
+      (sum, row) => sum + cappedBossContribution(row.highestScore),
+      0,
+    );
+    const totalParticipants = communityRows.length;
+    const bossCurrentHp = Math.max(0, season.bossMaxHp - communityScore);
+    const bossHpPercent = Math.max(
+      0,
+      Math.min(100, Math.round((bossCurrentHp / season.bossMaxHp) * 100)),
+    );
+
+    const milestones: BossMilestoneStatusDto[] = season.milestoneConfig.map(
+      (m, idx) => ({
+        index: idx + 1,
+        at: m.at,
+        coin: m.coin,
+        name: m.name,
+        unlocked: communityScore >= m.at,
+      }),
+    );
+
+    return {
+      community: {
+        communityScore,
+        bossCurrentHp,
+        bossHpPercent,
+        totalParticipants,
+      },
+      milestones,
+    };
+  }
+
+  /**
    * Retrieves community overview, milestone progress, personal stats and active session.
    */
   async getOverview(userId: string): Promise<BossOverviewDto> {
@@ -161,6 +237,7 @@ export class BossService {
 
     // 1. Check active session first and finalize if expired so stats reflect latest score
     let activeSession = null;
+    let idleEnded = false;
     const currentSession = await this.prisma.bossBattleSession.findFirst({
       where: {
         userId,
@@ -173,6 +250,9 @@ export class BossService {
       if (now.getTime() >= currentSession.expiresAt.getTime()) {
         // Session expired (5 minutes up): complete it lazily before aggregating stats
         await this.endSession(currentSession.id, 'TIME_UP_5M');
+      } else if (await this.endIfIdle(currentSession, now)) {
+        // 5 unanswered questions in a row (including time spent away from the page)
+        idleEnded = true;
       } else if (currentSession.seasonId === season.id) {
         // Active session valid for current season
         let currentQuestion: BossQuestionDto | null = null;
@@ -211,35 +291,7 @@ export class BossService {
     }
 
     // 2. Community Score = SUM of personal bests (each capped per user) of all valid participants
-    const communityRows = await this.prisma.bossUserWeeklyStat.findMany({
-      where: {
-        seasonId: season.id,
-        hasParticipated: true,
-      },
-      select: { highestScore: true },
-    });
-
-    const communityScore = communityRows.reduce(
-      (sum, row) => sum + cappedBossContribution(row.highestScore),
-      0,
-    );
-    const totalParticipants = communityRows.length;
-    const bossCurrentHp = Math.max(0, season.bossMaxHp - communityScore);
-    const bossHpPercent = Math.max(
-      0,
-      Math.min(100, Math.round((bossCurrentHp / season.bossMaxHp) * 100)),
-    );
-
-    // 3. Milestones status
-    const milestones: BossMilestoneStatusDto[] = season.milestoneConfig.map(
-      (m, idx) => ({
-        index: idx + 1,
-        at: m.at,
-        coin: m.coin,
-        name: m.name,
-        unlocked: communityScore >= m.at,
-      }),
-    );
+    const { community, milestones } = await this.getCommunityStatus(season);
 
     // 4. User's weekly personal stats
     const userStat = await this.prisma.bossUserWeeklyStat.findUnique({
@@ -264,21 +316,18 @@ export class BossService {
         weekKey: season.weekKey,
         name: season.name,
         bossName: season.bossName,
+        bossImageUrl: season.bossImageUrl,
         bossMaxHp: season.bossMaxHp,
         startsAt: season.startsAt.toISOString(),
         endsAt: season.endsAt.toISOString(),
         isActive: season.isActive,
         isSettled: season.isSettled,
       },
-      community: {
-        communityScore,
-        bossCurrentHp,
-        bossHpPercent,
-        totalParticipants,
-      },
+      community,
       milestones,
       personal,
       activeSession,
+      ...(idleEnded ? { idleEnded: true } : {}),
     };
   }
 
@@ -301,7 +350,8 @@ export class BossService {
     if (existing) {
       if (
         now.getTime() < existing.expiresAt.getTime() &&
-        (!existing.seasonId || existing.seasonId === season.id)
+        (!existing.seasonId || existing.seasonId === season.id) &&
+        !(await this.endIfIdle(existing, now))
       ) {
         // Resume existing active session
         let currentQuestion: BossQuestionDto | null = null;
@@ -524,6 +574,7 @@ export class BossService {
           where: questionClaimWhere,
           data: {
             score: newScore,
+            idleStreak: 0,
             combo: newCombo,
             maxCombo: newMaxCombo,
             correctCount: newCorrectCount,
@@ -553,6 +604,7 @@ export class BossService {
         where: questionClaimWhere,
         data: {
           score: newScore,
+          idleStreak: 0,
           combo: newCombo,
           maxCombo: newMaxCombo,
           correctCount: newCorrectCount,
@@ -570,6 +622,14 @@ export class BossService {
         );
       }
 
+      // Boss HP is derived from the stored weekly best, so raising it here (a monotonic conditional update) takes
+      // effect immediately and can never be counted twice: endSession's later raise is a no-op for the same score.
+      const bossHit = await this.applyLiveBossHit(
+        session.userId,
+        session.seasonId,
+        newScore,
+      );
+
       const nextQuestionDto = nextQuiz
         ? this.mapQuizToQuestionDto(
             nextQuiz,
@@ -581,6 +641,7 @@ export class BossService {
 
       return {
         result: 'CORRECT' as const,
+        ...(bossHit ?? {}),
         score: newScore,
         combo: newCombo,
         maxCombo: newMaxCombo,
@@ -597,6 +658,16 @@ export class BossService {
     const newTotalAnswered = session.totalAnswered + 1;
 
     if (isTimeout) {
+      // An unanswered question (including time spent away) counts toward the idle limit; 5 in a row ends the session.
+      const newIdleStreak =
+        session.idleStreak + Math.max(1, this.missedQuestions(session, now));
+      if (newIdleStreak >= BOSS_IDLE_TIMEOUT_LIMIT) {
+        return await this.finalizeAndReturnSessionSummary(
+          session.id,
+          'IDLE_TIMEOUT',
+        );
+      }
+
       // Timeout: advance immediately to next question
       const nextQuiz = await this.getRandomQuiz(usedIds);
       const nextQuestionExpiresAt = new Date(
@@ -608,6 +679,7 @@ export class BossService {
         where: questionClaimWhere,
         data: {
           combo: 0,
+          idleStreak: newIdleStreak,
           wrongCount: newWrongCount,
           totalAnswered: newTotalAnswered,
           currentQuestionId: nextQuiz?.id || null,
@@ -652,6 +724,7 @@ export class BossService {
       where: questionClaimWhere,
       data: {
         combo: 0,
+        idleStreak: 0,
         wrongCount: newWrongCount,
         totalAnswered: newTotalAnswered,
         currentQuestionId: null,
@@ -714,6 +787,16 @@ export class BossService {
     }
 
     const wasUnanswered = session.currentQuestionId !== null;
+    // Moving on from an unanswered question is idle time; a question that was answered wrongly is not.
+    const newIdleStreak = wasUnanswered
+      ? session.idleStreak + Math.max(1, this.missedQuestions(session, now))
+      : session.idleStreak;
+    if (newIdleStreak >= BOSS_IDLE_TIMEOUT_LIMIT) {
+      return await this.finalizeAndReturnSessionSummary(
+        session.id,
+        'IDLE_TIMEOUT',
+      );
+    }
 
     const usedIds: string[] = Array.isArray(session.usedQuestionIds)
       ? (session.usedQuestionIds as string[])
@@ -738,6 +821,7 @@ export class BossService {
       data: {
         ...(wasUnanswered
           ? {
+              idleStreak: newIdleStreak,
               combo: 0,
               wrongCount: { increment: 1 },
               totalAnswered: { increment: 1 },
@@ -839,6 +923,96 @@ export class BossService {
       accuracy,
       endReason,
     };
+  }
+
+  /**
+   * How many questions the player has left unanswered up to `now`, counting time spent away (reload, other tab or
+   * page, idle). 0 while the current question is still live, was already answered (wrong-answer pause) or is within
+   * the network grace; otherwise the expired question plus every whole 10s window that elapsed after it.
+   */
+  private missedQuestions(
+    session: {
+      currentQuestionId: string | null;
+      currentQuestionExpiresAt: Date | null;
+    },
+    now: Date,
+  ): number {
+    if (!session.currentQuestionId || !session.currentQuestionExpiresAt) {
+      return 0;
+    }
+    const lateMs = now.getTime() - session.currentQuestionExpiresAt.getTime();
+    if (lateMs <= BOSS_QUESTION_GRACE_PERIOD_MS) return 0;
+    return 1 + Math.floor(lateMs / (BOSS_QUESTION_TIME_LIMIT_SECONDS * 1000));
+  }
+
+  /** True (and the session is ended as IDLE_TIMEOUT) when the player has abandoned 5 questions in a row. */
+  private async endIfIdle(
+    session: {
+      id: string;
+      idleStreak: number;
+      currentQuestionId: string | null;
+      currentQuestionExpiresAt: Date | null;
+    },
+    now: Date,
+  ): Promise<boolean> {
+    if (
+      session.idleStreak + this.missedQuestions(session, now) <
+      BOSS_IDLE_TIMEOUT_LIMIT
+    ) {
+      return false;
+    }
+    await this.endSession(session.id, 'IDLE_TIMEOUT');
+    return true;
+  }
+
+  /**
+   * Persists a new weekly personal best as soon as a correct answer beats it, so the community HP drops live.
+   * The community HP is a pure function of the stored bests (sum of min(best, cap)), and the write is a conditional
+   * `highestScore < score` update, so retries, concurrent calls and endSession cannot deduct the same points twice.
+   * Returns null when the answer did not beat the record. Never throws: endSession raises the best again as a backstop.
+   */
+  private async applyLiveBossHit(
+    userId: string,
+    seasonId: string,
+    score: number,
+  ): Promise<{
+    bossDamage: number;
+    personalBest: number;
+    communityScore: number;
+  } | null> {
+    try {
+      const stat = await this.prisma.bossUserWeeklyStat.findUnique({
+        where: { userId_seasonId: { userId, seasonId } },
+        select: { highestScore: true },
+      });
+      const previousBest = stat?.highestScore ?? 0;
+      if (score <= previousBest) return null;
+
+      const raised = await this.prisma.bossUserWeeklyStat.updateMany({
+        where: { userId, seasonId, highestScore: { lt: score } },
+        data: { highestScore: score },
+      });
+      if (raised.count === 0) return null;
+
+      const rows = await this.prisma.bossUserWeeklyStat.findMany({
+        where: { seasonId, hasParticipated: true },
+        select: { highestScore: true },
+      });
+      return {
+        bossDamage:
+          cappedBossContribution(score) - cappedBossContribution(previousBest),
+        personalBest: score,
+        communityScore: rows.reduce(
+          (sum, row) => sum + cappedBossContribution(row.highestScore),
+          0,
+        ),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Live boss hit not persisted session user=${userId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
   }
 
   /**

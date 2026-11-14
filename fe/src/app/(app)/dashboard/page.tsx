@@ -665,7 +665,7 @@ export default function DashboardPage() {
               Bắt đầu hành trình học tập
             </h2>
             <p style={{ color: 'var(--muted)', maxWidth: 560, margin: '8px 0 18px', lineHeight: 1.5 }}>
-              Khám phá các khóa học công nghệ và bài tập trắc nghiệm thực chiến trên BCN Quiz để nâng cao
+              Khám phá các khóa học công nghệ và bài tập trắc nghiệm thực chiến trên BCN Arena để nâng cao
               kiến thức và tích lũy XP ngay hôm nay.
             </p>
             <Link className="continue-learning-cta-btn" href="/courses">

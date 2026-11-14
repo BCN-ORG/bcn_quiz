@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useRef, useCallback } from 'react';
-import Link from 'next/link';
+import { useEffect, useState, useRef, useCallback } from "react";
+import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,18 +14,24 @@ import {
   Sword,
   Trophy,
   X,
-} from '@phosphor-icons/react';
-import { ErrorState, Loading } from '@/components/ui';
-import { serverNow } from '@/lib/api';
+} from "@phosphor-icons/react";
+import { BossSquad } from "@/components/boss-squad";
+import { ErrorState, Loading } from "@/components/ui";
+import { serverNow } from "@/lib/api";
+import { useBossLive } from "@/lib/use-boss-live";
 import {
   bossApi,
+  BossLive,
   BossOverview,
   BossQuestion,
   BossAnswerResponse,
   BossTransactionItem,
-} from '@/lib/boss';
+} from "@/lib/boss";
 
-const SOUND_STORAGE_KEY = 'bcn_boss_sound_enabled';
+/** Mirrors BOSS_COMMUNITY_CONTRIB_CAP in be/src/xp/xp.constants.ts: max points one player adds to the community HP. */
+const BOSS_COMMUNITY_CONTRIB_CAP = 100;
+
+const SOUND_STORAGE_KEY = "bcn_boss_sound_enabled";
 
 // ---------------------------------------------------------------------------
 // Audio Synthesizer (Web Audio API)
@@ -33,16 +39,17 @@ const SOUND_STORAGE_KEY = 'bcn_boss_sound_enabled';
 let globalAudioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   try {
     const AudioCtx =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
     if (!AudioCtx) return null;
     if (!globalAudioCtx) {
       globalAudioCtx = new AudioCtx();
     }
-    if (globalAudioCtx.state === 'suspended') {
+    if (globalAudioCtx.state === "suspended") {
       void globalAudioCtx.resume();
     }
     return globalAudioCtx;
@@ -51,8 +58,8 @@ function getAudioContext(): AudioContext | null {
   }
 }
 
-function playSound(type: 'hit' | 'miss' | 'end', enabled: boolean) {
-  if (!enabled || typeof window === 'undefined') return;
+function playSound(type: "hit" | "miss" | "end", enabled: boolean) {
+  if (!enabled || typeof window === "undefined") return;
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -62,9 +69,9 @@ function playSound(type: 'hit' | 'miss' | 'end', enabled: boolean) {
     osc.connect(gain);
     gain.connect(ctx.destination);
 
-    if (type === 'hit') {
+    if (type === "hit") {
       // Crisp upward combat pip
-      osc.type = 'triangle';
+      osc.type = "triangle";
       osc.frequency.setValueAtTime(520, now);
       osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
       gain.gain.setValueAtTime(0.001, now);
@@ -72,9 +79,9 @@ function playSound(type: 'hit' | 'miss' | 'end', enabled: boolean) {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
       osc.start(now);
       osc.stop(now + 0.13);
-    } else if (type === 'miss') {
+    } else if (type === "miss") {
       // Dull low buzz
-      osc.type = 'sawtooth';
+      osc.type = "sawtooth";
       osc.frequency.setValueAtTime(180, now);
       osc.frequency.exponentialRampToValueAtTime(110, now + 0.2);
       gain.gain.setValueAtTime(0.001, now);
@@ -82,9 +89,9 @@ function playSound(type: 'hit' | 'miss' | 'end', enabled: boolean) {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
       osc.start(now);
       osc.stop(now + 0.23);
-    } else if (type === 'end') {
+    } else if (type === "end") {
       // Fanfare
-      osc.type = 'sine';
+      osc.type = "sine";
       osc.frequency.setValueAtTime(440, now);
       osc.frequency.setValueAtTime(554, now + 0.12);
       osc.frequency.setValueAtTime(659, now + 0.24);
@@ -99,9 +106,22 @@ function playSound(type: 'hit' | 'miss' | 'end', enabled: boolean) {
   }
 }
 
+/** Community score only grows within a season, so a stale snapshot (cached live feed) must never raise the boss HP back. */
+function withCommunity(
+  prev: BossOverview,
+  community: BossOverview["community"],
+  milestones: BossOverview["milestones"],
+): BossOverview {
+  if (community.communityScore < prev.community.communityScore) {
+    return prev;
+  }
+  return { ...prev, community, milestones };
+}
+
 export default function BossPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [idleNotice, setIdleNotice] = useState(false);
   const [overview, setOverview] = useState<BossOverview | null>(null);
 
   // Sound state
@@ -109,8 +129,12 @@ export default function BossPage() {
 
   // Battle session state
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState<BossQuestion | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<BossQuestion | null>(
+    null,
+  );
   const [sessionScore, setSessionScore] = useState(0);
+  /** Boss HP this session has already taken (server-confirmed, deducted as soon as the weekly record is beaten). */
+  const [sessionBossDamage, setSessionBossDamage] = useState(0);
   const [combo, setCombo] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [sessionRemaining, setSessionRemaining] = useState(300); // 5 minutes (seconds)
@@ -125,7 +149,10 @@ export default function BossPage() {
   const [isHit, setIsHit] = useState(false);
   const [isDodge, setIsDodge] = useState(false);
   const [showSlash, setShowSlash] = useState(false);
-  const [floatingDmg, setFloatingDmg] = useState<{ text: string; isMiss: boolean } | null>(null);
+  const [floatingDmg, setFloatingDmg] = useState<{
+    text: string;
+    isMiss: boolean;
+  } | null>(null);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [wrongFeedback, setWrongFeedback] = useState<{
     correctAnswer: string;
@@ -134,7 +161,9 @@ export default function BossPage() {
   } | null>(null);
 
   // Modals
-  const [resultModal, setResultModal] = useState<BossAnswerResponse | null>(null);
+  const [resultModal, setResultModal] = useState<BossAnswerResponse | null>(
+    null,
+  );
   const [showHistory, setShowHistory] = useState(false);
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const [transactions, setTransactions] = useState<BossTransactionItem[]>([]);
@@ -142,9 +171,9 @@ export default function BossPage() {
 
   // Activate Dark Arena theme on body when on this page
   useEffect(() => {
-    document.body.classList.add('boss-arena-mode');
+    document.body.classList.add("boss-arena-mode");
     return () => {
-      document.body.classList.remove('boss-arena-mode');
+      document.body.classList.remove("boss-arena-mode");
     };
   }, []);
 
@@ -152,7 +181,7 @@ export default function BossPage() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(SOUND_STORAGE_KEY);
-      if (stored !== null) setSoundEnabled(stored !== 'false');
+      if (stored !== null) setSoundEnabled(stored !== "false");
     } catch {
       // Ignore storage restrictions
     }
@@ -166,7 +195,7 @@ export default function BossPage() {
     } catch {
       // Ignore
     }
-    if (next) playSound('hit', true);
+    if (next) playSound("hit", true);
   };
 
   const fetchOverview = useCallback(async () => {
@@ -174,6 +203,7 @@ export default function BossPage() {
       setError(null);
       const data = await bossApi.getOverview();
       setOverview(data);
+      if (data.idleEnded) setIdleNotice(true);
 
       if (data.activeSession && data.activeSession.currentQuestion) {
         setIsPlaying(true);
@@ -186,7 +216,10 @@ export default function BossPage() {
         setIsPlaying(false);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Không thể tải thông tin Boss Battle';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Không thể tải thông tin Boss Battle";
       setError(msg);
     } finally {
       setLoading(false);
@@ -197,18 +230,31 @@ export default function BossPage() {
     void fetchOverview();
   }, [fetchOverview]);
 
+  // Shared "fighting together" snapshot, refreshed every 20 s (tab visible) in the lobby AND during combat: GET /boss/live
+  // is read-only (unlike /boss/overview it never finalizes a session), so it cannot race with the time-up call.
+  const handleLive = useCallback((data: BossLive) => {
+    setOverview((prev) =>
+      prev ? withCommunity(prev, data.community, data.milestones) : prev,
+    );
+  }, []);
+  const { live, chips, pulse } = useBossLive(Boolean(overview), handleLive);
+
+  useEffect(() => {
+    if (resultModal?.endReason === "IDLE_TIMEOUT") setIdleNotice(true);
+  }, [resultModal]);
+
   // Close modals on Escape
   useEffect(() => {
     if (!resultModal && !showHistory && !confirmAbandon) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !submittingRef.current) {
+      if (e.key === "Escape" && !submittingRef.current) {
         if (resultModal) setResultModal(null);
         if (showHistory) setShowHistory(false);
         if (confirmAbandon) setConfirmAbandon(false);
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [resultModal, showHistory, confirmAbandon]);
 
   // ---------------------------------------------------------------------------
@@ -223,40 +269,43 @@ export default function BossPage() {
     return () => clearFeedbackTimers();
   }, [clearFeedbackTimers]);
 
-  const triggerCombatFeedback = useCallback((type: 'hit' | 'miss') => {
-    clearFeedbackTimers();
-    if (type === 'hit') {
-      setIsHit(true);
-      setShowSlash(true);
-      setFloatingDmg({ text: '+1 ST', isMiss: false });
-      playSound('hit', soundEnabled);
-      feedbackTimersRef.current.push(
-        setTimeout(() => setIsHit(false), 400),
-        setTimeout(() => setShowSlash(false), 350),
-        setTimeout(() => setFloatingDmg(null), 950),
-      );
-    } else {
-      setIsDodge(true);
-      setFloatingDmg({ text: 'HỤT!', isMiss: true });
-      playSound('miss', soundEnabled);
-      feedbackTimersRef.current.push(
-        setTimeout(() => setIsDodge(false), 500),
-        setTimeout(() => setFloatingDmg(null), 950),
-      );
-    }
-  }, [soundEnabled, clearFeedbackTimers]);
+  const triggerCombatFeedback = useCallback(
+    (type: "hit" | "miss") => {
+      clearFeedbackTimers();
+      if (type === "hit") {
+        setIsHit(true);
+        setShowSlash(true);
+        setFloatingDmg({ text: "+1 ST", isMiss: false });
+        playSound("hit", soundEnabled);
+        feedbackTimersRef.current.push(
+          setTimeout(() => setIsHit(false), 400),
+          setTimeout(() => setShowSlash(false), 350),
+          setTimeout(() => setFloatingDmg(null), 950),
+        );
+      } else {
+        setIsDodge(true);
+        setFloatingDmg({ text: "HỤT!", isMiss: true });
+        playSound("miss", soundEnabled);
+        feedbackTimersRef.current.push(
+          setTimeout(() => setIsDodge(false), 500),
+          setTimeout(() => setFloatingDmg(null), 950),
+        );
+      }
+    },
+    [soundEnabled, clearFeedbackTimers],
+  );
 
   const handleTimeUp = useCallback(async () => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     try {
-      const res = await bossApi.submitAnswer('TIMEOUT');
+      const res = await bossApi.submitAnswer("TIMEOUT");
       setIsPlaying(false);
       setSelectedOption(null);
       setWrongFeedback(null);
       setCombatError(null);
       setResultModal(res);
-      playSound('end', soundEnabled);
+      playSound("end", soundEnabled);
       void fetchOverview();
     } catch {
       void fetchOverview();
@@ -273,19 +322,20 @@ export default function BossPage() {
       const res = await bossApi.nextQuestion();
       setSelectedOption(null);
       setWrongFeedback(null);
-      if (typeof res.sessionRemainingSeconds === 'number') {
+      if (typeof res.sessionRemainingSeconds === "number") {
         setSessionRemaining(res.sessionRemainingSeconds);
       }
-      if (res.result === 'SESSION_COMPLETED' || !res.question) {
+      if (res.result === "SESSION_COMPLETED" || !res.question) {
         setIsPlaying(false);
         setResultModal(res as unknown as BossAnswerResponse);
-        playSound('end', soundEnabled);
+        playSound("end", soundEnabled);
         void fetchOverview();
       } else {
         setCurrentQuestion(res.question);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Không thể tải câu hỏi tiếp theo';
+      const msg =
+        err instanceof Error ? err.message : "Không thể tải câu hỏi tiếp theo";
       setCombatError(msg);
     } finally {
       submittingRef.current = false;
@@ -297,18 +347,18 @@ export default function BossPage() {
     submittingRef.current = true;
     setCombatError(null);
     try {
-      const res = await bossApi.submitAnswer('TIMEOUT');
-      triggerCombatFeedback('miss');
+      const res = await bossApi.submitAnswer("TIMEOUT");
+      triggerCombatFeedback("miss");
       setCombo(0);
-      if (typeof res.sessionRemainingSeconds === 'number') {
+      if (typeof res.sessionRemainingSeconds === "number") {
         setSessionRemaining(res.sessionRemainingSeconds);
       }
-      if (res.result === 'SESSION_COMPLETED' || !res.nextQuestion) {
+      if (res.result === "SESSION_COMPLETED" || !res.nextQuestion) {
         setIsPlaying(false);
         setSelectedOption(null);
         setWrongFeedback(null);
         setResultModal(res);
-        playSound('end', soundEnabled);
+        playSound("end", soundEnabled);
         void fetchOverview();
       } else {
         setCurrentQuestion(res.nextQuestion);
@@ -316,79 +366,138 @@ export default function BossPage() {
         setWrongFeedback(null);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Không thể đồng bộ hết giờ câu hỏi';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Không thể đồng bộ hết giờ câu hỏi";
       setCombatError(msg);
     } finally {
       submittingRef.current = false;
     }
-  }, [isPlaying, wrongFeedback, triggerCombatFeedback, soundEnabled, fetchOverview]);
+  }, [
+    isPlaying,
+    wrongFeedback,
+    triggerCombatFeedback,
+    soundEnabled,
+    fetchOverview,
+  ]);
 
-  const handleSelectOption = useCallback(async (label: string) => {
-    if (submittingRef.current || !isPlaying || wrongFeedback) return;
-    submittingRef.current = true;
-    setSubmitting(true);
-    setCombatError(null);
-    setSelectedOption(label);
+  const handleSelectOption = useCallback(
+    async (label: string) => {
+      if (submittingRef.current || !isPlaying || wrongFeedback) return;
+      submittingRef.current = true;
+      setSubmitting(true);
+      setCombatError(null);
+      setSelectedOption(label);
 
-    try {
-      const res = await bossApi.submitAnswer(label);
-      if (typeof res.sessionRemainingSeconds === 'number') {
-        setSessionRemaining(res.sessionRemainingSeconds);
-      }
+      try {
+        const res = await bossApi.submitAnswer(label);
+        if (typeof res.sessionRemainingSeconds === "number") {
+          setSessionRemaining(res.sessionRemainingSeconds);
+        }
 
-      if (res.result === 'CORRECT') {
-        triggerCombatFeedback('hit');
-        setSessionScore(res.score ?? sessionScore + 1);
-        setCombo(res.combo ?? combo + 1);
-        setMaxCombo(res.maxCombo ?? maxCombo);
-        setSelectedOption(null);
-        setWrongFeedback(null);
-        if (res.nextQuestion) {
-          setCurrentQuestion(res.nextQuestion);
-        } else {
+        if (res.result === "CORRECT") {
+          triggerCombatFeedback("hit");
+          setSessionScore(res.score ?? sessionScore + 1);
+          if (res.bossDamage && res.bossDamage > 0) {
+            const damage = res.bossDamage;
+            setSessionBossDamage((d) => d + damage);
+            setOverview((prev) => {
+              if (!prev) return prev;
+              const score = Math.max(
+                prev.community.communityScore,
+                res.communityScore ?? 0,
+              );
+              const bossCurrentHp = Math.max(0, prev.season.bossMaxHp - score);
+              return {
+                ...prev,
+                personal: {
+                  ...prev.personal,
+                  personalBest: Math.max(
+                    prev.personal.personalBest,
+                    res.personalBest ?? 0,
+                  ),
+                },
+                community: {
+                  ...prev.community,
+                  communityScore: score,
+                  bossCurrentHp,
+                  bossHpPercent: Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      Math.round((bossCurrentHp / prev.season.bossMaxHp) * 100),
+                    ),
+                  ),
+                },
+                milestones: prev.milestones.map((m) => ({
+                  ...m,
+                  unlocked: m.unlocked || score >= m.at,
+                })),
+              };
+            });
+          }
+          setCombo(res.combo ?? combo + 1);
+          setMaxCombo(res.maxCombo ?? maxCombo);
+          setSelectedOption(null);
+          setWrongFeedback(null);
+          if (res.nextQuestion) {
+            setCurrentQuestion(res.nextQuestion);
+          } else {
+            setIsPlaying(false);
+            setResultModal(res);
+            playSound("end", soundEnabled);
+            void fetchOverview();
+          }
+        } else if (res.result === "WRONG_ANSWER") {
+          triggerCombatFeedback("miss");
+          setCombo(0);
+          setWrongFeedback({
+            correctAnswer: res.correctAnswer || "",
+            content: res.correctAnswerContent,
+            explanation: res.explanation,
+          });
+        } else if (res.result === "TIMEOUT") {
+          triggerCombatFeedback("miss");
+          setCombo(0);
+          setSelectedOption(null);
+          setWrongFeedback(null);
+          if (res.nextQuestion) {
+            setCurrentQuestion(res.nextQuestion);
+          } else {
+            setIsPlaying(false);
+            setResultModal(res);
+            playSound("end", soundEnabled);
+            void fetchOverview();
+          }
+        } else if (res.result === "SESSION_COMPLETED") {
           setIsPlaying(false);
+          setSelectedOption(null);
+          setWrongFeedback(null);
           setResultModal(res);
-          playSound('end', soundEnabled);
+          playSound("end", soundEnabled);
           void fetchOverview();
         }
-      } else if (res.result === 'WRONG_ANSWER') {
-        triggerCombatFeedback('miss');
-        setCombo(0);
-        setWrongFeedback({
-          correctAnswer: res.correctAnswer || '',
-          content: res.correctAnswerContent,
-          explanation: res.explanation,
-        });
-      } else if (res.result === 'TIMEOUT') {
-        triggerCombatFeedback('miss');
-        setCombo(0);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Lỗi gửi đáp án";
+        setCombatError(msg);
         setSelectedOption(null);
-        setWrongFeedback(null);
-        if (res.nextQuestion) {
-          setCurrentQuestion(res.nextQuestion);
-        } else {
-          setIsPlaying(false);
-          setResultModal(res);
-          playSound('end', soundEnabled);
-          void fetchOverview();
-        }
-      } else if (res.result === 'SESSION_COMPLETED') {
-        setIsPlaying(false);
-        setSelectedOption(null);
-        setWrongFeedback(null);
-        setResultModal(res);
-        playSound('end', soundEnabled);
-        void fetchOverview();
+      } finally {
+        submittingRef.current = false;
+        setSubmitting(false);
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi gửi đáp án';
-      setCombatError(msg);
-      setSelectedOption(null);
-    } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
-    }
-  }, [isPlaying, wrongFeedback, triggerCombatFeedback, sessionScore, combo, maxCombo, soundEnabled, fetchOverview]);
+    },
+    [
+      isPlaying,
+      wrongFeedback,
+      triggerCombatFeedback,
+      sessionScore,
+      combo,
+      maxCombo,
+      soundEnabled,
+      fetchOverview,
+    ],
+  );
 
   // ---------------------------------------------------------------------------
   // 5-Minute Session Countdown Timer
@@ -451,7 +560,13 @@ export default function BossPage() {
     return () => {
       if (interval !== null) clearInterval(interval);
     };
-  }, [isPlaying, currentQuestion, wrongFeedback, handleAdvanceAfterWrong, handleQuestionTimeout]);
+  }, [
+    isPlaying,
+    currentQuestion,
+    wrongFeedback,
+    handleAdvanceAfterWrong,
+    handleQuestionTimeout,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Gameplay Handlers
@@ -469,6 +584,8 @@ export default function BossPage() {
       if (res.question) {
         setCurrentQuestion(res.question);
         setSessionScore(res.score);
+        setSessionBossDamage(0);
+        setIdleNotice(false);
         setCombo(res.combo);
         setMaxCombo(res.maxCombo);
         setSessionRemaining(res.sessionRemainingSeconds);
@@ -476,7 +593,8 @@ export default function BossPage() {
         setResultModal(null);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Không thể bắt đầu lượt đấu';
+      const msg =
+        err instanceof Error ? err.message : "Không thể bắt đầu lượt đấu";
       setError(msg);
       void fetchOverview();
     } finally {
@@ -512,10 +630,24 @@ export default function BossPage() {
 
   // Keyboard shortcut listener for options (1-4, A-D)
   useEffect(() => {
-    if (!isPlaying || !currentQuestion || submitting || resultModal || wrongFeedback || confirmAbandon) return;
+    if (
+      !isPlaying ||
+      !currentQuestion ||
+      submitting ||
+      resultModal ||
+      wrongFeedback ||
+      confirmAbandon
+    )
+      return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (
+        /INPUT|TEXTAREA|SELECT/.test(target.tagName) ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey
+      )
+        return;
       const opts = currentQuestion.options;
       const index = /^[1-9]$/.test(e.key)
         ? Number(e.key) - 1
@@ -525,14 +657,22 @@ export default function BossPage() {
         void handleSelectOption(opts[index].label);
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isPlaying, currentQuestion, submitting, resultModal, wrongFeedback, confirmAbandon, handleSelectOption]);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    isPlaying,
+    currentQuestion,
+    submitting,
+    resultModal,
+    wrongFeedback,
+    confirmAbandon,
+    handleSelectOption,
+  ]);
 
   const formatTimerMinSec = (totalSeconds: number) => {
     const m = Math.floor(totalSeconds / 60);
     const s = Math.floor(totalSeconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   if (loading) {
@@ -548,7 +688,7 @@ export default function BossPage() {
       <div className="boss-page-container">
         <ErrorState
           title="Không thể mở Đấu trường Boss"
-          message={error || 'Đã có lỗi xảy ra khi tải dữ liệu đấu trường.'}
+          message={error || "Đã có lỗi xảy ra khi tải dữ liệu đấu trường."}
           retry={() => void fetchOverview()}
         />
       </div>
@@ -556,17 +696,37 @@ export default function BossPage() {
   }
 
   const { season, community, milestones, personal } = overview;
+
+  // The server deducts boss HP the moment a correct answer beats the player's weekly record (answer response), so
+  // the bar simply shows server state.
+  const shownBossHp = Math.max(0, season.bossMaxHp - community.communityScore);
+  const shownBossPercent = Math.max(
+    0,
+    Math.min(100, Math.round((shownBossHp / season.bossMaxHp) * 100)),
+  );
   const inCombat = Boolean(isPlaying && currentQuestion);
-  const qTimerPercent = Math.max(0, Math.min(100, (questionRemaining / 10) * 100));
+  const qTimerPercent = Math.max(
+    0,
+    Math.min(100, (questionRemaining / 10) * 100),
+  );
   const qTimerTier =
-    questionRemaining <= 2 ? 'urgent' : questionRemaining <= 5 ? 'warning' : 'normal';
+    questionRemaining <= 2
+      ? "urgent"
+      : questionRemaining <= 5
+        ? "warning"
+        : "normal";
 
   return (
-    <div className={`boss-page-container ${inCombat ? 'in-combat' : ''}`}>
+    <div className={`boss-page-container ${inCombat ? "in-combat" : ""}`}>
       {/* Topbar */}
-      <header className={`boss-topbar ${inCombat ? 'in-combat' : ''}`}>
+      <header className={`boss-topbar ${inCombat ? "in-combat" : ""}`}>
         <div className="boss-brand">
-          <Link href="/dashboard" className="button secondary" title="Về tổng quan" style={{ padding: '8px 12px' }}>
+          <Link
+            href="/dashboard"
+            className="button secondary"
+            title="Về tổng quan"
+            style={{ padding: "8px 12px" }}
+          >
             <ArrowLeft size={16} weight="bold" />
           </Link>
           <div className="boss-brand-badge" aria-hidden="true">
@@ -586,17 +746,25 @@ export default function BossPage() {
             type="button"
             className="boss-sound-btn"
             onClick={toggleSound}
-            title={soundEnabled ? 'Tắt âm thanh đấu trường' : 'Bật âm thanh đấu trường'}
-            aria-label={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
+            title={
+              soundEnabled
+                ? "Tắt âm thanh đấu trường"
+                : "Bật âm thanh đấu trường"
+            }
+            aria-label={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
           >
-            {soundEnabled ? <SpeakerHigh size={20} weight="bold" /> : <SpeakerSlash size={20} weight="bold" />}
+            {soundEnabled ? (
+              <SpeakerHigh size={20} weight="bold" />
+            ) : (
+              <SpeakerSlash size={20} weight="bold" />
+            )}
           </button>
           {!inCombat && (
             <button
               type="button"
               className="button secondary boss-history-btn"
               onClick={() => void handleOpenHistory()}
-              style={{ fontSize: 13, padding: '7px 14px' }}
+              style={{ fontSize: 13, padding: "7px 14px" }}
             >
               <Receipt size={16} weight="bold" /> Lịch sử nhận thưởng
             </button>
@@ -605,59 +773,132 @@ export default function BossPage() {
       </header>
 
       {/* Graphic Boss Arena Stage */}
-      <section className={`boss-arena-stage ${inCombat ? 'in-combat' : ''}`} aria-label="Đấu trường Boss">
+      {idleNotice && !inCombat && (
+        <div className="boss-idle-notice" role="status">
+          <span>
+            Lượt đấu đã kết thúc vì bạn không chọn đáp án 5 câu liên tiếp (kể cả
+            lúc rời trang). Điểm đã đạt vẫn được giữ.
+          </span>
+          <button type="button" onClick={() => setIdleNotice(false)}>
+            Đã hiểu
+          </button>
+        </div>
+      )}
+
+      <section
+        className={`boss-arena-stage ${inCombat ? "in-combat" : ""}`}
+        aria-label="Đấu trường Boss"
+      >
         {/* Boss floating header plate */}
-        <div className={`boss-plate ${inCombat ? 'in-combat' : ''}`}>
+        <div className={`boss-plate ${inCombat ? "in-combat" : ""}`}>
           <div className="boss-title-group">
             <h2>{season.bossName}</h2>
-            <p>Mục tiêu tuần: 1,500 ST · Mở khóa 5 Rương Coin cho cả Ban</p>
           </div>
           <span className="boss-lv-badge">BOSS TUẦN</span>
         </div>
 
         {/* Boss visual & animated reaction wrap */}
-        <div className={`boss-wrap ${inCombat ? 'in-combat' : ''} ${isHit ? 'hit' : ''} ${isDodge ? 'dodge' : ''}`}>
+        <div
+          className={`boss-wrap ${inCombat ? "in-combat" : ""} ${isHit ? "hit" : ""} ${isDodge ? "dodge" : ""}`}
+        >
           {showSlash && <div className="boss-slash" aria-hidden="true" />}
           {floatingDmg && (
-            <div className={`boss-dmg-float ${floatingDmg.isMiss ? 'miss' : ''}`} aria-hidden="true">
+            <div
+              className={`boss-dmg-float ${floatingDmg.isMiss ? "miss" : ""}`}
+              aria-hidden="true"
+            >
               {floatingDmg.text}
             </div>
           )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/images/boss-pixel.png"
+            src={season.bossImageUrl || "/images/boss-pixel.png"}
             alt={season.bossName}
             className="boss-img"
           />
         </div>
 
         {/* Boss Community HP Bar */}
-        <div className={`boss-hp-zone ${inCombat ? 'in-combat' : ''}`}>
+        <div className={`boss-hp-zone ${inCombat ? "in-combat" : ""}`}>
           <div className="boss-hp-meta">
             <span className="boss-hp-label">MÁU BOSS CỘNG ĐỒNG</span>
             <span className="boss-hp-count">
-              <b>{community.bossCurrentHp.toLocaleString('vi-VN')}</b> / {season.bossMaxHp.toLocaleString('vi-VN')} HP ({community.bossHpPercent}%)
+              <b>{shownBossHp.toLocaleString("vi-VN")}</b> /{" "}
+              {season.bossMaxHp.toLocaleString("vi-VN")} HP ({shownBossPercent}
+              %)
             </span>
           </div>
           <div className="boss-hp-bar">
             <div
-              className="boss-hp-fill"
-              style={{ width: `${community.bossHpPercent}%` }}
+              className={`boss-hp-fill${pulse > 0 ? ` is-shimmer-${pulse % 2}` : ""}`}
+              style={{ width: `${shownBossPercent}%` }}
             />
           </div>
+          {inCombat && (
+            <div className="boss-hp-hint">
+              {personal.personalBest >= BOSS_COMMUNITY_CONTRIB_CAP ? (
+                <span>
+                  Bạn đã đóng góp tối đa {BOSS_COMMUNITY_CONTRIB_CAP} máu Boss
+                  tuần này
+                </span>
+              ) : sessionBossDamage > 0 ? (
+                <span className="is-active">
+                  Đã vượt kỷ lục · bạn đang trừ {sessionBossDamage} máu Boss
+                </span>
+              ) : (
+                <>
+                  <span>
+                    Còn {Math.max(1, personal.personalBest - sessionScore + 1)}{" "}
+                    điểm nữa để vượt kỷ lục tuần ({personal.personalBest}) và
+                    bắt đầu trừ máu
+                  </span>
+                  <span className="boss-hp-hint-track" aria-hidden>
+                    <span
+                      style={{
+                        width: `${Math.min(100, Math.round((sessionScore / Math.max(1, personal.personalBest)) * 100))}%`,
+                      }}
+                    />
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
+      {live && <BossSquad live={live} chips={chips} compact={inCombat} />}
+
       {/* 5 Milestone Reward Chests - shown only in lobby */}
       {!inCombat && (
-        <section className="boss-milestones-card" aria-label="Tiến trình mốc thưởng tuần">
+        <section
+          className="boss-milestones-card"
+          aria-label="Tiến trình mốc thưởng tuần"
+        >
           <div className="milestones-header">
             <div className="milestones-title">
               <Trophy size={18} weight="fill" color="#ffc21f" />
               <span>Tiến trình 5 Rương Thưởng Tuần</span>
             </div>
             <span className="milestones-subtitle">
-              Mỗi mốc mở khóa thưởng <b>5 Coin</b> vào 00:00 thứ Hai cho người có điểm cao nhất tuần từ <b>5 điểm</b> trở lên
+              Rương <b>chung của cả cộng đồng</b>: mở khi tổng ST của mọi người
+              đạt mốc. Mỗi rương mở, <b>ai đạt từ 5 điểm</b> đều nhận{" "}
+              {milestones.length > 0 &&
+              milestones.every((m) => m.coin === milestones[0].coin) ? (
+                <b>{milestones[0].coin} Coin</b>
+              ) : (
+                <b>số Coin ghi trên từng rương</b>
+              )}{" "}
+              · phát 00:00 thứ Hai
+            </span>
+            <span className="milestones-progress">
+              Cộng đồng:{" "}
+              <b>{community.communityScore.toLocaleString("vi-VN")}</b> /{" "}
+              {season.bossMaxHp.toLocaleString("vi-VN")} ST ·{" "}
+              {milestones.filter((m) => m.unlocked).length}/{milestones.length}{" "}
+              rương đã mở ·{" "}
+              {personal.personalBest >= 5
+                ? "Bạn đủ điều kiện nhận thưởng"
+                : `Bạn: ${personal.personalBest}/5 ST để đủ điều kiện`}
             </span>
           </div>
 
@@ -665,21 +906,35 @@ export default function BossPage() {
           <div className="milestone-track-wrap">
             <div
               className="milestone-track-fill"
-              style={{ width: `${Math.min(100, (community.communityScore / season.bossMaxHp) * 100)}%` }}
+              style={{
+                width: `${Math.min(100, (community.communityScore / season.bossMaxHp) * 100)}%`,
+              }}
             />
           </div>
 
           {/* 5 Chest Boxes */}
           <div className="milestone-chests-row">
             {milestones.map((m) => (
-              <div key={m.index} className={`milestone-chest-box ${m.unlocked ? 'is-unlocked' : ''}`}>
+              <div
+                key={m.index}
+                className={`milestone-chest-box ${m.unlocked ? "is-unlocked" : ""}`}
+              >
                 <span className="chest-name">{m.name}</span>
-                <span className="chest-at">{m.at.toLocaleString('vi-VN')} ST</span>
+                <span className="chest-at">
+                  {Math.min(community.communityScore, m.at).toLocaleString(
+                    "vi-VN",
+                  )}{" "}
+                  / {m.at.toLocaleString("vi-VN")} ST
+                </span>
                 <span className="chest-reward">
                   <Coins size={14} weight="fill" /> +{m.coin} Coin
                 </span>
-                <span className={`chest-status-pill ${m.unlocked ? 'unlocked' : 'locked'}`}>
-                  {m.unlocked ? '✓ Đã mở' : 'Chưa đạt'}
+                <span
+                  className={`chest-status-pill ${m.unlocked ? "unlocked" : "locked"}`}
+                >
+                  {m.unlocked
+                    ? "✓ Đã mở"
+                    : `Còn ${Math.max(0, m.at - community.communityScore).toLocaleString("vi-VN")} ST`}
                 </span>
               </div>
             ))}
@@ -688,13 +943,18 @@ export default function BossPage() {
       )}
 
       {/* HUD Bar (Session stats during combat or summary) */}
-      <section className={`boss-hud-grid ${inCombat ? 'in-combat' : ''}`} aria-label="Thông số lượt đấu">
+      <section
+        className={`boss-hud-grid ${inCombat ? "in-combat" : ""}`}
+        aria-label="Thông số lượt đấu"
+      >
         <div className="boss-hud-cell">
           <span className="boss-hud-k">
             <HourglassHigh size={14} weight="fill" /> Thời gian lượt
           </span>
-          <span className={`boss-hud-v ${sessionRemaining <= 30 && isPlaying ? 'danger' : ''}`}>
-            {isPlaying ? formatTimerMinSec(sessionRemaining) : '5:00'}
+          <span
+            className={`boss-hud-v ${sessionRemaining <= 30 && isPlaying ? "danger" : ""}`}
+          >
+            {isPlaying ? formatTimerMinSec(sessionRemaining) : "5:00"}
           </span>
         </div>
 
@@ -722,7 +982,10 @@ export default function BossPage() {
 
       {/* Active Battle View vs Start View */}
       {isPlaying && currentQuestion ? (
-        <section className={`boss-quiz-deck ${inCombat ? 'in-combat' : ''}`} aria-label="Câu hỏi Boss Battle">
+        <section
+          className={`boss-quiz-deck ${inCombat ? "in-combat" : ""}`}
+          aria-label="Câu hỏi Boss Battle"
+        >
           {/* Inline Combat Error Banner */}
           {combatError && (
             <div className="boss-combat-error" role="alert">
@@ -741,7 +1004,9 @@ export default function BossPage() {
 
           {/* Question Header & 10s Timer */}
           <div className="boss-q-header">
-            <span className="boss-q-number">Câu {currentQuestion.currentQuestionNumber}</span>
+            <span className="boss-q-number">
+              Câu {currentQuestion.currentQuestionNumber}
+            </span>
             {combo >= 2 && (
               <span className="boss-combo-badge">
                 <Fire size={14} weight="fill" /> COMBO ×{combo}
@@ -760,7 +1025,11 @@ export default function BossPage() {
             />
           </div>
 
-          <h2 id="boss-question-title" className="boss-question-title" style={{ overflowWrap: 'anywhere' }}>
+          <h2
+            id="boss-question-title"
+            className="boss-question-title"
+            style={{ overflowWrap: "anywhere" }}
+          >
             {currentQuestion.question}
           </h2>
 
@@ -776,9 +1045,9 @@ export default function BossPage() {
               src={currentQuestion.imageUrl}
               alt="Minh họa cho câu hỏi"
               style={{
-                width: '100%',
+                width: "100%",
                 maxHeight: 380,
-                objectFit: 'contain',
+                objectFit: "contain",
                 borderRadius: 12,
                 marginBottom: 16,
               }}
@@ -794,8 +1063,10 @@ export default function BossPage() {
             {currentQuestion.options.map((opt) => {
               const isSelected = selectedOption === opt.label;
               const isWrongFeedbackActive = Boolean(wrongFeedback);
-              const isCorrectInFeedback = wrongFeedback?.correctAnswer === opt.label;
-              const isWrongChoice = isWrongFeedbackActive && isSelected && !isCorrectInFeedback;
+              const isCorrectInFeedback =
+                wrongFeedback?.correctAnswer === opt.label;
+              const isWrongChoice =
+                isWrongFeedbackActive && isSelected && !isCorrectInFeedback;
 
               return (
                 <button
@@ -805,12 +1076,12 @@ export default function BossPage() {
                   aria-checked={isSelected}
                   disabled={submitting || isWrongFeedbackActive}
                   onClick={() => void handleSelectOption(opt.label)}
-                  className={`boss-option-btn ${isSelected ? 'selected' : ''} ${
-                    isCorrectInFeedback ? 'correct' : ''
-                  } ${isWrongChoice ? 'wrong' : ''}`}
+                  className={`boss-option-btn ${isSelected ? "selected" : ""} ${
+                    isCorrectInFeedback ? "correct" : ""
+                  } ${isWrongChoice ? "wrong" : ""}`}
                 >
                   <span className="opt-badge">{opt.label}</span>
-                  <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                  <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
                     {opt.isCode ? (
                       <code className="tower-code-option">{opt.content}</code>
                     ) : (
@@ -831,10 +1102,13 @@ export default function BossPage() {
               </div>
               <p className="boss-wrong-feedback-text">
                 Đáp án đúng là <b>{wrongFeedback.correctAnswer}</b>
-                {wrongFeedback.content ? `: ${wrongFeedback.content}` : ''}
+                {wrongFeedback.content ? `: ${wrongFeedback.content}` : ""}
               </p>
               {wrongFeedback.explanation && (
-                <p className="boss-wrong-feedback-text" style={{ color: '#cdb287' }}>
+                <p
+                  className="boss-wrong-feedback-text"
+                  style={{ color: "#cdb287" }}
+                >
                   <b>Giải thích:</b> {wrongFeedback.explanation}
                 </p>
               )}
@@ -842,13 +1116,13 @@ export default function BossPage() {
                 <button
                   type="button"
                   className="button secondary"
-                  style={{ fontSize: 13, padding: '6px 14px' }}
+                  style={{ fontSize: 13, padding: "6px 14px" }}
                   disabled={questionRemaining > 0 || submitting}
                   onClick={() => void handleAdvanceAfterWrong()}
                 >
                   {questionRemaining > 0
                     ? `Đợi hết thời gian chờ (${questionRemaining.toFixed(1)}s)...`
-                    : 'Sang câu tiếp theo'}{' '}
+                    : "Sang câu tiếp theo"}{" "}
                   <ArrowRight size={14} weight="bold" />
                 </button>
               </div>
@@ -857,13 +1131,15 @@ export default function BossPage() {
 
           {/* Play Footer */}
           <div className="boss-play-footer">
-            <span style={{ fontSize: 12.5, color: 'var(--dim-arena, #b59a72)' }}>
+            <span
+              style={{ fontSize: 12.5, color: "var(--dim-arena, #b59a72)" }}
+            >
               Mẹo: Bấm phím 1–4 hoặc A–D để chọn nhanh
             </span>
             <button
               type="button"
               className="button secondary"
-              style={{ fontSize: 12.5, padding: '5px 12px', color: '#ff7a5c' }}
+              style={{ fontSize: 12.5, padding: "5px 12px", color: "#ff7a5c" }}
               onClick={() => setConfirmAbandon(true)}
             >
               Kết thúc lượt sớm
@@ -872,16 +1148,30 @@ export default function BossPage() {
         </section>
       ) : (
         /* Lobby Start Card */
-        <section className="boss-quiz-deck" style={{ textAlign: 'center', padding: '36px 20px' }}>
-          <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 10px', color: '#f8ecd2' }}>
+        <section
+          className="boss-quiz-deck"
+          style={{ textAlign: "center", padding: "36px 20px" }}
+        >
+          <h2
+            style={{
+              fontSize: 22,
+              fontWeight: 900,
+              margin: "0 0 8px",
+              color: "#f8ecd2",
+            }}
+          >
             SẴN SÀNG CHIẾN ĐẤU VỚI {season.bossName.toUpperCase()}?
           </h2>
-          <p style={{ maxWidth: 540, margin: '0 auto 24px', color: '#cdb287', lineHeight: 1.55 }}>
-            Mỗi lượt chơi kéo dài tối đa <b>5 phút</b>. Mỗi câu có <b>10 giây</b> để trả lời.
-            Bạn được chơi lại <b>không giới hạn</b> — hệ thống sẽ tự động lưu và lấy <b>điểm cao nhất trong tuần</b> của bạn để đóng góp vào tiến trình chung cả ban (mỗi người đóng góp tối đa <b>100 điểm</b>).
-          </p>
-          <p style={{ maxWidth: 540, margin: '-12px auto 24px', color: '#b59a72', fontSize: 13, lineHeight: 1.5 }}>
-            XP chỉ được tính khi bạn <b>chơi hết 5 phút</b> và trả lời đúng ít nhất <b>5 câu</b>; tối đa <b>3 lượt có XP mỗi ngày</b>.
+          <p
+            style={{
+              maxWidth: 480,
+              margin: "0 auto 16px",
+              color: "#cdb287",
+              lineHeight: 1.5,
+            }}
+          >
+            Mỗi lượt <b>5 phút</b>, mỗi câu <b>10 giây</b>. Chơi lại không giới
+            hạn, điểm cao nhất tuần được tính cho cả Ban.
           </p>
 
           <button
@@ -892,6 +1182,23 @@ export default function BossPage() {
             <Sword size={20} weight="fill" />
             <span>VÀO TRẬN ĐÁNH BOSS (5 PHÚT)</span>
           </button>
+
+          <details className="boss-rules">
+            <summary>Luật chơi &amp; XP</summary>
+            <ul>
+              <li>
+                Mỗi người đóng góp tối đa <b>100 điểm</b> vào máu Boss cộng đồng
+                (lấy điểm cao nhất tuần).
+              </li>
+              <li>
+                XP chỉ tính khi bạn <b>chơi hết 5 phút</b> và đúng ít nhất{" "}
+                <b>5 câu</b>; tối đa <b>3 lượt có XP mỗi ngày</b>.
+              </li>
+              <li>
+                Kết thúc sớm vẫn tính điểm vào kỷ lục tuần nhưng không nhận XP.
+              </li>
+            </ul>
+          </details>
         </section>
       )}
 
@@ -907,7 +1214,11 @@ export default function BossPage() {
             role="alertdialog"
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#1c140c', borderColor: '#4c391f', color: '#f8ecd2' }}
+            style={{
+              background: "#1c140c",
+              borderColor: "#4c391f",
+              color: "#f8ecd2",
+            }}
           >
             <button
               type="button"
@@ -918,59 +1229,118 @@ export default function BossPage() {
               <X size={16} weight="bold" />
             </button>
 
-            <div className="tower-result-badge-halo is-victory" aria-hidden="true">
+            <div
+              className="tower-result-badge-halo is-victory"
+              aria-hidden="true"
+            >
               <Trophy size={40} weight="fill" />
             </div>
 
-            <h3 className="tower-result-heading is-victory" style={{ color: '#ffd98a' }}>
+            <h3
+              className="tower-result-heading is-victory"
+              style={{ color: "#ffd98a" }}
+            >
               HẾT GIỜ — TỔNG KẾT LƯỢT ĐẤU!
             </h3>
 
-            <p style={{ margin: '0 0 16px', color: '#cdb287', fontSize: 14 }}>
+            <p style={{ margin: "0 0 16px", color: "#cdb287", fontSize: 14 }}>
               Bạn đã dốc toàn lực chiến đấu với {season.bossName}!
             </p>
 
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
                 gap: 10,
-                margin: '0 0 18px',
-                textAlign: 'center',
+                margin: "0 0 18px",
+                textAlign: "center",
               }}
             >
-              <div style={{ background: '#241b12', border: '1px solid #4c391f', padding: '10px 8px', borderRadius: 12 }}>
-                <div style={{ fontSize: 12, color: '#9a7f57' }}>Sát thương lượt này</div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: '#ffc21f' }}>{resultModal.score ?? 0} ST</div>
+              <div
+                style={{
+                  background: "#241b12",
+                  border: "1px solid #4c391f",
+                  padding: "10px 8px",
+                  borderRadius: 12,
+                }}
+              >
+                <div style={{ fontSize: 12, color: "#9a7f57" }}>
+                  Sát thương lượt này
+                </div>
+                <div
+                  style={{ fontSize: 24, fontWeight: 900, color: "#ffc21f" }}
+                >
+                  {resultModal.score ?? 0} ST
+                </div>
               </div>
-              <div style={{ background: '#241b12', border: '1px solid #4c391f', padding: '10px 8px', borderRadius: 12 }}>
-                <div style={{ fontSize: 12, color: '#9a7f57' }}>Kỷ lục cá nhân tuần</div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: '#f8ecd2' }}>{resultModal.personalBest ?? personal.personalBest} ST</div>
+              <div
+                style={{
+                  background: "#241b12",
+                  border: "1px solid #4c391f",
+                  padding: "10px 8px",
+                  borderRadius: 12,
+                }}
+              >
+                <div style={{ fontSize: 12, color: "#9a7f57" }}>
+                  Kỷ lục cá nhân tuần
+                </div>
+                <div
+                  style={{ fontSize: 24, fontWeight: 900, color: "#f8ecd2" }}
+                >
+                  {resultModal.personalBest ?? personal.personalBest} ST
+                </div>
               </div>
-              <div style={{ background: '#241b12', border: '1px solid #4c391f', padding: '10px 8px', borderRadius: 12 }}>
-                <div style={{ fontSize: 12, color: '#9a7f57' }}>Combo cao nhất</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#ff9d1c' }}>×{resultModal.maxCombo ?? 0}</div>
+              <div
+                style={{
+                  background: "#241b12",
+                  border: "1px solid #4c391f",
+                  padding: "10px 8px",
+                  borderRadius: 12,
+                }}
+              >
+                <div style={{ fontSize: 12, color: "#9a7f57" }}>
+                  Combo cao nhất
+                </div>
+                <div
+                  style={{ fontSize: 20, fontWeight: 800, color: "#ff9d1c" }}
+                >
+                  ×{resultModal.maxCombo ?? 0}
+                </div>
               </div>
-              <div style={{ background: '#241b12', border: '1px solid #4c391f', padding: '10px 8px', borderRadius: 12 }}>
-                <div style={{ fontSize: 12, color: '#9a7f57' }}>Độ chính xác</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#46d17e' }}>{resultModal.accuracy ?? 0}%</div>
+              <div
+                style={{
+                  background: "#241b12",
+                  border: "1px solid #4c391f",
+                  padding: "10px 8px",
+                  borderRadius: 12,
+                }}
+              >
+                <div style={{ fontSize: 12, color: "#9a7f57" }}>
+                  Độ chính xác
+                </div>
+                <div
+                  style={{ fontSize: 20, fontWeight: 800, color: "#46d17e" }}
+                >
+                  {resultModal.accuracy ?? 0}%
+                </div>
               </div>
             </div>
 
             {resultModal.isNewRecord && (
               <div
                 style={{
-                  background: 'rgba(255, 194, 31, 0.14)',
-                  border: '1px solid rgba(255, 194, 31, 0.4)',
-                  padding: '8px 14px',
+                  background: "rgba(255, 194, 31, 0.14)",
+                  border: "1px solid rgba(255, 194, 31, 0.4)",
+                  padding: "8px 14px",
                   borderRadius: 12,
-                  color: '#ffc21f',
+                  color: "#ffc21f",
                   fontWeight: 800,
                   fontSize: 14,
                   marginBottom: 18,
                 }}
               >
-                🎉 KỶ LỤC MỚI CỦA BẠN! Điểm số đã được cộng thêm vào thành tích chung của cả ban.
+                🎉 KỶ LỤC MỚI CỦA BẠN! Điểm số đã được cộng thêm vào thành tích
+                chung của cả ban.
               </div>
             )}
 
@@ -999,7 +1369,11 @@ export default function BossPage() {
 
       {/* Confirm abandon modal */}
       {confirmAbandon && isPlaying && !resultModal && (
-        <div className="dialog-backdrop" role="presentation" onClick={() => setConfirmAbandon(false)}>
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={() => setConfirmAbandon(false)}
+        >
           <div
             className="dialog boss-confirm-dialog"
             role="alertdialog"
@@ -1013,14 +1387,24 @@ export default function BossPage() {
             </div>
             <strong id="boss-confirm-title">Kết thúc lượt đấu sớm?</strong>
             <p id="boss-confirm-desc">
-              Lượt hiện tại sẽ dừng ngay, bạn không thể tiếp tục lượt này. Điểm của lượt vẫn được tính vào điểm
-              cao nhất trong tuần, nhưng kết thúc sớm thì lượt này không nhận XP.
+              Lượt hiện tại sẽ dừng ngay, bạn không thể tiếp tục lượt này. Điểm
+              của lượt vẫn được tính vào điểm cao nhất trong tuần, nhưng kết
+              thúc sớm thì lượt này không nhận XP.
             </p>
             <div className="dialog-action-buttons">
-              <button type="button" className="boss-btn-secondary" autoFocus onClick={() => setConfirmAbandon(false)}>
+              <button
+                type="button"
+                className="boss-btn-secondary"
+                autoFocus
+                onClick={() => setConfirmAbandon(false)}
+              >
                 Tiếp tục đánh
               </button>
-              <button type="button" className="boss-btn-danger" onClick={() => void handleAbandonSession()}>
+              <button
+                type="button"
+                className="boss-btn-danger"
+                onClick={() => void handleAbandonSession()}
+              >
                 Kết thúc lượt
               </button>
             </div>
@@ -1040,7 +1424,12 @@ export default function BossPage() {
             role="dialog"
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#1c140c', borderColor: '#4c391f', color: '#f8ecd2', width: 'min(580px, 94vw)' }}
+            style={{
+              background: "#1c140c",
+              borderColor: "#4c391f",
+              color: "#f8ecd2",
+              width: "min(580px, 94vw)",
+            }}
           >
             <button
               type="button"
@@ -1051,49 +1440,94 @@ export default function BossPage() {
               <X size={16} weight="bold" />
             </button>
 
-            <h3 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 8px', color: '#ffd98a' }}>
+            <h3
+              style={{
+                fontSize: 20,
+                fontWeight: 800,
+                margin: "0 0 8px",
+                color: "#ffd98a",
+              }}
+            >
               Lịch sử nhận thưởng Boss Tuần
             </h3>
-            <p style={{ margin: '0 0 16px', color: '#cdb287', fontSize: 13 }}>
+            <p style={{ margin: "0 0 16px", color: "#cdb287", fontSize: 13 }}>
               Danh sách Coin đã nhận từ các mốc rương tuần đã hoàn thành
             </p>
 
             {loadingHistory ? (
               <Loading label="Đang tải lịch sử..." />
             ) : transactions.length === 0 ? (
-              <div style={{ padding: '30px 20px', color: '#9a7f57' }}>
+              <div style={{ padding: "30px 20px", color: "#9a7f57" }}>
                 <p>Bạn chưa có giao dịch nhận thưởng Boss nào.</p>
-                <small>Thưởng sẽ được tổng kết và phân phối vào 00:00 thứ Hai hằng tuần.</small>
+                <small>
+                  Thưởng sẽ được tổng kết và phân phối vào 00:00 thứ Hai hằng
+                  tuần.
+                </small>
               </div>
             ) : (
-              <div style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left', marginBottom: 16 }}>
+              <div
+                style={{
+                  maxHeight: 340,
+                  overflowY: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  textAlign: "left",
+                  marginBottom: 16,
+                }}
+              >
                 {transactions.map((tx) => (
                   <div
                     key={tx.id}
                     style={{
-                      background: '#241b12',
-                      border: '1px solid #4c391f',
+                      background: "#241b12",
+                      border: "1px solid #4c391f",
                       borderRadius: 12,
-                      padding: '10px 14px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
+                      padding: "10px 14px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 750, color: '#f8ecd2', fontSize: 14 }}>
+                      <div
+                        style={{
+                          fontWeight: 750,
+                          color: "#f8ecd2",
+                          fontSize: 14,
+                        }}
+                      >
                         Mốc {tx.milestoneAt} ST · Rương {tx.milestoneIndex}
                       </div>
-                      <div style={{ fontSize: 12, color: '#9a7f57', marginTop: 2 }}>
-                        {tx.season?.name || 'Boss Tuần'} · {new Date(tx.createdAt).toLocaleDateString('vi-VN')}
+                      <div
+                        style={{ fontSize: 12, color: "#9a7f57", marginTop: 2 }}
+                      >
+                        {tx.season?.name || "Boss Tuần"} ·{" "}
+                        {new Date(tx.createdAt).toLocaleDateString("vi-VN")}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ color: '#ffc21f', fontWeight: 800, fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ textAlign: "right" }}>
+                      <span
+                        style={{
+                          color: "#ffc21f",
+                          fontWeight: 800,
+                          fontSize: 14,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
                         <Coins size={14} weight="fill" /> +{tx.rewardCoins} Coin
                       </span>
-                      <div style={{ fontSize: 11, color: tx.status === 'SUCCESS' ? '#46d17e' : '#ffd98a', marginTop: 2 }}>
-                        {tx.status === 'SUCCESS' ? 'Đã nhận' : tx.status}
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color:
+                            tx.status === "SUCCESS" ? "#46d17e" : "#ffd98a",
+                          marginTop: 2,
+                        }}
+                      >
+                        {tx.status === "SUCCESS" ? "Đã nhận" : tx.status}
                       </div>
                     </div>
                   </div>
@@ -1104,7 +1538,7 @@ export default function BossPage() {
             <button
               type="button"
               className="boss-btn-secondary"
-              style={{ width: '100%' }}
+              style={{ width: "100%" }}
               onClick={() => setShowHistory(false)}
             >
               Đóng

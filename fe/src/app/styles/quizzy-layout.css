@@ -3556,3 +3556,347 @@ body.boss-arena-mode,
 @media (prefers-reduced-motion: reduce) {
   .tower-countdown, .tower-countdown .quiz-timer-ring { animation: none !important; }
 }
+
+/* ==========================================================================
+   BOSS — "đánh cùng nhau": dải đồng đội đang chiến đấu (nhẹ, không che câu hỏi)
+   ========================================================================== */
+.boss-squad {
+  display: grid;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.boss-squad-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-height: 30px;
+}
+
+.boss-squad-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font: 700 12.5px/1.3 var(--font-mono), monospace;
+}
+
+.boss-squad-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  animation: bossSquadDot 2.4s ease-in-out infinite;
+}
+
+.boss-squad-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.boss-squad-avatars > span + span { margin-left: -6px; }
+
+.boss-squad-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font: 800 10px/1 var(--font-mono), monospace;
+  object-fit: cover;
+}
+
+.boss-squad-more {
+  margin-left: 6px;
+  color: var(--muted);
+  font: 700 11.5px/1 var(--font-mono), monospace;
+}
+
+/* Others' hits: a small chip that fades in and out (own answers keep their own feedback). */
+.boss-squad-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.boss-squad-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 2px 10px 2px 3px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 35%, var(--line));
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 12px;
+  animation: bossSquadChip 3.5s ease forwards;
+}
+
+.boss-squad-chip .boss-squad-avatar { width: 20px; height: 20px; border-width: 1px; font-size: 8px; }
+.boss-squad-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boss-squad-chip b { color: var(--accent-strong); font-family: var(--font-mono), monospace; }
+
+.boss-squad-feed {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.boss-squad-feed li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.boss-squad-feed .boss-squad-avatar { width: 22px; height: 22px; border-width: 1px; font-size: 9px; }
+.boss-squad-feed-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boss-squad-feed-text b { color: var(--text); }
+.boss-squad-feed time { flex: 0 0 auto; font-size: 11.5px; }
+
+/* In combat: one compact line under the HP bar, never over the question, options or timer. */
+.boss-squad.is-compact { padding: 6px 12px; }
+.boss-squad.is-compact .boss-squad-head { min-height: 26px; }
+
+/* Faint shimmer on the community HP bar when someone else's hit chip appears (display only). */
+.boss-hp-fill.is-shimmer-0,
+.boss-hp-fill.is-shimmer-1 { animation: bossHpShimmer 0.9s ease-out; }
+.boss-hp-fill.is-shimmer-1 { animation-name: bossHpShimmerAlt; }
+
+@keyframes bossSquadDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes bossSquadChip {
+  0% { opacity: 0; transform: translateY(6px); }
+  12%, 80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes bossHpShimmer { 0% { filter: brightness(1.25); } 100% { filter: brightness(1); } }
+@keyframes bossHpShimmerAlt { 0% { filter: brightness(1.25); } 100% { filter: brightness(1); } }
+
+@media (max-width: 640px) {
+  .boss-squad-chip-name { display: none; }
+  .boss-squad-chip { padding-right: 8px; }
+  .boss-squad-chips { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boss-squad-dot, .boss-squad-chip, .boss-hp-fill.is-shimmer-0, .boss-hp-fill.is-shimmer-1 { animation: none; }
+  .boss-squad-chip { opacity: 1; }
+}
+
+/* ==========================================================================
+   BOSS — hình Boss nổi bật hơn (sảnh), gọn nội dung
+   Ảnh gốc 880×815 pixel-art: trước đây chỉ hiện 130px. Sảnh: ảnh lớn có ánh sáng nền + bóng sàn;
+   khi đang đánh: chỉ lớn hơn một chút để câu hỏi vẫn nằm trong tầm nhìn.
+   ========================================================================== */
+.boss-arena-stage:not(.in-combat) {
+  padding: 18px 24px 22px;
+  gap: 8px;
+}
+
+.boss-arena-stage:not(.in-combat) .boss-title-group h2 {
+  font-size: clamp(22px, 3vw, 30px);
+  letter-spacing: 0.01em;
+}
+
+.boss-wrap:not(.in-combat) {
+  padding: 0;
+  margin-top: -4px;
+}
+
+/* Ánh sáng sau lưng Boss */
+.boss-wrap:not(.in-combat)::before {
+  content: '';
+  position: absolute;
+  inset: -6% -55% 4%;
+  background:
+    radial-gradient(closest-side, rgba(239, 68, 68, 0.3), rgba(139, 92, 246, 0.12) 58%, transparent 80%);
+  pointer-events: none;
+}
+
+/* Bóng trên sàn */
+.boss-wrap:not(.in-combat)::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 52%;
+  height: 16px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), transparent 70%);
+  pointer-events: none;
+}
+
+.boss-wrap:not(.in-combat) .boss-img {
+  position: relative;
+  z-index: 1;
+  width: clamp(200px, min(38vw, 46vh), 380px);
+  height: auto;
+  aspect-ratio: 880 / 815;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.5));
+}
+
+/* Đang đánh: lớn hơn trước (105px) nhưng vẫn gọn */
+.boss-wrap.in-combat .boss-img {
+  width: clamp(110px, 17vh, 150px);
+  height: auto;
+  aspect-ratio: 880 / 815;
+}
+
+/* Lobby: luật chơi thu gọn, mở khi cần */
+.boss-rules {
+  max-width: 520px;
+  margin: 14px auto 0;
+  color: #b59a72;
+  font-size: 13px;
+  text-align: left;
+}
+
+.boss-rules summary {
+  width: fit-content;
+  margin: 0 auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  list-style: none;
+  font: 700 12px/1.4 var(--font-mono), monospace;
+}
+
+.boss-rules summary::-webkit-details-marker { display: none; }
+.boss-rules summary:hover { border-color: var(--accent-strong); }
+.boss-rules summary:focus-visible { outline: 3px solid var(--accent-strong); outline-offset: 2px; }
+
+.boss-rules ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .boss-arena-stage:not(.in-combat) { padding: 14px 14px 18px; }
+  .boss-wrap:not(.in-combat) .boss-img { width: clamp(180px, 62vw, 280px); }
+}
+
+/* Gợi ý nhỏ dưới thanh máu khi đang đánh: khi nào điểm của bạn thực sự trừ máu Boss */
+.boss-hp-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font: 600 11.5px/1.3 var(--font-mono), monospace;
+  text-align: right;
+}
+.boss-hp-hint .is-active { color: var(--success, #16a34a); }
+.boss-hp-hint-track {
+  display: block;
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.25);
+  overflow: hidden;
+}
+.boss-hp-hint-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary, #6366f1);
+  transition: width 0.3s ease;
+}
+
+.milestones-progress {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font: 600 12px/1.4 var(--font-mono), monospace;
+}
+.milestones-progress b { color: var(--text, inherit); }
+
+.boss-idle-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 194, 31, 0.4);
+  border-radius: 12px;
+  background: rgba(255, 194, 31, 0.12);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.boss-idle-notice button {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Admin > Sự kiện Boss: danh sách tuần bên trái, nội dung chia tab bên phải để không phải cuộn dài */
+.admin-boss { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.admin-boss > * { min-width: 0; }
+.admin-boss-weeks { position: sticky; top: 12px; max-height: calc(100vh - 140px); overflow-y: auto; }
+.admin-boss-weeks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.admin-boss-weeks button { width: 100%; min-width: 0; overflow-wrap: anywhere; display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--border, rgba(127,127,127,.3)); border-radius: 10px; background: transparent; color: inherit; cursor: pointer; }
+.admin-boss-weeks button.active { border-color: var(--accent, #6366f1); background: var(--surface-2, rgba(127,127,127,.12)); }
+.admin-boss-weeks small { color: var(--muted); }
+.admin-boss-pill { justify-self: start; padding: 1px 8px; border-radius: 999px; font-size: 11px; background: rgba(127,127,127,.2); }
+.admin-boss-pill.phase-running { background: rgba(22,163,74,.2); }
+.admin-boss-pill.phase-upcoming { background: rgba(99,102,241,.2); }
+.admin-boss-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.admin-boss-main > * { min-width: 0; margin-top: 0; }
+.admin-boss-main .notice { margin-top: 0; }
+.admin-boss-table .admin-leaderboard-table { min-width: 720px; }
+.admin-boss .panel { padding: 16px; }
+.admin-boss .tabs { max-width: 100%; }
+.admin-boss-head { display: grid; gap: 10px; }
+.admin-boss-head .muted { overflow-wrap: anywhere; }
+.admin-boss-head .list-actions { flex-wrap: wrap; }
+.admin-boss-head h2 { margin: 0; }
+.admin-boss-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.admin-boss-kpis > div { display: grid; min-width: 0; overflow-wrap: anywhere; padding: 8px 10px; border-radius: 10px; background: var(--surface-2, rgba(127,127,127,.12)); }
+.admin-boss-kpis b { font-size: 16px; }
+.admin-boss-kpis b.bad { color: #dc2626; }
+.admin-boss-kpis span { color: var(--muted); font-size: 12px; }
+.admin-boss-chests { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.admin-boss-chests li { display: grid; padding: 8px 10px; border: 1px solid var(--border, rgba(127,127,127,.3)); border-radius: 10px; }
+.admin-boss-chests li.on { border-color: rgba(22,163,74,.6); }
+.admin-boss-chests span { color: var(--muted); font-size: 12px; }
+.admin-boss-config { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 170px); gap: 16px; align-items: start; }
+.admin-boss-config-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-boss-preview { display: grid; justify-items: center; gap: 6px; }
+.admin-boss-preview img { width: 140px; height: 140px; object-fit: contain; }
+.admin-boss-milestones { display: grid; gap: 8px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+.admin-boss-milestone { display: grid; grid-template-columns: minmax(0, 110px) minmax(0, 110px) minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.admin-boss-savebar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding-top: 10px; background: var(--surface, inherit); }
+.admin-boss-table { max-height: 460px; overflow: auto; }
+@media (max-width: 900px) {
+  .admin-boss { grid-template-columns: 1fr; }
+  .admin-boss-weeks { position: static; max-height: 220px; }
+  .admin-boss-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-boss-config { grid-template-columns: 1fr; }
+  .admin-boss-config-fields { grid-template-columns: 1fr; }
+  .admin-boss-milestone { grid-template-columns: 1fr 1fr; }
+}
