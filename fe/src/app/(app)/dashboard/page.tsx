@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BookOpen,
   Certificate as CertificateIcon,
+  Check,
   CheckCircle,
   ClockCountdown,
   Coins,
@@ -541,7 +542,7 @@ export default function DashboardPage() {
                 <small>{day.isToday ? 'H.Nay' : day.weekday}</small>
                 <strong>{day.dayMonth}</strong>
                 <span className="streak-day-dot" aria-hidden="true">
-                  {day.isDone ? '✓' : '·'}
+                  {day.isDone ? <Check size={12} weight="bold" /> : '·'}
                 </span>
               </div>
             ))}
@@ -763,8 +764,9 @@ export default function DashboardPage() {
             <div className="challenge-body">
               <div className="boss-challenge-header-row">
                 <div className="boss-challenge-avatar-wrap">
-                  <Image
-                    src="/images/boss-pixel.png"
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={bossOverview?.season.bossImageUrl || '/images/boss-pixel.png'}
                     alt={bossOverview?.season.bossName || 'Săn Boss Tuần'}
                     width={48}
                     height={48}

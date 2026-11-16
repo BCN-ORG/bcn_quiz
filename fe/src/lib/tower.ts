@@ -86,8 +86,11 @@ export interface TowerRewardTransactionItem {
 export const towerApi = {
   getOverview: () => request.get<TowerOverview>('/tower/overview'),
   startFloor: () => request.post<StartFloorResponse>('/tower/floor/start'),
-  submitAnswer: (optionLabel: string) =>
-    request.post<AnswerResponse>('/tower/floor/answer', { optionLabel }),
+  submitAnswer: (optionLabel: string, quizId?: string) =>
+    request.post<AnswerResponse>('/tower/floor/answer', {
+      optionLabel,
+      ...(quizId ? { quizId } : {}),
+    }),
   getTransactions: (limit = 50) =>
     request.get<TowerRewardTransactionItem[]>(`/tower/transactions?limit=${limit}`),
 };

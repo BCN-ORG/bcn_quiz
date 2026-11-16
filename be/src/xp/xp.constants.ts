@@ -7,6 +7,7 @@ export const XP_AMOUNTS: Record<XpSourceType, number> = {
   CERTIFICATE_ISSUED: 300,
   BOSS_SESSION_COMPLETED: 50,
   BOSS_COMBO_STREAK: 25,
+  BOUNTY_COMPLETED: 100,
 };
 
 export const XP_PER_LEVEL = 200;

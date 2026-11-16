@@ -3,12 +3,13 @@
 import { Certificate, Copy, ArrowSquareOut } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { CERT_STATUS, CertStatus } from '@/components/certificate-status';
-import { Empty, ErrorState, Loading } from '@/components/ui';
+import { Empty, ErrorState, Loading, PaginationNav } from '@/components/ui';
 import { request } from '@/lib/api';
 import type { MyCertificateRequest } from '@/lib/types';
 
 export default function CertificatesPage() {
   const [items, setItems] = useState<MyCertificateRequest[]>([]);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -34,22 +35,31 @@ export default function CertificatesPage() {
     <>
       <header className="page-heading"><div><h1>Chứng nhận</h1><p>Hoàn thành khóa học để gửi yêu cầu; quản trị viên xem xét rồi cấp chứng nhận. Chia sẻ mã để người khác xác minh.</p></div></header>
       {actionError ? <p className="notice" role="alert">{actionError}</p> : null}
-      {items.length ? <div className="grid grid-2">{items.map((item) => {
-        const issued = item.status === 'APPROVED' && item.certificate && !item.certificate.revokedAt;
-        return <article className="panel" key={item.id} aria-label={`Chứng nhận ${item.course.name}`}>
-          <Certificate size={36} color="var(--accent)" />
-          <h2>{item.course.name}</h2>
-          <p><CertStatus value={item.status} /></p>
-          <p>{CERT_STATUS[item.status].hint}</p>
-          {(item.status === 'REJECTED' || item.status === 'REVOKED') && item.reviewerNote ? <p className="notice"><strong>Lý do:</strong> {item.reviewerNote}</p> : null}
-          {issued ? <>
-            <p>Cấp ngày {new Date(item.certificate!.issuedAt).toLocaleDateString('vi-VN')}</p>
-            <div className="list-row"><code>{item.certificate!.certificateCode}</code><button className="icon-button" onClick={() => void navigator.clipboard.writeText(item.certificate!.certificateCode)} aria-label="Sao chép mã"><Copy /></button></div>
-            <a className="button secondary" style={{ marginTop: 16 }} href={`/verify?code=${encodeURIComponent(item.certificate!.certificateCode)}`} target="_blank" rel="noreferrer">Xác minh <ArrowSquareOut /></a>
-          </> : null}
-          {item.status === 'REJECTED' ? <button className="button" style={{ marginTop: 16 }} disabled={busyId === item.id} onClick={() => void resubmit(item)}>{busyId === item.id ? 'Đang gửi…' : 'Gửi lại yêu cầu'}</button> : null}
-        </article>;
-      })}</div> : <Empty title="Chưa có chứng nhận" description="Hoàn thành khóa học để gửi yêu cầu nhận chứng nhận." />}
+      {items.length ? (
+        <>
+          <div className="grid grid-2">
+            {items.slice((page - 1) * 6, page * 6).map((item) => {
+              const issued = item.status === 'APPROVED' && item.certificate && !item.certificate.revokedAt;
+              return (
+                <article className="panel" key={item.id} aria-label={`Chứng nhận ${item.course.name}`}>
+                  <Certificate size={36} color="var(--accent)" />
+                  <h2>{item.course.name}</h2>
+                  <p><CertStatus value={item.status} /></p>
+                  <p>{CERT_STATUS[item.status].hint}</p>
+                  {(item.status === 'REJECTED' || item.status === 'REVOKED') && item.reviewerNote ? <p className="notice"><strong>Lý do:</strong> {item.reviewerNote}</p> : null}
+                  {issued ? <>
+                    <p>Cấp ngày {new Date(item.certificate!.issuedAt).toLocaleDateString('vi-VN')}</p>
+                    <div className="list-row"><code>{item.certificate!.certificateCode}</code><button className="icon-button" onClick={() => void navigator.clipboard.writeText(item.certificate!.certificateCode)} aria-label="Sao chép mã"><Copy /></button></div>
+                    <a className="button secondary" style={{ marginTop: 16 }} href={`/verify?code=${encodeURIComponent(item.certificate!.certificateCode)}`} target="_blank" rel="noreferrer">Xác minh <ArrowSquareOut /></a>
+                  </> : null}
+                  {item.status === 'REJECTED' ? <button className="button" style={{ marginTop: 16 }} disabled={busyId === item.id} onClick={() => void resubmit(item)}>{busyId === item.id ? 'Đang gửi…' : 'Gửi lại yêu cầu'}</button> : null}
+                </article>
+              );
+            })}
+          </div>
+          <PaginationNav page={page} totalPages={Math.max(1, Math.ceil(items.length / 6))} total={items.length} onChange={setPage} />
+        </>
+      ) : <Empty title="Chưa có chứng nhận" description="Hoàn thành khóa học để gửi yêu cầu nhận chứng nhận." />}
     </>
   );
 }

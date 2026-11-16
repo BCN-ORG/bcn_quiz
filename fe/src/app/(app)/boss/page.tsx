@@ -5,15 +5,23 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
+  CheckCircle,
   Coins,
+  Crown,
   Fire,
   HourglassHigh,
+  Package,
   Receipt,
+  ShieldStar,
+  Sparkle,
   SpeakerHigh,
   SpeakerSlash,
   Sword,
   Trophy,
+  Warning,
   X,
+  XCircle,
 } from "@phosphor-icons/react";
 import { BossSquad } from "@/components/boss-squad";
 import { ErrorState, Loading } from "@/components/ui";
@@ -794,7 +802,9 @@ export default function BossPage() {
           <div className="boss-title-group">
             <h2>{season.bossName}</h2>
           </div>
-          <span className="boss-lv-badge">BOSS TUẦN</span>
+          <span className="boss-lv-badge">
+            <ShieldStar size={13} weight="fill" /> BOSS TUẦN
+          </span>
         </div>
 
         {/* Boss visual & animated reaction wrap */}
@@ -833,6 +843,17 @@ export default function BossPage() {
               className={`boss-hp-fill${pulse > 0 ? ` is-shimmer-${pulse % 2}` : ""}`}
               style={{ width: `${shownBossPercent}%` }}
             />
+            {milestones.map((m) => {
+              const markerLeft = (m.at / season.bossMaxHp) * 100;
+              return (
+                <div
+                  key={m.index}
+                  className="boss-hp-milestone-marker"
+                  style={{ left: `${markerLeft}%` }}
+                  title={`${m.name}: ${m.at} ST`}
+                />
+              );
+            })}
           </div>
           {inCombat && (
             <div className="boss-hp-hint">
@@ -875,31 +896,40 @@ export default function BossPage() {
           aria-label="Tiến trình mốc thưởng tuần"
         >
           <div className="milestones-header">
-            <div className="milestones-title">
-              <Trophy size={18} weight="fill" color="#ffc21f" />
-              <span>Tiến trình 5 Rương Thưởng Tuần</span>
+            <div className="milestones-title-row">
+              <div className="milestones-title">
+                <Trophy size={20} weight="fill" color="#fbbf24" />
+                <span>Tiến trình 5 Rương Thưởng Tuần</span>
+              </div>
+              <span className="boss-chip">
+                Cộng đồng: <b>{community.communityScore.toLocaleString("vi-VN")}</b> / {season.bossMaxHp.toLocaleString("vi-VN")} ST
+              </span>
             </div>
             <span className="milestones-subtitle">
-              Rương <b>chung của cả cộng đồng</b>: mở khi tổng ST của mọi người
-              đạt mốc. Mỗi rương mở, <b>ai đạt từ 5 điểm</b> đều nhận{" "}
+              Mở khóa cùng toàn Ban Công Nghệ khi tổng sát thương đạt mốc. Mỗi rương mở, <b>ai đạt từ 5 điểm</b> đều nhận{" "}
               {milestones.length > 0 &&
               milestones.every((m) => m.coin === milestones[0].coin) ? (
                 <b>{milestones[0].coin} Coin</b>
               ) : (
-                <b>số Coin ghi trên từng rương</b>
+                <b>Coin thưởng</b>
               )}{" "}
-              · phát 00:00 thứ Hai
+              · tự động kết toán và trao thưởng lúc 00:00 thứ Hai hàng tuần.
             </span>
-            <span className="milestones-progress">
-              Cộng đồng:{" "}
-              <b>{community.communityScore.toLocaleString("vi-VN")}</b> /{" "}
-              {season.bossMaxHp.toLocaleString("vi-VN")} ST ·{" "}
-              {milestones.filter((m) => m.unlocked).length}/{milestones.length}{" "}
-              rương đã mở ·{" "}
-              {personal.personalBest >= 5
-                ? "Bạn đủ điều kiện nhận thưởng"
-                : `Bạn: ${personal.personalBest}/5 ST để đủ điều kiện`}
-            </span>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
+              <span className={`chest-status-pill ${personal.personalBest >= 5 ? "unlocked" : "locked"}`}>
+                {personal.personalBest >= 5 ? (
+                  <>
+                    <CheckCircle size={14} weight="fill" style={{ verticalAlign: "-2px", marginRight: 4 }} />
+                    Bạn đủ điều kiện nhận thưởng tuần này
+                  </>
+                ) : (
+                  `Cần đạt tối thiểu 5 ST (Hiện tại: ${personal.personalBest}/5 ST)`
+                )}
+              </span>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                {milestones.filter((m) => m.unlocked).length}/{milestones.length} rương đã mở
+              </span>
+            </div>
           </div>
 
           {/* Milestone Track Bar */}
@@ -914,30 +944,44 @@ export default function BossPage() {
 
           {/* 5 Chest Boxes */}
           <div className="milestone-chests-row">
-            {milestones.map((m) => (
-              <div
-                key={m.index}
-                className={`milestone-chest-box ${m.unlocked ? "is-unlocked" : ""}`}
-              >
-                <span className="chest-name">{m.name}</span>
-                <span className="chest-at">
-                  {Math.min(community.communityScore, m.at).toLocaleString(
-                    "vi-VN",
-                  )}{" "}
-                  / {m.at.toLocaleString("vi-VN")} ST
-                </span>
-                <span className="chest-reward">
-                  <Coins size={14} weight="fill" /> +{m.coin} Coin
-                </span>
-                <span
-                  className={`chest-status-pill ${m.unlocked ? "unlocked" : "locked"}`}
+            {milestones.map((m) => {
+              const targetPct = Math.round((m.at / season.bossMaxHp) * 100);
+              return (
+                <div
+                  key={m.index}
+                  className={`milestone-chest-box ${m.unlocked ? "is-unlocked" : ""}`}
                 >
-                  {m.unlocked
-                    ? "✓ Đã mở"
-                    : `Còn ${Math.max(0, m.at - community.communityScore).toLocaleString("vi-VN")} ST`}
-                </span>
-              </div>
-            ))}
+                  <div className="milestone-chest-graphic" aria-hidden="true">
+                    {m.index === 5 ? (
+                      <Crown size={26} weight="fill" />
+                    ) : m.unlocked ? (
+                      <Trophy size={26} weight="fill" />
+                    ) : (
+                      <Package size={24} weight="duotone" />
+                    )}
+                  </div>
+                  <span className="chest-name">{m.name}</span>
+                  <span className="chest-at">
+                    {m.at.toLocaleString("vi-VN")} ST ({targetPct}%)
+                  </span>
+                  <span className="chest-reward">
+                    <Sparkle size={13} weight="fill" /> +{m.coin} Coin
+                  </span>
+                  <span
+                    className={`chest-status-pill ${m.unlocked ? "unlocked" : "locked"}`}
+                  >
+                    {m.unlocked ? (
+                      <>
+                        <Check size={12} weight="bold" style={{ verticalAlign: "-1px", marginRight: 3 }} />
+                        ĐÃ MỞ
+                      </>
+                    ) : (
+                      `Còn ${Math.max(0, m.at - community.communityScore).toLocaleString("vi-VN")} ST`
+                    )}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -969,7 +1013,9 @@ export default function BossPage() {
           <span className="boss-hud-k">
             <Fire size={14} weight="fill" /> Chuỗi Combo
           </span>
-          <span className="boss-hud-v hot">×{combo}</span>
+          <span className="boss-hud-v hot">
+            <Fire size={16} weight="fill" /> ×{combo}
+          </span>
         </div>
 
         <div className="boss-hud-cell">
@@ -989,7 +1035,10 @@ export default function BossPage() {
           {/* Inline Combat Error Banner */}
           {combatError && (
             <div className="boss-combat-error" role="alert">
-              <span>⚠️ {combatError}</span>
+              <span>
+                <Warning size={16} weight="fill" style={{ verticalAlign: "-2px", marginRight: 6 }} />
+                {combatError}
+              </span>
               <button
                 type="button"
                 className="boss-combat-error-dismiss"
@@ -1097,7 +1146,10 @@ export default function BossPage() {
           {wrongFeedback && (
             <div className="boss-wrong-feedback">
               <div className="boss-wrong-feedback-head">
-                <span>✕ Đáp án chưa chính xác!</span>
+                <span>
+                  <XCircle size={16} weight="fill" style={{ verticalAlign: "-2px", marginRight: 6 }} />
+                  Đáp án chưa chính xác!
+                </span>
                 <span>Chuyển câu sau: {questionRemaining.toFixed(1)}s</span>
               </div>
               <p className="boss-wrong-feedback-text">
@@ -1150,55 +1202,77 @@ export default function BossPage() {
         /* Lobby Start Card */
         <section
           className="boss-quiz-deck"
-          style={{ textAlign: "center", padding: "36px 20px" }}
+          style={{ textAlign: "center", padding: "38px 24px" }}
         >
-          <h2
-            style={{
-              fontSize: 22,
-              fontWeight: 900,
-              margin: "0 0 8px",
-              color: "#f8ecd2",
-            }}
-          >
-            SẴN SÀNG CHIẾN ĐẤU VỚI {season.bossName.toUpperCase()}?
-          </h2>
-          <p
-            style={{
-              maxWidth: 480,
-              margin: "0 auto 16px",
-              color: "#cdb287",
-              lineHeight: 1.5,
-            }}
-          >
-            Mỗi lượt <b>5 phút</b>, mỗi câu <b>10 giây</b>. Chơi lại không giới
-            hạn, điểm cao nhất tuần được tính cho cả Ban.
-          </p>
+          <div style={{ maxWidth: 540, margin: "0 auto", display: "grid", gap: 14, justifyItems: "center" }}>
+            <div
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 16,
+                background: "radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, rgba(239, 68, 68, 0.2) 100%)",
+                border: "1.5px solid var(--line-gold)",
+                display: "grid",
+                placeItems: "center",
+                color: "var(--gold-light)",
+                boxShadow: "0 0 24px rgba(245, 158, 11, 0.35)",
+              }}
+              aria-hidden="true"
+            >
+              <Sword size={32} weight="fill" />
+            </div>
 
-          <button
-            type="button"
-            className="boss-btn-primary"
-            onClick={() => void handleStartSession()}
-          >
-            <Sword size={20} weight="fill" />
-            <span>VÀO TRẬN ĐÁNH BOSS (5 PHÚT)</span>
-          </button>
+            <h2
+              style={{
+                fontSize: 24,
+                fontWeight: 900,
+                margin: 0,
+                color: "#fff",
+                letterSpacing: "0.02em",
+                textTransform: "uppercase",
+                textShadow: "0 2px 10px rgba(0, 0, 0, 0.8)",
+              }}
+            >
+              SẴN SÀNG CHIẾN ĐẤU VỚI {season.bossName.toUpperCase()}?
+            </h2>
 
-          <details className="boss-rules">
-            <summary>Luật chơi &amp; XP</summary>
-            <ul>
-              <li>
-                Mỗi người đóng góp tối đa <b>100 điểm</b> vào máu Boss cộng đồng
-                (lấy điểm cao nhất tuần).
-              </li>
-              <li>
-                XP chỉ tính khi bạn <b>chơi hết 5 phút</b> và đúng ít nhất{" "}
-                <b>5 câu</b>; tối đa <b>3 lượt có XP mỗi ngày</b>.
-              </li>
-              <li>
-                Kết thúc sớm vẫn tính điểm vào kỷ lục tuần nhưng không nhận XP.
-              </li>
-            </ul>
-          </details>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--muted)",
+                lineHeight: 1.6,
+                fontSize: 14,
+              }}
+            >
+              Mỗi lượt chơi kéo dài tối đa <b>5 phút</b>, mỗi câu hỏi có <b>10 giây</b> để chọn đáp án.
+              Chơi lại không giới hạn số lần, chỉ lưu điểm cao nhất tuần của bạn để trừ máu Boss toàn Ban.
+            </p>
+
+            <button
+              type="button"
+              className="boss-btn-primary"
+              onClick={() => void handleStartSession()}
+              style={{ padding: "14px 36px", fontSize: 17, marginTop: 4 }}
+            >
+              <Sword size={22} weight="fill" />
+              <span>VÀO THAM CHIẾN NGAY (5 PHÚT)</span>
+            </button>
+
+            <details className="boss-rules">
+              <summary>Luật chơi &amp; Thưởng XP</summary>
+              <ul>
+                <li>
+                  Mỗi người đóng góp tối đa <b>100 điểm</b> vào máu Boss cộng đồng (tính theo kỷ lục tuần cao nhất).
+                </li>
+                <li>
+                  Thưởng XP tính khi bạn <b>chơi trọn 5 phút</b> và trả lời đúng từ <b>5 câu</b> trở lên (tối đa 3 lượt nhận XP/ngày).
+                </li>
+                <li>
+                  Khi mở khóa các mốc Rương Thưởng, mỗi người tham gia đạt từ 5 ST đều nhận <b>5 Coin/rương</b> khi tổng kết tuần.
+                </li>
+              </ul>
+            </details>
+          </div>
         </section>
       )}
 
@@ -1339,7 +1413,8 @@ export default function BossPage() {
                   marginBottom: 18,
                 }}
               >
-                🎉 KỶ LỤC MỚI CỦA BẠN! Điểm số đã được cộng thêm vào thành tích
+                <Trophy size={22} weight="fill" style={{ verticalAlign: "-4px", marginRight: 6 }} />
+                KỶ LỤC MỚI CỦA BẠN! Điểm số đã được cộng thêm vào thành tích
                 chung của cả ban.
               </div>
             )}

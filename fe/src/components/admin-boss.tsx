@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Check, Circle } from '@phosphor-icons/react';
 import { useAuth } from '@/components/auth-provider';
-import { ConfirmDialog, Empty, ErrorState, Loading, Progress } from '@/components/ui';
+import { ConfirmDialog, Empty, ErrorState, Loading, PaginationNav, Progress } from './ui';
 import {
   bossApi,
   type BossAdminSeasonDetail,
@@ -40,6 +41,7 @@ export function AdminBoss() {
   const [notice, setNotice] = useState('');
   const [confirmSettle, setConfirmSettle] = useState(false);
   const [panel, setPanel] = useState<'overview' | 'config' | 'players' | 'rewards'>('overview');
+  const [playerPage, setPlayerPage] = useState(1);
 
   const loadList = useCallback(async () => {
     const data = await bossApi.adminListSeasons();
@@ -51,6 +53,7 @@ export function AdminBoss() {
     setWeekKey(key);
     setError('');
     setNotice('');
+    setPlayerPage(1);
     const exists = (known ?? list)?.items.some((item) => item.weekKey === key);
     if (!exists) {
       setDetail(null);
@@ -193,7 +196,7 @@ export function AdminBoss() {
         {activePanel === 'overview' && detail ? (
           <section className="panel" aria-label="Tiến độ và mốc rương">
             <Progress value={100 - detail.community.bossHpPercent} label={`Đã trừ ${detail.community.communityScore.toLocaleString('vi-VN')} / ${detail.season.bossMaxHp.toLocaleString('vi-VN')} ST`} />
-            <ul className="admin-boss-chests">{detail.milestones.map((m) => <li key={m.index} className={m.unlocked ? 'on' : ''}><b>{m.unlocked ? '✓' : '○'} {m.name}</b><span>{m.at.toLocaleString('vi-VN')} ST · +{m.coin} Coin/người</span></li>)}</ul>
+            <ul className="admin-boss-chests">{detail.milestones.map((m) => <li key={m.index} className={m.unlocked ? 'on' : ''}><b>{m.unlocked ? <Check size={12} weight="bold" style={{ verticalAlign: '-1px', marginRight: 4 }} /> : <Circle size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />}{m.name}</b><span>{m.at.toLocaleString('vi-VN')} ST · +{m.coin} Coin/người</span></li>)}</ul>
             {!detail.season.editable ? <p className="muted">Tuần này đã khoá cấu hình (chỉ tuần chưa bắt đầu mới sửa được).</p> : null}
           </section>
         ) : null}
@@ -236,17 +239,20 @@ export function AdminBoss() {
           <section className="panel" aria-label="Người chơi">
             {detail.profilesAvailable ? null : <div className="notice" role="alert">Chưa tải được tên từ Profiles; hiển thị mã người dùng.</div>}
             {detail.topPlayers.length === 0 ? <Empty title="Chưa có ai tham gia" description="Tuần này chưa có lượt đánh nào." /> : (
-              <div className="admin-table-scroll admin-boss-table" tabIndex={0} role="region" aria-label="Bảng người chơi Boss, cuộn để xem thêm">
-                <table className="admin-leaderboard-table">
-                  <thead><tr><th className="num">Hạng</th><th>Người chơi</th><th className="num">Kỷ lục</th><th className="num">Đóng góp</th><th className="num">Combo</th><th className="num">Lượt</th><th>Thưởng</th><th>Chơi gần nhất</th></tr></thead>
-                  <tbody>{detail.topPlayers.map((row) => <tr key={row.userId}>
-                    <td className="num">#{row.rank}</td>
-                    <th scope="row">{row.name === 'Người dùng' ? <code className="admin-id" title={row.userId}>{row.userId}</code> : row.name}</th>
-                    <td className="num">{row.highestScore}</td><td className="num">{row.contribution}</td><td className="num">{row.bestCombo}</td><td className="num">{row.totalAttempts}</td>
-                    <td>{row.rewardEligible ? 'Đủ ĐK' : 'Cần ≥5 ST'}</td><td>{when(row.lastPlayedAt)}</td>
-                  </tr>)}</tbody>
-                </table>
-              </div>
+              <>
+                <div className="admin-table-scroll admin-boss-table" tabIndex={0} role="region" aria-label="Bảng người chơi Boss, cuộn để xem thêm">
+                  <table className="admin-leaderboard-table">
+                    <thead><tr><th className="num">Hạng</th><th>Người chơi</th><th className="num">Kỷ lục</th><th className="num">Đóng góp</th><th className="num">Combo</th><th className="num">Lượt</th><th>Thưởng</th><th>Chơi gần nhất</th></tr></thead>
+                    <tbody>{detail.topPlayers.slice((playerPage - 1) * 10, playerPage * 10).map((row) => <tr key={row.userId}>
+                      <td className="num">#{row.rank}</td>
+                      <th scope="row">{row.name === 'Người dùng' ? <code className="admin-id" title={row.userId}>{row.userId}</code> : row.name}</th>
+                      <td className="num">{row.highestScore}</td><td className="num">{row.contribution}</td><td className="num">{row.bestCombo}</td><td className="num">{row.totalAttempts}</td>
+                      <td>{row.rewardEligible ? 'Đủ ĐK' : 'Cần ≥5 ST'}</td><td>{when(row.lastPlayedAt)}</td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+                <PaginationNav page={playerPage} totalPages={Math.max(1, Math.ceil(detail.topPlayers.length / 10))} total={detail.topPlayers.length} onChange={setPlayerPage} />
+              </>
             )}
           </section>
         ) : null}

@@ -33,6 +33,44 @@ describe('LeaderboardService', () => {
     );
   });
 
+  it('uses the required deterministic ordering for tower and boss leaderboards', () => {
+    const service = new LeaderboardService({} as never, {} as never);
+    const query = service as unknown as {
+      towerRankedQuery(seasonId: string): { sql: string };
+      bossRankedQuery(seasonId: string): { sql: string };
+    };
+    const tower = query.towerRankedQuery('season-1').sql;
+    const boss = query.bossRankedQuery('season-2').sql;
+    expect(tower).toContain(
+      'ORDER BY "highestCompletedFloor" DESC, "updatedAt" ASC, "userId" ASC',
+    );
+    expect(tower).toContain('"highestCompletedFloor" > 0');
+
+    expect(boss).toContain(
+      'ORDER BY "highestScore" DESC, "bestCombo" DESC, "updatedAt" ASC, "userId" ASC',
+    );
+    expect(boss).toContain('("highestScore" > 0 OR "hasParticipated" IS TRUE)');
+  });
+
+  it('uses the required deterministic ordering and aggregation for bounty leaderboard', () => {
+    const service = new LeaderboardService({} as never, {} as never);
+    const query = service as unknown as {
+      bountyRankedQuery(): { sql: string };
+    };
+    const bounty = query.bountyRankedQuery().sql;
+    expect(bounty).toContain(
+      'ORDER BY "completedBountiesCount" DESC, "totalCoinsEarned" DESC, "lastCompletedAt" ASC, "userId" ASC',
+    );
+    expect(bounty).toContain('COUNT(ba.id)::int AS "completedBountiesCount"');
+    expect(bounty).toContain(
+      'COALESCE(SUM(b."rewardCoins"), 0)::int AS "totalCoinsEarned"',
+    );
+    expect(bounty).toContain(
+      'COALESCE(SUM(b."rewardXp"), 0)::int AS "totalXpEarned"',
+    );
+    expect(bounty).toContain('"completedBountiesCount" > 0');
+  });
+
   it.each([
     '0000-01-01',
     '9999-12-31',

@@ -222,6 +222,15 @@ async function main() {
   }
 
   console.log(`Seeding finished. Total quizzes: ${quizzes.length}`);
+
+  try {
+    const { BountyService } = await import('../src/bounty/bounty.service');
+    const bountyService = new BountyService(prisma as any, null as any);
+    await bountyService.seedInitialBountiesIfEmpty();
+    console.log('Seeded initial bounties and sample submissions successfully.');
+  } catch (err: unknown) {
+    console.warn('Could not seed bounties:', err);
+  }
 }
 
 main()

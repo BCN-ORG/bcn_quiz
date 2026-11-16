@@ -24,6 +24,7 @@ import { NotificationModule } from './notification/notification.module';
 import { TowerModule } from './tower/tower.module';
 import { BossModule } from './boss/boss.module';
 import { XpModule } from './xp/xp.module';
+import { BountyModule } from './bounty/bounty.module';
 
 /** Env value only when it is a finite number above 0 (a blank `KEY=` would otherwise become 0 = block everything). */
 function positiveNumber(raw: unknown, fallback: number): number {
@@ -78,6 +79,7 @@ function positiveNumber(raw: unknown, fallback: number): number {
     TowerModule,
     BossModule,
     XpModule,
+    BountyModule,
   ],
   controllers: [AppController],
   providers: [
