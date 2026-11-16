@@ -181,3 +181,57 @@ export type AdminCertificateRequestDetail = Omit<AdminCertificateRequest, 'cours
   certificate: { certificateCode: string; issuedAt: string; revokedAt: string | null; revokedReason: string | null } | null;
   eligibility: CertificateEligibility;
 };
+
+export type BountyCategory = 'WEB' | 'APP' | 'GAME' | 'DESIGN' | 'AI';
+
+export type Bounty = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  category: BountyCategory;
+  difficulty: number;
+  rewardCoins: number;
+  rewardXp: number;
+  durationMinutes: number;
+  clientName: string;
+  clientRole: string;
+  clientCompany?: string | null;
+  clientAvatarUrl?: string | null;
+  clientNotes?: string | null;
+  deliverableType: string;
+  tasks: Array<{ id: number; text: string; done?: boolean }>;
+  skills: string[];
+  status: 'DRAFT' | 'OPEN' | 'CLOSED' | 'ARCHIVED';
+  isCurrentlyActive?: boolean;
+  _count?: { assignments: number };
+};
+
+export type BountyAssignment = {
+  id: string;
+  userId: string;
+  bountyId: string;
+  status: 'IN_PROGRESS' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'ABANDONED' | 'EXPIRED';
+  acceptedAt: string;
+  expiresAt: string;
+  submittedAt?: string | null;
+  projectUrl?: string | null;
+  submissionNotes?: string | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  reviewFeedback?: string | null;
+  bounty: Bounty;
+  transaction?: {
+    id?: string;
+    status: 'PENDING' | 'COMPLETED' | 'FAILED' | string;
+    rewardCoins?: number;
+    rewardXp?: number;
+  } | null;
+};
+
+export type BountyStats = {
+  openCount: number;
+  totalRewardPool: number;
+  userCompletedCount: number;
+};
+

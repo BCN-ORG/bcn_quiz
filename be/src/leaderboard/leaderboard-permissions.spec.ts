@@ -30,12 +30,18 @@ const context = (controller: Controller, handler: string, user?: unknown) =>
 const handlers: Array<[string, Controller, string]> = [
   ['GET /leaderboards/topics/:id/daily', LeaderboardController, 'daily'],
   ['GET /leaderboards/weekly', LeaderboardController, 'weekly'],
+  ['GET /leaderboards/tower', LeaderboardController, 'tower'],
+  ['GET /leaderboards/boss', LeaderboardController, 'boss'],
+  ['GET /leaderboards/bounty', LeaderboardController, 'bounty'],
   [
     'GET /admin/leaderboards/topics/:id/daily',
     AdminLeaderboardController,
     'daily',
   ],
   ['GET /admin/leaderboards/weekly', AdminLeaderboardController, 'weekly'],
+  ['GET /admin/leaderboards/tower', AdminLeaderboardController, 'tower'],
+  ['GET /admin/leaderboards/boss', AdminLeaderboardController, 'boss'],
+  ['GET /admin/leaderboards/bounty', AdminLeaderboardController, 'bounty'],
   [
     'GET /admin/leaderboards/topics/:id/daily/export',
     AdminLeaderboardController,

@@ -58,6 +58,9 @@ lerna-debug.log*
 pids/
 *.pid
 *.seed
+
+# Local prototypes & design mockups
+/*.html
 *.pid.lock
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 **/data/

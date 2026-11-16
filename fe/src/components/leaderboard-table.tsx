@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Trophy } from '@phosphor-icons/react';
+import { Coins, Trophy } from '@phosphor-icons/react';
 
 export type LeaderboardRow = {
   rank: number;
@@ -11,9 +11,22 @@ export type LeaderboardRow = {
   durationMs?: number;
   topicsCompleted?: number;
   totalDurationMs?: number;
+  highestCompletedFloor?: number;
+  currentFloor?: number;
+  highestScore?: number;
+  bestCombo?: number;
+  totalAttempts?: number;
+  completedBountiesCount?: number;
+  totalCoinsEarned?: number;
+  totalXpEarned?: number;
+  lastPlayedAt?: string;
+  updatedAt?: string;
 };
 
-export function leaderboardPoints(row: LeaderboardRow) {
+export function leaderboardPoints(row: LeaderboardRow, mode?: 'daily' | 'weekly' | 'tower' | 'boss' | 'bounty') {
+  if (mode === 'tower') return row.highestCompletedFloor ?? row.score ?? 0;
+  if (mode === 'boss') return row.highestScore ?? row.score ?? 0;
+  if (mode === 'bounty') return row.totalCoinsEarned ?? row.score ?? 0;
   return row.weeklyScore ?? row.score ?? 0;
 }
 
@@ -111,24 +124,88 @@ export function LeaderboardPlayer({ row, current = false, large = false, namesUn
   </span>;
 }
 
-export function LeaderboardTable({ rows, mode, currentUserId, caption = 'Bảng xếp hạng', namesUnavailable = false }: { rows: LeaderboardRow[]; mode: 'daily' | 'weekly'; currentUserId?: string; caption?: string; namesUnavailable?: boolean }) {
+export function LeaderboardTable({ rows, mode, currentUserId, caption = 'Bảng xếp hạng', namesUnavailable = false }: { rows: LeaderboardRow[]; mode: 'daily' | 'weekly' | 'tower' | 'boss' | 'bounty'; currentUserId?: string; caption?: string; namesUnavailable?: boolean }) {
+  const isTower = mode === 'tower';
+  const isBoss = mode === 'boss';
+  const isDaily = mode === 'daily';
+  const isBounty = mode === 'bounty';
+
   return <table className="leaderboard-table">
     <caption className="sr-only">{caption}</caption>
     <thead><tr>
       <th className="num" scope="col">Hạng</th>
-      <th scope="col">Người chơi</th>
-      <th className="num" scope="col">{mode === 'daily' ? 'Điểm' : 'Tổng điểm'}</th>
-      <th className="leaderboard-detail num" scope="col">{mode === 'daily' ? 'Đúng' : 'Số topic'}</th>
-      <th className="leaderboard-detail num" scope="col">{mode === 'daily' ? 'Thời gian' : 'Tổng thời gian'}</th>
+      <th scope="col">{isTower ? 'Nhà leo tháp' : isBoss ? 'Dũng sĩ' : isBounty ? 'Thành viên' : 'Người chơi'}</th>
+      <th className="num" scope="col">{isTower ? 'Tầng cao nhất' : isBoss ? 'Sát thương' : isDaily ? 'Điểm' : isBounty ? 'Nhiệm vụ hoàn thành' : 'Tổng điểm'}</th>
+      <th className="leaderboard-detail num" scope="col">
+        {isTower ? 'Tầng hiện tại' : isBoss ? 'Combo cao nhất' : isDaily ? 'Đúng' : isBounty ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+            <Coins weight="fill" size={14} style={{ color: '#eab308' }} aria-hidden="true" />
+            Coin kiếm được
+          </span>
+        ) : 'Số topic'}
+      </th>
+      <th className="leaderboard-detail num" scope="col">{isTower ? 'Ngày đạt' : isBoss ? 'Lượt đánh' : isDaily ? 'Thời gian' : isBounty ? 'XP' : 'Tổng thời gian'}</th>
     </tr></thead>
     <tbody>{rows.map((row) => {
       const mine = row.user.id === currentUserId;
       return <tr key={row.user.id} className={mine ? 'leaderboard-current' : undefined} aria-current={mine ? 'true' : undefined}>
         <td className="num leaderboard-rank-cell"><RankBadge rank={row.rank} /></td>
-        <th scope="row"><LeaderboardPlayer row={row} current={mine} namesUnavailable={namesUnavailable} /><small className="leaderboard-mobile-detail">{mode === 'daily' ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0} đúng · ${leaderboardDuration(row.durationMs)}` : `${row.topicsCompleted ?? 0} topic · ${leaderboardDuration(row.totalDurationMs)}`}</small></th>
-        <td className="num"><strong>{leaderboardPoints(row).toLocaleString('vi-VN')}</strong><span className="sr-only"> điểm</span></td>
-        <td className="leaderboard-detail num">{mode === 'daily' ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0}` : row.topicsCompleted ?? 0}</td>
-        <td className="leaderboard-detail num">{leaderboardDuration(mode === 'daily' ? row.durationMs : row.totalDurationMs)}</td>
+        <th scope="row">
+          <LeaderboardPlayer row={row} current={mine} namesUnavailable={namesUnavailable} />
+          <small className="leaderboard-mobile-detail">
+            {isTower
+              ? `Tầng ${row.highestCompletedFloor ?? 0}/100`
+              : isBoss
+                ? `Combo x${row.bestCombo ?? 0} · ${row.totalAttempts ?? 0} lượt`
+                : isBounty
+                  ? `${row.completedBountiesCount ?? 0} nhiệm vụ · +${(row.totalCoinsEarned ?? 0).toLocaleString('vi-VN')} Coin`
+                  : isDaily
+                    ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0} đúng · ${leaderboardDuration(row.durationMs)}`
+                    : `${row.topicsCompleted ?? 0} topic · ${leaderboardDuration(row.totalDurationMs)}`}
+          </small>
+        </th>
+        <td className="num">
+          {isTower ? (
+            <strong>Tầng {row.highestCompletedFloor ?? row.score ?? 0}</strong>
+          ) : isBoss ? (
+            <strong>
+              {(row.highestScore ?? row.score ?? 0).toLocaleString('vi-VN')}
+              <span className="sr-only"> sát thương</span>
+            </strong>
+          ) : isBounty ? (
+            <strong>{(row.completedBountiesCount ?? 0).toLocaleString('vi-VN')}</strong>
+          ) : (
+            <>
+              <strong>{leaderboardPoints(row, mode).toLocaleString('vi-VN')}</strong>
+              <span className="sr-only"> điểm</span>
+            </>
+          )}
+        </td>
+        <td className="leaderboard-detail num">
+          {isTower
+            ? `Tầng ${row.currentFloor ?? ((row.highestCompletedFloor ?? 0) + 1)}`
+            : isBoss
+              ? `x${row.bestCombo ?? 0}`
+              : isBounty
+                ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', color: '#eab308', fontWeight: 700 }}>
+                    <Coins weight="fill" size={14} aria-hidden="true" />
+                    +{(row.totalCoinsEarned ?? 0).toLocaleString('vi-VN')}
+                  </span>
+                )
+                : isDaily
+                  ? `${row.correctCount ?? 0}/${row.totalQuestions ?? 0}`
+                  : row.topicsCompleted ?? 0}
+        </td>
+        <td className="leaderboard-detail num">
+          {isTower
+            ? (row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('vi-VN') : '—')
+            : isBoss
+              ? `${row.totalAttempts ?? 0} lượt`
+              : isBounty
+                ? `+${(row.totalXpEarned ?? 0).toLocaleString('vi-VN')} XP`
+                : leaderboardDuration(isDaily ? row.durationMs : row.totalDurationMs)}
+        </td>
       </tr>;
     })}</tbody>
   </table>;

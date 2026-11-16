@@ -380,6 +380,10 @@ enum NotificationType {
   CERTIFICATE_APPROVED
   CERTIFICATE_REJECTED
   CERTIFICATE_REVOKED
+  BOUNTY_SUBMITTED
+  BOUNTY_APPROVED
+  BOUNTY_REJECTED
+  BOUNTY_CLAIMED
 }
 
 model Notification {
@@ -517,6 +521,7 @@ enum XpSourceType {
   CERTIFICATE_ISSUED
   BOSS_SESSION_COMPLETED
   BOSS_COMBO_STREAK
+  BOUNTY_COMPLETED
 }
 
 model UserXpEvent {
@@ -650,3 +655,114 @@ model BossRewardTransaction {
   @@index([userId, createdAt])
   @@map("boss_reward_transactions")
 }
+
+enum BountyCategory {
+  WEB
+  APP
+  GAME
+  DESIGN
+  AI
+}
+
+enum BountyStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum BountyAssignmentStatus {
+  IN_PROGRESS
+  SUBMITTED
+  APPROVED
+  REJECTED
+  ABANDONED
+  EXPIRED
+}
+
+enum BountyRewardStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model Bounty {
+  id              String         @id @default(cuid())
+  slug            String         @unique
+  title           String
+  description     String         @db.Text
+  category        BountyCategory
+  difficulty      Int            @default(1)
+  rewardCoins     Int            @default(50)
+  rewardXp        Int            @default(100)
+  durationMinutes Int            @default(120)
+  clientName      String
+  clientRole      String
+  clientCompany   String?
+  clientAvatarUrl String?
+  clientNotes     String?        @db.Text
+  deliverableType String         @default("URL")
+  tasks           Json           @default("[]")
+  skills          Json           @default("[]")
+  status          BountyStatus   @default(OPEN)
+  maxParticipants Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  assignments     BountyAssignment[]
+  transactions    BountyRewardTransaction[]
+
+  @@index([status, category])
+  @@map("bounties")
+}
+
+model BountyAssignment {
+  id              String                 @id @default(cuid())
+  userId          String
+  bountyId        String
+  status          BountyAssignmentStatus @default(IN_PROGRESS)
+  acceptedAt      DateTime               @default(now())
+  expiresAt       DateTime
+  submittedAt     DateTime?
+  projectUrl      String?
+  submissionNotes String?                @db.Text
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  reviewFeedback  String?                @db.Text
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  bounty          Bounty                 @relation(fields: [bountyId], references: [id], onDelete: Cascade)
+  transaction     BountyRewardTransaction?
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@map("bounty_assignments")
+}
+
+model BountyRewardTransaction {
+  id              String             @id @default(cuid())
+  userId          String
+  bountyId        String
+  assignmentId    String             @unique
+  rewardCoins     Int
+  rewardXp        Int
+  idempotencyKey  String             @unique
+  externalTxId    String?
+  status          BountyRewardStatus @default(PENDING)
+  requestPayload  Json?
+  responsePayload Json?
+  retryCount      Int                @default(0)
+  errorMessage    String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  processedAt     DateTime?
+
+  bounty          Bounty             @relation(fields: [bountyId], references: [id], onDelete: Cascade)
+  assignment      BountyAssignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, retryCount, createdAt])
+  @@map("bounty_reward_transactions")
+}
+

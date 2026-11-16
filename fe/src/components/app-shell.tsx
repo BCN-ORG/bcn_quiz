@@ -5,10 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Certificate,
   BookOpen,
+  Briefcase,
   CaretDoubleLeft,
   CaretDoubleRight,
+  CaretDown,
   Gauge,
   ClockCounterClockwise,
+  GraduationCap,
   SignOut,
   Sword,
   Trophy,
@@ -23,22 +26,80 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { canManageContent, canReadQuestions, canReadResults } from '@/lib/permissions';
 import { request } from '@/lib/api';
-import type { MyCertificateRequest } from '@/lib/types';
+import type { MyCertificateRequest, User } from '@/lib/types';
 import { useAuth } from './auth-provider';
 import { RankBadge } from './leaderboard-table';
 import { CertStatus } from './certificate-status';
 import { Empty, Loading } from './ui';
 import { NotificationCenter } from './notification-center';
 
-const primary = [
-  { href: '/dashboard', label: 'Tổng quan', icon: Gauge, allow: () => true },
-  { href: '/courses', label: 'Khóa học', icon: BookOpen, allow: canReadQuestions },
-  { href: '/tower', label: 'Leo Tháp', icon: Lightning, allow: canReadQuestions },
-  { href: '/boss', label: 'Săn Boss', icon: Sword, allow: canReadQuestions },
-  { href: '/leaderboard', label: 'Xếp hạng', icon: Trophy, allow: canReadQuestions },
-  { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise, allow: canReadResults },
-  { href: '/certificates', label: 'Chứng nhận', icon: Certificate, allow: canReadResults },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
+  allow: (user: User | null | undefined) => boolean;
+  alsoActive?: string[];
+  hasRankBadge?: boolean;
+};
+
+type NavGroup = {
+  key: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
+  allow?: (user: User | null | undefined) => boolean;
+  items: NavItem[];
+};
+
+const directLink: NavItem = {
+  href: '/dashboard',
+  label: 'Tổng quan',
+  icon: Gauge,
+  allow: () => true,
+};
+
+const navGroups: NavGroup[] = [
+  {
+    key: 'training',
+    label: 'Đào Tạo & Học Tập',
+    icon: GraduationCap,
+    items: [
+      { href: '/courses', label: 'Khóa học', icon: BookOpen, allow: canReadQuestions },
+      { href: '/certificates', label: 'Chứng nhận', icon: Certificate, allow: canReadResults },
+      { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise, allow: canReadResults },
+    ],
+  },
+  {
+    key: 'arena',
+    label: 'Đấu Trường & Thử Thách',
+    icon: Sword,
+    items: [
+      { href: '/tower', label: 'Leo Tháp', icon: Lightning, allow: canReadQuestions },
+      { href: '/boss', label: 'Săn Boss', icon: Sword, allow: canReadQuestions },
+      { href: '/bounties', label: 'Nhiệm vụ', icon: Briefcase, allow: canReadQuestions, alsoActive: ['/missions'] },
+      { href: '/leaderboard', label: 'Xếp hạng', icon: Trophy, allow: canReadQuestions, hasRankBadge: true },
+    ],
+  },
+  {
+    key: 'admin',
+    label: 'Quản Trị Hệ Thống',
+    icon: GearSix,
+    allow: canManageContent,
+    items: [
+      { href: '/admin', label: 'Quản trị Studio', icon: GearSix, allow: canManageContent },
+    ],
+  },
 ];
+
+function isItemActive(pathname: string, href: string, alsoActive?: string[]): boolean {
+  if (pathname === href || pathname.startsWith(`${href}/`)) return true;
+  if (href === '/courses' && (pathname === '/topics' || pathname.startsWith('/topics/'))) return true;
+  if (alsoActive && alsoActive.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
+  return false;
+}
+
+function isGroupActive(pathname: string, group: NavGroup): boolean {
+  return group.items.some((item) => isItemActive(pathname, item.href, item.alsoActive));
+}
 
 const PROFILES_APP_URL = (
   process.env.NEXT_PUBLIC_PROFILES_APP_URL || 'http://localhost:3002'
@@ -123,13 +184,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!loading && !user) router.replace('/');
   }, [loading, router, user]);
 
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    training: true,
+    arena: true,
+    admin: true,
+  });
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  // Auto-open group when pathname matches any child link so user never loses context
+  useEffect(() => {
+    for (const group of navGroups) {
+      if (isGroupActive(pathname, group)) {
+        setOpenGroups((prev) => (prev[group.key] ? prev : { ...prev, [group.key]: true }));
+      }
+    }
+  }, [pathname]);
+
   if (loading || !user) return <main className="center-page"><Loading label="Đang xác thực phiên BCN" /></main>;
 
   const appRoles = (user.roles ?? []).map((role) => role.toLowerCase());
-  const links = primary.filter((item) => item.allow(user));
-  if (canManageContent(user)) {
-    links.push({ href: '/admin', label: 'Quản trị', icon: GearSix, allow: canManageContent });
-  }
+
+  const visibleGroups = navGroups
+    .filter((g) => (g.allow ? g.allow(user) : true))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => item.allow(user)),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const bottomNavItems = [
+    directLink,
+    ...navGroups.flatMap((g) => (g.allow ? (g.allow(user) ? g.items : []) : g.items)),
+  ]
+    .filter((item) => item.allow(user))
+    .slice(0, 6);
 
   const setTheme = () => {
     const next = !dark;
@@ -150,12 +244,71 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button className="icon-button mobile-only" onClick={() => setMenu(false)} aria-label="Đóng menu"><X /></button>
         </div>
         <nav aria-label="Điều hướng chính">
-          {links.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} onClick={() => setMenu(false)} className={pathname.startsWith(href) ? 'active' : ''}>
-              <Icon aria-hidden="true" /><span>{label}</span>
-              {href === '/leaderboard' && weeklyRank != null ? <span className="nav-rank"><RankBadge rank={weeklyRank} /></span> : null}
-            </Link>
-          ))}
+          <Link
+            href={directLink.href}
+            onClick={() => setMenu(false)}
+            className={`nav-direct-item ${isItemActive(pathname, directLink.href) ? 'active' : ''}`}
+            title={directLink.label}
+            aria-label={directLink.label}
+          >
+            <directLink.icon aria-hidden="true" />
+            <span>{directLink.label}</span>
+          </Link>
+
+          {visibleGroups.map((group) => {
+            const GroupIcon = group.icon;
+            const isOpen = openGroups[group.key] ?? false;
+            const hasActiveChild = isGroupActive(pathname, group);
+
+            return (
+              <div key={group.key} className={`nav-group ${isOpen ? 'group-open' : 'group-collapsed'}`}>
+                <button
+                  type="button"
+                  className={`nav-group-header ${hasActiveChild ? 'has-active-child' : ''}`}
+                  onClick={() => toggleGroup(group.key)}
+                  aria-expanded={isOpen}
+                  aria-controls={`nav-group-list-${group.key}`}
+                  title={group.label}
+                >
+                  <span className="nav-group-header-left">
+                    <GroupIcon className="nav-group-icon" aria-hidden="true" />
+                    <span className="nav-group-title">{group.label}</span>
+                  </span>
+                  <CaretDown className={`nav-group-caret ${isOpen ? 'open' : 'closed'}`} aria-hidden="true" />
+                </button>
+
+                <ul
+                  id={`nav-group-list-${group.key}`}
+                  className={`nav-sub-list ${isOpen ? 'open' : 'closed'}`}
+                  role="list"
+                  aria-label={group.label}
+                >
+                  {group.items.map((item) => {
+                    const ItemIcon = item.icon;
+                    const active = isItemActive(pathname, item.href, item.alsoActive);
+
+                    return (
+                      <li key={item.href} role="none">
+                        <Link
+                          href={item.href}
+                          onClick={() => setMenu(false)}
+                          className={`nav-sub-item ${active ? 'active' : ''}`}
+                          title={item.label}
+                          aria-label={item.label}
+                        >
+                          <ItemIcon aria-hidden="true" />
+                          <span>{item.label}</span>
+                          {item.hasRankBadge && weeklyRank != null ? (
+                            <span className="nav-rank"><RankBadge rank={weeklyRank} /></span>
+                          ) : null}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
         </nav>
         <div className="sidebar-footer" ref={profileRef}>
           <div className="sidebar-footer-row">
@@ -250,8 +403,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <nav className="bottom-nav" aria-label="Điều hướng di động">
-        {links.slice(0, 6).map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className={pathname.startsWith(href) ? 'active' : ''}><Icon /><span>{label}</span></Link>
+        {bottomNavItems.map(({ href, label, icon: Icon, alsoActive }) => (
+          <Link
+            key={href}
+            href={href}
+            className={isItemActive(pathname, href, alsoActive) ? 'active' : ''}
+          >
+            <Icon />
+            <span>{label}</span>
+          </Link>
         ))}
       </nav>
     </div>

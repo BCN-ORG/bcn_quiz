@@ -161,6 +161,16 @@ async function main() {
     }
   }
   console.log(`  leaderboard results added: ${results}`);
+
+  try {
+    const { BountyService } = await import('../src/bounty/bounty.service');
+    const bountyService = new BountyService(prisma as any, null as any);
+    await bountyService.seedInitialBountiesIfEmpty();
+    console.log('  bounties and test submissions verified/seeded.');
+  } catch (err: unknown) {
+    console.warn('  could not seed bounties in dev:', err);
+  }
+
   console.log('Done. Log in as member01@dev.bcn.local / Dev@123456 (admin: admin@dev.bcn.local).');
 }
 

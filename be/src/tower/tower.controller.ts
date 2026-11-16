@@ -46,7 +46,11 @@ export class TowerController {
     @Body() dto: AnswerQuestionDto,
   ) {
     const userId = this.extractUserId(req);
-    return this.towerService.answerFloorQuestion(userId, dto.optionLabel);
+    return this.towerService.answerFloorQuestion(
+      userId,
+      dto.optionLabel,
+      dto.quizId,
+    );
   }
 
   @Permissions(...CONTENT_READ)

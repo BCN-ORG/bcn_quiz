@@ -1,6 +1,21 @@
 'use client';
 
-import { Bell, Check } from '@phosphor-icons/react';
+import {
+  Bell,
+  BookOpen,
+  ChartLineUp,
+  Check,
+  CheckCircle,
+  Coins,
+  Fire,
+  Flag,
+  type Icon,
+  PaperPlaneTilt,
+  Target,
+  TrendDown,
+  Trophy,
+  Warning,
+} from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiUrl, request } from '@/lib/api';
@@ -18,15 +33,42 @@ type Notification = {
 type NotificationPage = { items: Notification[] };
 type NotificationEvent = { notification: Notification; unreadCount: number };
 
-const icons: Record<string, string> = {
-  LEADERBOARD_RESULT: '🎯',
-  LEADERBOARD_TOP10: '🔥',
-  LEADERBOARD_TOP3: '🏆',
-  LEADERBOARD_RANK_DROPPED: '👀',
-  DAILY_REMINDER: '📚',
-  WEEKLY_PROGRESS: '📈',
-  WEEKLY_SUMMARY: '🏁',
+type IconConfig = {
+  icon: Icon;
+  color: string;
 };
+
+const notificationIcons: Record<string, IconConfig> = {
+  LEADERBOARD_RESULT: { icon: Target, color: 'var(--accent)' },
+  LEADERBOARD_TOP10: { icon: Fire, color: '#f97316' },
+  LEADERBOARD_TOP3: { icon: Trophy, color: '#eab308' },
+  LEADERBOARD_RANK_DROPPED: { icon: TrendDown, color: 'var(--danger)' },
+  DAILY_REMINDER: { icon: BookOpen, color: '#3b82f6' },
+  WEEKLY_PROGRESS: { icon: ChartLineUp, color: 'var(--accent)' },
+  WEEKLY_SUMMARY: { icon: Flag, color: '#8b5cf6' },
+  BOUNTY_SUBMITTED: { icon: PaperPlaneTilt, color: '#0284c7' },
+  BOUNTY_APPROVED: { icon: CheckCircle, color: 'var(--accent)' },
+  BOUNTY_REJECTED: { icon: Warning, color: 'var(--danger)' },
+  BOUNTY_CLAIMED: { icon: Coins, color: '#eab308' },
+};
+
+const fallbackNotificationIcon: IconConfig = {
+  icon: Bell,
+  color: 'var(--muted)',
+};
+
+export function NotificationTypeIcon({ type }: { type: string }) {
+  const { icon: IconComponent, color } = notificationIcons[type] ?? fallbackNotificationIcon;
+  return (
+    <IconComponent
+      size={20}
+      weight="fill"
+      color={color}
+      aria-hidden="true"
+      style={{ marginTop: 2, flexShrink: 0 }}
+    />
+  );
+}
 
 export function NotificationCenter() {
   const { user } = useAuth();
@@ -113,6 +155,11 @@ export function NotificationCenter() {
     setToast(null);
     if (row.type.startsWith('CERTIFICATE_')) router.push('/certificates');
     else if (row.type.startsWith('WEEKLY_')) router.push('/leaderboard');
+    else if (row.type === 'BOUNTY_APPROVED' || row.type === 'BOUNTY_CLAIMED' || row.type === 'BOUNTY_REJECTED') router.push('/bounties');
+    else if (row.type === 'BOUNTY_SUBMITTED') {
+      const isAdminOrMentor = user?.role === 'ADMIN' || user?.roles?.includes('admin') || user?.roles?.includes('mentor');
+      router.push(isAdminOrMentor ? '/admin?tab=bounties' : '/bounties');
+    }
     else if (row.topicId) router.push(row.type.startsWith('LEADERBOARD_') ? `/topics/${row.topicId}/leaderboard` : `/topics/${row.topicId}`);
   };
 
@@ -132,13 +179,13 @@ export function NotificationCenter() {
         <div className="notification-heading"><strong>Thông báo</strong><button type="button" onClick={() => void markAllRead().catch(() => { void refresh().catch(() => undefined); })} disabled={unread === 0}><Check aria-hidden="true" /> Đọc tất cả</button></div>
         <div className="notification-list">
           {items.length ? items.map((row) => <button key={row.id} type="button" className={`notification-row ${row.isRead ? '' : 'unread'}`} onClick={() => void markRead(row).catch(() => { void refresh().catch(() => undefined); })}>
-            <span aria-hidden="true">{icons[row.type] ?? '🔔'}</span>
+            <NotificationTypeIcon type={row.type} />
             <span><strong>{row.title}</strong><span>{row.message}</span><small>{new Date(row.createdAt).toLocaleString('vi-VN')}</small></span>
           </button>) : <p className="notification-empty">Chưa có thông báo.</p>}
         </div>
       </section> : null}
       {toast ? <button className="notification-toast" type="button" role="status" onClick={() => void markRead(toast).catch(() => { void refresh().catch(() => undefined); })}>
-        <span aria-hidden="true">{icons[toast.type] ?? '🔔'}</span><span><strong>{toast.title}</strong><span>{toast.message}</span></span>
+        <NotificationTypeIcon type={toast.type} /><span><strong>{toast.title}</strong><span>{toast.message}</span></span>
       </button> : null}
     </div>
   );

@@ -5,6 +5,7 @@ import {
   ArrowClockwise,
   ArrowLeft,
   ArrowRight,
+  Check,
   CheckCircle,
   Coins,
   HourglassHigh,
@@ -41,8 +42,14 @@ export default function TowerPage() {
   const [cardTimerTier, setCardTimerTier] = useState<TimerTier>('normal');
   const submittingRef = useRef(false);
 
+  // Option selection & feedback state
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [answerStatus, setAnswerStatus] = useState<'correct' | 'wrong' | null>(null);
+  const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
+
   // Result & Modals
-  const [resultModal, setResultModal] = useState<AnswerResponse | null>(null);
+  type TowerResultModal = AnswerResponse & { questionContext?: TowerQuestion | null };
+  const [resultModal, setResultModal] = useState<TowerResultModal | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [transactions, setTransactions] = useState<TowerRewardTransactionItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -131,17 +138,21 @@ export default function TowerPage() {
   }, [cooldownRemaining, fetchOverview]);
 
   const handleTimeout = useCallback(async () => {
-    if (submittingRef.current) return;
+    if (submittingRef.current || !isPlaying || !currentQuestion) return;
     submittingRef.current = true;
     setSubmitting(true);
-    if (currentQuestion) {
-      setLastQuestion(currentQuestion);
-    }
+    const questionSnapshot = currentQuestion;
+    setLastQuestion(questionSnapshot);
+    setAnswerStatus('wrong');
     try {
       // Submitting 'TIMEOUT' triggers failure; force reason: 'TIMEOUT' in case request lands inside backend 1.5s grace window
-      const res = await towerApi.submitAnswer('TIMEOUT');
-      setResultModal({ ...res, reason: 'TIMEOUT' });
+      const res = await towerApi.submitAnswer('TIMEOUT', questionSnapshot.id);
       setIsPlaying(false);
+      setResultModal({
+        ...res,
+        reason: 'TIMEOUT',
+        questionContext: questionSnapshot,
+      });
       if (res.cooldownRemainingSeconds) {
         setCooldownRemaining(res.cooldownRemainingSeconds);
       }
@@ -151,14 +162,20 @@ export default function TowerPage() {
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
+      setSelectedOption(null);
+      setAnswerStatus(null);
+      setTransitionMessage(null);
     }
-  }, [currentQuestion, fetchOverview]);
+  }, [isPlaying, currentQuestion, fetchOverview]);
 
   const handleStartFloor = async () => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
     setActionError(null);
+    setSelectedOption(null);
+    setAnswerStatus(null);
+    setTransitionMessage(null);
     try {
       const res = await towerApi.startFloor();
       setCurrentFloor(res.floor);
@@ -179,26 +196,51 @@ export default function TowerPage() {
   };
 
   const handleSelectOption = useCallback(async (label: string) => {
-    if (submittingRef.current || !isPlaying) return;
+    if (submittingRef.current || !isPlaying || !currentQuestion) return;
     submittingRef.current = true;
     setSubmitting(true);
+    setSelectedOption(label);
     setActionError(null);
-    if (currentQuestion) {
-      setLastQuestion(currentQuestion);
-    }
+    const questionSnapshot = currentQuestion;
+    setLastQuestion(questionSnapshot);
 
     try {
-      const res = await towerApi.submitAnswer(label);
+      const res = await towerApi.submitAnswer(label, questionSnapshot.id);
 
       if (res.result === 'CORRECT') {
-        setCurrentStreak(res.currentStreak ?? currentStreak + 1);
+        setAnswerStatus('correct');
+        const nextStreak = res.currentStreak ?? currentStreak + 1;
+        setCurrentStreak(nextStreak);
+
         if (res.nextQuestion) {
+          setTransitionMessage(
+            `Chính xác! Chuẩn bị câu tiếp theo (${nextStreak}/${requiredStreak})...`
+          );
+          // 800ms visual buffer so user sees green confirmation before question swaps
+          await new Promise((resolve) => setTimeout(resolve, 800));
+
           setCurrentQuestion(res.nextQuestion);
-          setLastQuestion(res.nextQuestion);
+          setSelectedOption(null);
+          setAnswerStatus(null);
+          setTransitionMessage(null);
         }
-      } else if (res.result === 'FLOOR_COMPLETED' || res.result === 'FAILED') {
+      } else if (res.result === 'FLOOR_COMPLETED') {
+        setAnswerStatus('correct');
+        await new Promise((resolve) => setTimeout(resolve, 500));
         setIsPlaying(false);
-        setResultModal(res);
+        setResultModal({ ...res, questionContext: questionSnapshot });
+        setSelectedOption(null);
+        setAnswerStatus(null);
+        setTransitionMessage(null);
+        void fetchOverview();
+      } else if (res.result === 'FAILED') {
+        setAnswerStatus('wrong');
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setIsPlaying(false);
+        setResultModal({ ...res, questionContext: questionSnapshot });
+        setSelectedOption(null);
+        setAnswerStatus(null);
+        setTransitionMessage(null);
         if (res.cooldownRemainingSeconds) {
           setCooldownRemaining(res.cooldownRemainingSeconds);
         }
@@ -207,16 +249,19 @@ export default function TowerPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Lỗi gửi đáp án';
       setActionError(msg);
+      setSelectedOption(null);
+      setAnswerStatus(null);
+      setTransitionMessage(null);
       void fetchOverview();
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [isPlaying, currentQuestion, currentStreak, fetchOverview]);
+  }, [isPlaying, currentQuestion, currentStreak, requiredStreak, fetchOverview]);
 
   // Keyboard shortcuts for Tower options: A-D or 1-4
   useEffect(() => {
-    if (!isPlaying || !currentQuestion || submitting || resultModal) return;
+    if (!isPlaying || !currentQuestion || submitting || resultModal || answerStatus !== null) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -231,7 +276,7 @@ export default function TowerPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isPlaying, currentQuestion, submitting, resultModal, handleSelectOption]);
+  }, [isPlaying, currentQuestion, submitting, resultModal, answerStatus, handleSelectOption]);
 
   const handleOpenHistory = async () => {
     setShowHistory(true);
@@ -375,28 +420,71 @@ export default function TowerPage() {
               role="radiogroup"
               aria-labelledby="tower-question-text"
             >
-              {currentQuestion.options.map((opt) => (
-                <button
-                  key={opt.label}
-                  type="button"
-                  role="radio"
-                  aria-checked={false}
-                  className="answer"
-                  disabled={submitting}
-                  onClick={() => void handleSelectOption(opt.label)}
-                >
-                  <span>{opt.label}</span>
-                  <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-                    {opt.isCode ? (
-                      <code className="tower-code-option">{opt.content}</code>
-                    ) : (
-                      opt.content
-                    )}
-                  </span>
-                  <span />
-                </button>
-              ))}
+              {currentQuestion.options.map((opt) => {
+                const isSelected = selectedOption === opt.label;
+                const isCorrect = isSelected && answerStatus === 'correct';
+                const isWrong = isSelected && answerStatus === 'wrong';
+                const answerClass = `answer ${
+                  isCorrect
+                    ? 'is-correct'
+                    : isWrong
+                      ? 'is-incorrect'
+                      : isSelected
+                        ? 'selected'
+                        : ''
+                }`.trim();
+
+                return (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    className={answerClass}
+                    disabled={submitting}
+                    onClick={() => void handleSelectOption(opt.label)}
+                  >
+                    <span>{opt.label}</span>
+                    <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                      {opt.isCode ? (
+                        <code className="tower-code-option">{opt.content}</code>
+                      ) : (
+                        opt.content
+                      )}
+                    </span>
+                    <span>
+                      {isCorrect ? (
+                        <CheckCircle size={18} weight="fill" style={{ color: 'var(--accent)' }} />
+                      ) : isWrong ? (
+                        <XCircle size={18} weight="fill" style={{ color: 'var(--danger)' }} />
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
+
+            {transitionMessage ? (
+              <div
+                className="tower-transition-banner"
+                role="status"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '14px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: 'var(--accent-soft, #e6f6f2)',
+                  color: 'var(--accent-strong, #087f65)',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                }}
+              >
+                <CheckCircle size={18} weight="fill" />
+                <span>{transitionMessage}</span>
+              </div>
+            ) : null}
 
             <p className="answer-hint">
               Chọn một đáp án trong vòng 10 giây (phím tắt: A–D hoặc 1–4). Trả lời sai hoặc hết giờ sẽ bị cooldown 4 giờ.
@@ -404,11 +492,12 @@ export default function TowerPage() {
             </div>
             <aside className={`tower-countdown tower-countdown-${cardTimerTier}`} aria-label="Đếm ngược">
               <QuizTimer
+                key={currentQuestion.id}
                 expiresAt={currentQuestion.expiresAt}
                 durationSeconds={10}
                 onTimeout={handleTimeout}
                 onTierChange={setCardTimerTier}
-                isPaused={submitting}
+                isPaused={submitting || answerStatus !== null}
                 size={120}
                 showSoundToggle
                 showBadge
@@ -609,7 +698,10 @@ export default function TowerPage() {
             <div className="section-title" style={{ flexWrap: 'wrap' }}>
               <h2>Bản đồ Tháp Kiến Thức (100 Tầng)</h2>
               <div className="list-actions">
-                <span className="status status-completed">✓ Đã vượt (+1 Coin)</span>
+                <span className="status status-completed">
+                  <Check size={14} weight="bold" style={{ marginRight: 4 }} />
+                  Đã vượt (+1 Coin)
+                </span>
                 <span className="status status-in_progress">Tầng hiện tại</span>
                 <span className="status">Khóa</span>
               </div>
@@ -630,7 +722,16 @@ export default function TowerPage() {
                   <div key={floorNum} className={cellClass}>
                     <strong>Tầng {floorNum}</strong>
                     <small>
-                      {isPassed ? '✓ +1 Coin' : isCurrent ? 'Hiện tại' : 'Khóa'}
+                      {isPassed ? (
+                        <>
+                          <Check size={12} weight="bold" style={{ verticalAlign: '-1px', marginRight: 2 }} />
+                          +1 Coin
+                        </>
+                      ) : isCurrent ? (
+                        'Hiện tại'
+                      ) : (
+                        'Khóa'
+                      )}
                     </small>
                   </div>
                 );
@@ -643,7 +744,9 @@ export default function TowerPage() {
       {/* Result Modal */}
       {resultModal ? (() => {
         const isVictory = resultModal.result === 'FLOOR_COMPLETED';
-        const correctOption = (lastQuestion || currentQuestion)?.options?.find(
+        const relevantQuestion =
+          resultModal.questionContext || lastQuestion || currentQuestion;
+        const correctOption = relevantQuestion?.options?.find(
           (o) => o.label === resultModal.correctAnswer
         );
 
@@ -754,6 +857,36 @@ export default function TowerPage() {
                       ? 'Bạn đã không kịp chọn đáp án trong 10 giây quy định của tầng.'
                       : 'Bạn đã chọn câu trả lời chưa chính xác cho câu hỏi này.'}
                   </p>
+
+                  {relevantQuestion ? (
+                    <div
+                      className="tower-result-question-snippet"
+                      style={{
+                        margin: '12px 0 16px',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--line)',
+                        fontSize: '13px',
+                        lineHeight: '1.5',
+                        color: 'var(--text)',
+                      }}
+                    >
+                      <strong
+                        style={{
+                          color: 'var(--muted)',
+                          display: 'block',
+                          marginBottom: '4px',
+                          fontSize: '11px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        Câu hỏi vừa làm
+                      </strong>
+                      <span>{relevantQuestion.question}</span>
+                    </div>
+                  ) : null}
 
                   {(resultModal.correctAnswer || resultModal.explanation) && (
                     <div className="tower-result-review-card">

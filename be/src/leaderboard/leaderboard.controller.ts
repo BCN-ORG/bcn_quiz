@@ -54,6 +54,27 @@ export class LeaderboardController {
   weekly(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
     return this.service.listWeekly(query, req);
   }
+
+  /** The monthly tower climbing leaderboard. */
+  @Permissions(...CONTENT_READ)
+  @Get('tower')
+  tower(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
+    return this.service.listTower(query, req);
+  }
+
+  /** The weekly community boss battle leaderboard. */
+  @Permissions(...CONTENT_READ)
+  @Get('boss')
+  boss(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
+    return this.service.listBoss(query, req);
+  }
+
+  /** The freelancer bounty board leaderboard. */
+  @Permissions(...CONTENT_READ)
+  @Get('bounty')
+  bounty(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
+    return this.service.listBounty(query, req);
+  }
 }
 
 @Controller('admin/leaderboards')
@@ -74,6 +95,24 @@ export class AdminLeaderboardController {
   @Get('weekly')
   weekly(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
     return this.service.listWeekly(query, req, true);
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('tower')
+  tower(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
+    return this.service.listTower(query, req, true);
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('boss')
+  boss(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
+    return this.service.listBoss(query, req, true);
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('bounty')
+  bounty(@Query() query: LeaderboardQueryDto, @Request() req: ExpressRequest) {
+    return this.service.listBounty(query, req, true);
   }
 
   @Permissions(...CONTENT_UPDATE)

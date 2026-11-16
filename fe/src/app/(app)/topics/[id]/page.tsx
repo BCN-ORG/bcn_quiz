@@ -435,7 +435,9 @@ function TopicQuizPage() {
               </button>
             );
           })}</div>
-          <p className="map-legend">✓ đã làm · ⚑ đánh dấu xem lại · khung đậm: câu đang xem</p>
+          <p className="map-legend">
+            <Check size={12} weight="bold" style={{ verticalAlign: '-1px' }} /> đã làm · <Flag size={12} weight="fill" style={{ verticalAlign: '-1px' }} /> đánh dấu xem lại · khung đậm: câu đang xem
+          </p>
           <button className="button quiz-nav-submit" disabled={saving} onClick={() => setConfirmSubmit(true)}>
             <PaperPlaneTilt /> Nộp bài
           </button>

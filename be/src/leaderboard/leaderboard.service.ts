@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Request } from 'express';
@@ -11,6 +12,8 @@ import {
   ProfilesService,
   type ProfilesUserSummary,
 } from '../profiles/profiles.service';
+import { TowerService } from '../tower/tower.service';
+import { BossService } from '../boss/boss.service';
 import {
   businessDate,
   businessWeekEnd,
@@ -37,6 +40,17 @@ type RankedRow = {
   topicsCompleted?: number;
   totalDurationMs?: bigint | number;
   lastSubmittedAt?: Date;
+  highestCompletedFloor?: number;
+  currentFloor?: number;
+  updatedAt?: Date;
+  highestScore?: number;
+  bestCombo?: number;
+  totalAttempts?: number;
+  lastPlayedAt?: Date;
+  completedBountiesCount?: number;
+  totalCoinsEarned?: number;
+  totalXpEarned?: number;
+  lastCompletedAt?: Date;
 };
 
 @Injectable()
@@ -44,6 +58,8 @@ export class LeaderboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profiles: ProfilesService,
+    @Optional() private readonly towerService?: TowerService,
+    @Optional() private readonly bossService?: BossService,
   ) {}
 
   async list(
@@ -60,7 +76,7 @@ export class LeaderboardService {
     if (!topic) throw new NotFoundException('Topic not found');
     const date = this.dateOrThrow(query.date);
     const ranked = this.rankedQuery(topicId, date);
-    const board = await this.board(ranked, query, req, admin);
+    const board = await this.board(ranked, query, req, admin, 'daily');
     return {
       topic,
       mode: 'daily' as const,
@@ -80,7 +96,7 @@ export class LeaderboardService {
     const end = businessWeekEnd(selected);
     const ranked = this.weeklyRankedQuery(start, end);
     const [board, progress] = await Promise.all([
-      this.board(ranked, query, req, admin),
+      this.board(ranked, query, req, admin, 'weekly'),
       this.progressFor(this.userId(req)),
     ]);
     return {
@@ -89,6 +105,120 @@ export class LeaderboardService {
       weekEnd: end,
       closesAt: endOfBusinessDay(end),
       progress,
+      ...board,
+    };
+  }
+
+  /** The monthly tower climbing leaderboard. */
+  async listTower(query: ListQuery, req: Request, admin = false) {
+    const season = this.towerService
+      ? await this.towerService.getOrCreateCurrentSeason()
+      : await this.prisma.towerSeason.findFirst({
+          where: { isActive: true },
+          orderBy: { startsAt: 'desc' },
+        });
+
+    if (!season) {
+      return {
+        mode: 'tower' as const,
+        season: null,
+        items: [],
+        top3: [],
+        top10Cutoff: null,
+        currentUserRank: null,
+        currentUserResult: null,
+        aroundMe: [],
+        pagination: {
+          page: 1,
+          limit: query.limit || 20,
+          total: 0,
+          totalPages: 1,
+          hasNext: false,
+          hasPrevious: false,
+        },
+      };
+    }
+
+    const ranked = this.towerRankedQuery(season.id);
+    const board = await this.board(ranked, query, req, admin, 'tower');
+    return {
+      mode: 'tower' as const,
+      season: {
+        id: season.id,
+        seasonKey: season.seasonKey,
+        name: season.name,
+        startsAt:
+          season.startsAt instanceof Date
+            ? season.startsAt.toISOString()
+            : String(season.startsAt),
+        endsAt:
+          season.endsAt instanceof Date
+            ? season.endsAt.toISOString()
+            : String(season.endsAt),
+      },
+      ...board,
+    };
+  }
+
+  /** The weekly community boss battle leaderboard. */
+  async listBoss(query: ListQuery, req: Request, admin = false) {
+    const season = this.bossService
+      ? await this.bossService.getOrCreateCurrentSeason()
+      : await this.prisma.bossWeeklySeason.findFirst({
+          where: { isActive: true },
+          orderBy: { startsAt: 'desc' },
+        });
+
+    if (!season) {
+      return {
+        mode: 'boss' as const,
+        season: null,
+        items: [],
+        top3: [],
+        top10Cutoff: null,
+        currentUserRank: null,
+        currentUserResult: null,
+        aroundMe: [],
+        pagination: {
+          page: 1,
+          limit: query.limit || 20,
+          total: 0,
+          totalPages: 1,
+          hasNext: false,
+          hasPrevious: false,
+        },
+      };
+    }
+
+    const ranked = this.bossRankedQuery(season.id);
+    const board = await this.board(ranked, query, req, admin, 'boss');
+    return {
+      mode: 'boss' as const,
+      season: {
+        id: season.id,
+        weekKey: season.weekKey,
+        name: season.name,
+        bossName: season.bossName,
+        bossImageUrl: season.bossImageUrl,
+        startsAt:
+          season.startsAt instanceof Date
+            ? season.startsAt.toISOString()
+            : String(season.startsAt),
+        endsAt:
+          season.endsAt instanceof Date
+            ? season.endsAt.toISOString()
+            : String(season.endsAt),
+      },
+      ...board,
+    };
+  }
+
+  /** The freelancer bounty board leaderboard. */
+  async listBounty(query: ListQuery, req: Request, admin = false) {
+    const ranked = this.bountyRankedQuery();
+    const board = await this.board(ranked, query, req, admin, 'bounty');
+    return {
+      mode: 'bounty' as const,
       ...board,
     };
   }
@@ -111,6 +241,7 @@ export class LeaderboardService {
     query: ListQuery,
     req: Request,
     admin: boolean,
+    mode: 'daily' | 'weekly' | 'tower' | 'boss' | 'bounty' = 'daily',
   ) {
     const page = this.pageOrThrow(query.page, 1, 1_000_000);
     const limit = this.pageOrThrow(query.limit, 20, 100);
@@ -150,6 +281,7 @@ export class LeaderboardService {
     const { rows: enriched, lookupFailed } = await this.withUsers(
       [...rows, ...topRows, ...aroundRows, ...currentRows],
       admin,
+      mode,
     );
     const byRank = new Map(enriched.map((row) => [row.rank, row]));
     const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -334,7 +466,11 @@ export class LeaderboardService {
     )`;
   }
 
-  private async withUsers(rows: RankedRow[], admin: boolean) {
+  private async withUsers(
+    rows: RankedRow[],
+    admin: boolean,
+    mode: 'daily' | 'weekly' | 'tower' | 'boss' | 'bounty' = 'daily',
+  ) {
     const { profiles, failed } = await this.resolveProfiles(
       rows.map((row) => row.userId),
     );
@@ -345,6 +481,46 @@ export class LeaderboardService {
         fullName: profile?.fullName?.trim() || 'Người dùng',
         avatarUrl: profile?.avatarUrl ?? null,
       };
+
+      if (mode === 'bounty') {
+        return {
+          rank: row.rank,
+          user,
+          ...(admin ? { email: profile?.email ?? null } : {}),
+          score: row.completedBountiesCount ?? row.score ?? 0,
+          completedBountiesCount: row.completedBountiesCount ?? row.score ?? 0,
+          totalCoinsEarned: row.totalCoinsEarned ?? 0,
+          totalXpEarned: row.totalXpEarned ?? 0,
+          lastCompletedAt: row.lastCompletedAt ?? row.updatedAt,
+        };
+      }
+
+      if (mode === 'tower') {
+        return {
+          rank: row.rank,
+          user,
+          ...(admin ? { email: profile?.email ?? null } : {}),
+          score: row.highestCompletedFloor ?? row.score ?? 0,
+          highestCompletedFloor: row.highestCompletedFloor ?? row.score ?? 0,
+          currentFloor: row.currentFloor,
+          updatedAt: row.updatedAt,
+        };
+      }
+
+      if (mode === 'boss') {
+        return {
+          rank: row.rank,
+          user,
+          ...(admin ? { email: profile?.email ?? null } : {}),
+          score: row.highestScore ?? row.score ?? 0,
+          highestScore: row.highestScore ?? row.score ?? 0,
+          bestCombo: row.bestCombo ?? 0,
+          totalAttempts: row.totalAttempts ?? 0,
+          lastPlayedAt: row.lastPlayedAt ?? row.updatedAt,
+          updatedAt: row.updatedAt,
+        };
+      }
+
       return row.topicsCompleted === undefined
         ? {
             rank: row.rank,
@@ -370,6 +546,56 @@ export class LeaderboardService {
           };
     });
     return { rows: mapped, lookupFailed: failed };
+  }
+
+  private towerRankedQuery(seasonId: string): Prisma.Sql {
+    return Prisma.sql`WITH ranked AS (
+      SELECT ROW_NUMBER() OVER (ORDER BY "highestCompletedFloor" DESC, "updatedAt" ASC, "userId" ASC)::int AS rank,
+        "userId", "highestCompletedFloor" AS score, "highestCompletedFloor", "currentFloor", "updatedAt"
+      FROM tower_user_progresses
+      WHERE "seasonId" = ${seasonId} AND "highestCompletedFloor" > 0
+    )`;
+  }
+
+  private bossRankedQuery(seasonId: string): Prisma.Sql {
+    return Prisma.sql`WITH ranked AS (
+      SELECT ROW_NUMBER() OVER (ORDER BY "highestScore" DESC, "bestCombo" DESC, "updatedAt" ASC, "userId" ASC)::int AS rank,
+        "userId", "highestScore" AS score, "highestScore", "bestCombo", "totalAttempts", "lastPlayedAt", "updatedAt"
+      FROM boss_user_weekly_stats
+      WHERE "seasonId" = ${seasonId} AND ("highestScore" > 0 OR "hasParticipated" IS TRUE)
+    )`;
+  }
+
+  private bountyRankedQuery(): Prisma.Sql {
+    return Prisma.sql`WITH user_bounties AS (
+      SELECT
+        ba."userId",
+        COUNT(ba.id)::int AS "completedBountiesCount",
+        COALESCE(SUM(b."rewardCoins"), 0)::int AS "totalCoinsEarned",
+        COALESCE(SUM(b."rewardXp"), 0)::int AS "totalXpEarned",
+        COALESCE(MAX(ba."reviewedAt"), MAX(ba."updatedAt")) AS "lastCompletedAt"
+      FROM bounty_assignments ba
+      JOIN bounties b ON b.id = ba."bountyId"
+      WHERE (ba.status = 'APPROVED' OR EXISTS (
+        SELECT 1 FROM bounty_reward_transactions brt
+        WHERE brt."assignmentId" = ba.id AND brt.status = 'COMPLETED'
+      ))
+      GROUP BY ba."userId"
+    ),
+    ranked AS (
+      SELECT
+        ROW_NUMBER() OVER (
+          ORDER BY "completedBountiesCount" DESC, "totalCoinsEarned" DESC, "lastCompletedAt" ASC, "userId" ASC
+        )::int AS rank,
+        "userId",
+        "completedBountiesCount" AS score,
+        "completedBountiesCount",
+        "totalCoinsEarned",
+        "totalXpEarned",
+        "lastCompletedAt"
+      FROM user_bounties
+      WHERE "completedBountiesCount" > 0
+    )`;
   }
 
   private async resolveProfiles(ids: string[]) {

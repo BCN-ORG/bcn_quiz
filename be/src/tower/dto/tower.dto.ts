@@ -1,9 +1,13 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class AnswerQuestionDto {
   @IsString()
   @IsNotEmpty()
   optionLabel: string;
+
+  @IsString()
+  @IsOptional()
+  quizId?: string;
 }
 
 export interface TowerQuestionOptionDto {

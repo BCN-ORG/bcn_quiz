@@ -491,6 +491,7 @@ export class TowerService {
   async answerFloorQuestion(
     userId: string,
     optionLabel: string,
+    quizId?: string,
   ): Promise<AnswerResponseDto> {
     const season = await this.getOrCreateCurrentSeason();
     const progress = await this.getOrCreateUserProgress(userId, season.id);
@@ -507,6 +508,13 @@ export class TowerService {
 
     if (!attempt || !attempt.currentQuizId) {
       throw new BadRequestException('Không tìm thấy lượt chơi đang hoạt động');
+    }
+
+    // Reject stale answer/timeout for a question that is no longer active
+    if (quizId && attempt.currentQuizId !== quizId) {
+      throw new BadRequestException(
+        'Câu hỏi này đã hết hạn hoặc đã được trả lời',
+      );
     }
 
     // Prevent stale/duplicate floor attempt from regressing user's floor
@@ -548,9 +556,15 @@ export class TowerService {
         data: { cooldownUntil },
       });
 
+      const quizOnTimeout = await this.prisma.quiz.findUnique({
+        where: { id: attempt.currentQuizId },
+      });
+
       return {
         result: 'FAILED',
         reason: 'TIMEOUT',
+        correctAnswer: quizOnTimeout?.answer,
+        explanation: quizOnTimeout?.explanation,
         cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
         cooldownRemainingSeconds: cooldownSeconds,
       };
@@ -574,7 +588,7 @@ export class TowerService {
       optionLabel.trim().toUpperCase() === quiz.answer.trim().toUpperCase();
 
     if (!isCorrect) {
-      // Failed: wrong answer -> cooldown if enabled (only if atomic state transition succeeds)
+      const isExplicitTimeout = optionLabel.trim().toUpperCase() === 'TIMEOUT';
       const cooldownSeconds = this.getCooldownSeconds();
       const cooldownUntil =
         cooldownSeconds > 0 ? new Date(now + cooldownSeconds * 1000) : null;
@@ -587,7 +601,7 @@ export class TowerService {
         },
         data: {
           status: 'FAILED',
-          failedReason: 'WRONG_ANSWER',
+          failedReason: isExplicitTimeout ? 'TIMEOUT' : 'WRONG_ANSWER',
         },
       });
 
@@ -602,7 +616,7 @@ export class TowerService {
 
       return {
         result: 'FAILED',
-        reason: 'WRONG_ANSWER',
+        reason: isExplicitTimeout ? 'TIMEOUT' : 'WRONG_ANSWER',
         correctAnswer: quiz.answer,
         explanation: quiz.explanation,
         cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
