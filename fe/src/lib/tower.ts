@@ -83,6 +83,134 @@ export interface TowerRewardTransactionItem {
   };
 }
 
+export type TowerDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface TowerPoolKpis {
+  totalCollected?: number;
+  collectedInPool?: number;
+  totalQuizzes?: number;
+  totalEligible?: number;
+  eligibleCount?: number;
+  totalDuplicates?: number;
+  duplicateCount?: number;
+  ineligibleCount?: number;
+  topicCalendarExpiredCount?: number;
+}
+
+export interface TowerBreakdownBySubject {
+  subject: string;
+  count: number;
+  eligibleCount?: number;
+}
+
+export interface TowerBreakdownByDifficulty {
+  difficulty: TowerDifficulty | string;
+  count: number;
+  eligibleCount?: number;
+  label?: string;
+}
+
+export interface TowerBreakdownByCourse {
+  courseId: string | null;
+  courseName: string;
+  count: number;
+}
+
+export interface TowerBreakdownByTopic {
+  topicId: string;
+  topicName: string;
+  count: number;
+}
+
+export interface TowerAntiRepeatStats {
+  seasonKey: string;
+  totalUsedInSeason?: number;
+  unusedInSeason?: number;
+  reusedInSeason?: number;
+  totalUsesCount?: number;
+  totalUniqueUsedCurrentSeason?: number;
+  totalHistoricalUsages?: number;
+  unusedEligibleInCurrentSeason?: number;
+}
+
+export interface TowerFloorRangeCoverage {
+  range: string;
+  minFloor?: number;
+  maxFloor?: number;
+  floorStart?: number;
+  floorEnd?: number;
+  requiredStreakMax?: number;
+  availableQuestions?: number;
+  matchingCount?: number;
+  subjectCoverage?: Record<string, number>;
+  difficultyCoverage?: Record<string, number>;
+  isSufficient: boolean;
+  warnings?: string[];
+}
+
+export interface TowerDistributionCoverageReport {
+  isSatisfied?: boolean;
+  isSufficient?: boolean;
+  coverageScore?: number;
+  scorePercent?: number;
+  totalEligible?: number;
+  floorRanges?: TowerFloorRangeCoverage[];
+  tiers?: TowerFloorRangeCoverage[];
+  warnings?: string[];
+}
+
+export interface TowerCollectionJobLog {
+  id: string;
+  status: 'RUNNING' | 'SUCCESS' | 'FAILED' | string;
+  startedAt: string;
+  completedAt?: string | null;
+  totalCollected?: number;
+  totalEligible?: number;
+  totalDuplicates?: number;
+  errorMessage?: string | null;
+}
+
+export interface TowerAdminPoolStatsResponse {
+  kpis: TowerPoolKpis;
+  breakdown: {
+    bySubject: TowerBreakdownBySubject[];
+    byDifficulty: TowerBreakdownByDifficulty[];
+    byCourse: TowerBreakdownByCourse[];
+    byTopic: TowerBreakdownByTopic[];
+  };
+  antiRepeatStats?: TowerAntiRepeatStats;
+  usage?: TowerAntiRepeatStats;
+  coverage: TowerDistributionCoverageReport;
+  lastJob?: TowerCollectionJobLog | null;
+  lastJobLog?: TowerCollectionJobLog | null;
+}
+
+export interface TowerFloorDistributionRuleDto {
+  minFloor: number;
+  maxFloor: number;
+  subjectWeights: Record<string, number>;
+  difficultyWeights: Record<string, number>;
+}
+
+export interface TowerDistributionConfigResponse {
+  id: string;
+  version: number;
+  name: string;
+  isActive: boolean;
+  rules: TowerFloorDistributionRuleDto[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TowerPoolSyncResponse {
+  logId?: string;
+  status: string;
+  totalCollected: number;
+  totalEligible: number;
+  totalDuplicates: number;
+  errorMessage?: string | null;
+}
+
 export const towerApi = {
   getOverview: () => request.get<TowerOverview>('/tower/overview'),
   startFloor: () => request.post<StartFloorResponse>('/tower/floor/start'),
@@ -93,4 +221,13 @@ export const towerApi = {
     }),
   getTransactions: (limit = 50) =>
     request.get<TowerRewardTransactionItem[]>(`/tower/transactions?limit=${limit}`),
+  getAdminPoolStats: (seasonKey?: string) =>
+    request.get<TowerAdminPoolStatsResponse>(
+      `/tower/admin/pool/stats${seasonKey ? `?seasonKey=${encodeURIComponent(seasonKey)}` : ''}`,
+    ),
+  syncAdminPool: () => request.post<TowerPoolSyncResponse>('/tower/admin/pool/sync'),
+  getAdminDistribution: () =>
+    request.get<TowerDistributionConfigResponse>('/tower/admin/distribution'),
+  updateAdminDistribution: (dto: { name?: string; rules: TowerFloorDistributionRuleDto[] }) =>
+    request.put<TowerDistributionConfigResponse>('/tower/admin/distribution', dto),
 };

@@ -53,6 +53,9 @@ model Quiz {
   attempts QuizAttempt[]
   sessions AttemptSession[]
 
+  towerPoolItem TowerQuestionPoolItem?
+  towerUsages   TowerQuestionUsage[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -423,6 +426,12 @@ enum TowerRewardStatus {
   UNKNOWN
 }
 
+enum TowerDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
 model TowerSeason {
   id        String   @id @default(cuid())
   seasonKey String   @unique
@@ -433,9 +442,10 @@ model TowerSeason {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  progresses   TowerUserProgress[]
-  attempts     TowerFloorAttempt[]
-  transactions TowerRewardTransaction[]
+  progresses     TowerUserProgress[]
+  attempts       TowerFloorAttempt[]
+  transactions   TowerRewardTransaction[]
+  questionUsages TowerQuestionUsage[]
 
   @@index([isActive, startsAt, endsAt])
   @@map("tower_seasons")
@@ -507,6 +517,72 @@ model TowerRewardTransaction {
   @@index([status, retryCount, createdAt])
   @@index([userId, createdAt])
   @@map("tower_reward_transactions")
+}
+
+model TowerQuestionPoolItem {
+  id               String          @id @default(cuid())
+  quizId           String          @unique
+  topicId          String
+  courseId         String?
+  subject          String
+  difficulty       TowerDifficulty @default(MEDIUM)
+  contentHash      String
+  isEligible       Boolean         @default(true)
+  ineligibleReason String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([isEligible, subject, difficulty])
+  @@index([contentHash])
+  @@index([topicId])
+  @@index([courseId])
+  @@map("tower_question_pool_items")
+}
+
+model TowerDistributionConfig {
+  id        String   @id @default(cuid())
+  version   Int      @default(1)
+  name      String
+  isActive  Boolean  @default(true)
+  rules     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, version])
+  @@map("tower_distribution_configs")
+}
+
+model TowerQuestionUsage {
+  id         String      @id @default(cuid())
+  quizId     String
+  seasonId   String
+  floor      Int
+  usedAt     DateTime    @default(now())
+  usageCount Int         @default(1)
+
+  quiz   Quiz        @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  season TowerSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, seasonId])
+  @@index([seasonId, floor])
+  @@index([usedAt])
+  @@map("tower_question_usages")
+}
+
+model TowerCollectionJobLog {
+  id              String    @id @default(cuid())
+  status          String
+  totalCollected  Int       @default(0)
+  totalEligible   Int       @default(0)
+  totalDuplicates Int       @default(0)
+  errorMessage    String?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+
+  @@index([startedAt])
+  @@map("tower_collection_job_logs")
 }
 
 

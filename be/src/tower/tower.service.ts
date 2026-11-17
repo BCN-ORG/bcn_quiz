@@ -4,11 +4,13 @@ import {
   HttpStatus,
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, XpSourceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TowerCoinService } from './coin/tower-coin.service';
 import { XpService } from '../xp/xp.service';
+import { TowerQuestionSelector } from './tower-question-selector.service';
 import {
   AnswerResponseDto,
   TowerOverviewDto,
@@ -30,6 +32,7 @@ export class TowerService {
     private readonly prisma: PrismaService,
     private readonly coinService: TowerCoinService,
     private readonly xpService: XpService,
+    @Optional() private readonly questionSelector?: TowerQuestionSelector,
   ) {}
 
   /**
@@ -414,9 +417,11 @@ export class TowerService {
       }
     }
 
-    // 3. Pick first random quiz according to floor difficulty tier
+    // 3. Pick first random quiz according to floor difficulty tier and knowledge distribution
     const floor = Math.min(Math.max(progress.currentFloor, 1), MAX_FLOOR);
-    const quiz = await this.getRandomQuiz([], floor);
+    const quiz = this.questionSelector
+      ? await this.questionSelector.selectQuestionForFloor(season.id, floor, [])
+      : await this.getRandomQuiz([], floor);
     if (!quiz) {
       throw new BadRequestException('Hiện chưa có câu hỏi nào trong hệ thống');
     }
@@ -701,7 +706,13 @@ export class TowerService {
       ? (attempt.usedQuizIds as string[])
       : [];
 
-    const nextQuiz = await this.getRandomQuiz(usedIds, attempt.floor);
+    const nextQuiz = this.questionSelector
+      ? await this.questionSelector.selectQuestionForFloor(
+          attempt.seasonId,
+          attempt.floor,
+          usedIds,
+        )
+      : await this.getRandomQuiz(usedIds, attempt.floor);
     if (!nextQuiz) {
       throw new BadRequestException('Không còn câu hỏi khả dụng cho tầng này');
     }

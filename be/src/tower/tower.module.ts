@@ -5,6 +5,9 @@ import { TowerController } from './tower.controller';
 import { TowerService } from './tower.service';
 import { TowerCoinService } from './coin/tower-coin.service';
 import { TowerReconciliationService } from './coin/tower-reconciliation.service';
+import { TowerDistributionService } from './tower-distribution.service';
+import { TowerPoolService } from './tower-pool.service';
+import { TowerQuestionSelector } from './tower-question-selector.service';
 import { COIN_SERVICE_PROVIDER } from './coin/coin-provider.interface';
 import { MockCoinProvider } from './coin/mock-coin.provider';
 
@@ -15,6 +18,9 @@ import { MockCoinProvider } from './coin/mock-coin.provider';
     TowerService,
     TowerCoinService,
     TowerReconciliationService,
+    TowerDistributionService,
+    TowerPoolService,
+    TowerQuestionSelector,
     MockCoinProvider,
     {
       provide: COIN_SERVICE_PROVIDER,
@@ -25,6 +31,9 @@ import { MockCoinProvider } from './coin/mock-coin.provider';
     TowerService,
     TowerCoinService,
     TowerReconciliationService,
+    TowerDistributionService,
+    TowerPoolService,
+    TowerQuestionSelector,
     COIN_SERVICE_PROVIDER,
   ],
 })

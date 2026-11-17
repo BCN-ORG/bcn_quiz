@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Put,
   Query,
   Request,
 } from '@nestjs/common';
@@ -14,13 +15,18 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CONTENT_READ, CONTENT_UPDATE } from '../auth/quiz-permissions';
 import { TowerService } from './tower.service';
 import { TowerReconciliationService } from './coin/tower-reconciliation.service';
+import { TowerPoolService } from './tower-pool.service';
+import { TowerDistributionService } from './tower-distribution.service';
 import { AnswerQuestionDto } from './dto/tower.dto';
+import { UpdateDistributionConfigDto } from './dto/tower-admin.dto';
 
 @Controller('tower')
 export class TowerController {
   constructor(
     private readonly towerService: TowerService,
     private readonly reconciliationService: TowerReconciliationService,
+    private readonly poolService: TowerPoolService,
+    private readonly distributionService: TowerDistributionService,
   ) {}
 
   @Permissions(...CONTENT_READ)
@@ -71,6 +77,32 @@ export class TowerController {
   @HttpCode(HttpStatus.OK)
   async triggerReconcile() {
     return this.reconciliationService.reconcilePendingAndUnknown();
+  }
+
+  @Permissions(...CONTENT_READ)
+  @Get('admin/pool/stats')
+  async getPoolStats(@Query('seasonKey') seasonKey?: string) {
+    return this.poolService.getPoolStats(seasonKey);
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Post('admin/pool/sync')
+  @HttpCode(HttpStatus.OK)
+  async syncPool() {
+    return this.poolService.syncPool();
+  }
+
+  @Permissions(...CONTENT_READ)
+  @Get('admin/distribution')
+  async getDistribution() {
+    return this.distributionService.getActiveConfig();
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Put('admin/distribution')
+  @HttpCode(HttpStatus.OK)
+  async updateDistribution(@Body() dto: UpdateDistributionConfigDto) {
+    return this.distributionService.updateConfig(dto.rules, dto.name);
   }
 
   private extractUserId(req: ExpressRequest): string {
