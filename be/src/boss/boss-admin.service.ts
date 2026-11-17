@@ -95,12 +95,16 @@ export class BossAdminService {
       items: seasons.map((season) => {
         const agg = bySeason.get(season.id) ?? { score: 0, players: 0 };
         const milestones = this.milestonesOf(season.milestoneConfig);
+        const isInfinite = Boolean(
+          season.isInfiniteHp || !season.bossMaxHp || season.bossMaxHp <= 0,
+        );
         return {
           weekKey: season.weekKey,
           name: season.name,
           bossName: season.bossName,
           bossImageUrl: season.bossImageUrl,
           bossMaxHp: season.bossMaxHp,
+          isInfiniteHp: season.isInfiniteHp,
           startsAt: season.startsAt.toISOString(),
           endsAt: season.endsAt.toISOString(),
           phase: this.phase(season, now),
@@ -108,7 +112,9 @@ export class BossAdminService {
           settledAt: season.settledAt?.toISOString() ?? null,
           editable: this.phase(season, now) === 'UPCOMING',
           communityScore: agg.score,
-          bossCurrentHp: Math.max(0, season.bossMaxHp - agg.score),
+          bossCurrentHp: isInfinite
+            ? null
+            : Math.max(0, (season.bossMaxHp ?? 0) - agg.score),
           participants: agg.players,
           milestonesUnlocked: milestones.filter((m) => agg.score >= m.at)
             .length,
@@ -131,6 +137,7 @@ export class BossAdminService {
         this.bossService.getCommunityStatus({
           id: season.id,
           bossMaxHp: season.bossMaxHp,
+          isInfiniteHp: season.isInfiniteHp,
           milestoneConfig: milestones,
         }),
         this.prisma.bossUserWeeklyStat.findMany({
@@ -184,6 +191,7 @@ export class BossAdminService {
         bossName: season.bossName,
         bossImageUrl: season.bossImageUrl,
         bossMaxHp: season.bossMaxHp,
+        isInfiniteHp: season.isInfiniteHp,
         startsAt: season.startsAt.toISOString(),
         endsAt: season.endsAt.toISOString(),
         phase,
@@ -245,9 +253,6 @@ export class BossAdminService {
 
     const milestones = [...dto.milestones];
     for (let i = 0; i < milestones.length; i++) {
-      if (milestones[i].at > dto.bossMaxHp) {
-        throw new BadRequestException('Mốc rương không được vượt máu Boss');
-      }
       if (i > 0 && milestones[i].at <= milestones[i - 1].at) {
         throw new BadRequestException('Các mốc rương phải tăng dần');
       }
@@ -256,7 +261,8 @@ export class BossAdminService {
       name: dto.name.trim(),
       bossName: dto.bossName.trim(),
       bossImageUrl: dto.bossImageUrl?.trim() || null,
-      bossMaxHp: dto.bossMaxHp,
+      bossMaxHp: dto.bossMaxHp ?? 0,
+      isInfiniteHp: true,
       milestoneConfig: milestones.map((m) => ({
         at: m.at,
         coin: m.coin,

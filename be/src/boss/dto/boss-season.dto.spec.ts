@@ -39,8 +39,14 @@ describe('UpsertBossSeasonDto under the real ValidationPipe options', () => {
     }
   });
 
+  it('accepts omitting bossMaxHp', async () => {
+    const { bossMaxHp, ...withoutHp } = ok;
+    const out = (await pipe.transform(withoutHp, meta)) as UpsertBossSeasonDto;
+    expect(out.bossMaxHp).toBeUndefined();
+  });
+
   it.each([
-    ['bad hp', { ...ok, bossMaxHp: 5 }],
+    ['bad hp', { ...ok, bossMaxHp: -5 }],
     ['no milestones', { ...ok, milestones: [] }],
     [
       'nested bad coin',

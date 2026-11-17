@@ -43,7 +43,8 @@ export interface BossOverview {
     name: string;
     bossName: string;
     bossImageUrl: string | null;
-    bossMaxHp: number;
+    bossMaxHp?: number | null;
+    isInfiniteHp?: boolean;
     startsAt: string;
     endsAt: string;
     isActive: boolean;
@@ -51,9 +52,10 @@ export interface BossOverview {
   };
   community: {
     communityScore: number;
-    bossCurrentHp: number;
-    bossHpPercent: number;
+    bossCurrentHp?: number | null;
+    bossHpPercent?: number | null;
     totalParticipants: number;
+    isInfiniteHp?: boolean;
   };
   milestones: BossMilestoneStatus[];
   personal: {
@@ -167,7 +169,8 @@ export interface BossAdminSeasonSummary {
   name: string;
   bossName: string;
   bossImageUrl: string | null;
-  bossMaxHp: number;
+  bossMaxHp?: number | null;
+  isInfiniteHp?: boolean;
   startsAt: string;
   endsAt: string;
   phase: BossSeasonPhase;
@@ -175,7 +178,7 @@ export interface BossAdminSeasonSummary {
   settledAt: string | null;
   editable: boolean;
   communityScore: number;
-  bossCurrentHp: number;
+  bossCurrentHp?: number | null;
   participants: number;
   milestonesUnlocked: number;
   milestonesTotal: number;
@@ -237,7 +240,8 @@ export interface BossSeasonInput {
   name: string;
   bossName: string;
   bossImageUrl: string | null;
-  bossMaxHp: number;
+  bossMaxHp?: number | null;
+  isInfiniteHp?: boolean;
   milestones: BossMilestoneConfig[];
 }
 

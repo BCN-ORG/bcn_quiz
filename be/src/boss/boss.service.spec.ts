@@ -130,7 +130,14 @@ describe('BossService', () => {
 
       const result = await service.getOrCreateCurrentSeason();
       expect(result.id).toBe('new-season');
-      expect(mockPrismaService.bossWeeklySeason.create).toHaveBeenCalled();
+      expect(mockPrismaService.bossWeeklySeason.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isInfiniteHp: true,
+            bossMaxHp: 0,
+          }),
+        }),
+      );
       expect(result.milestoneConfig).toHaveLength(5);
     });
   });
@@ -143,6 +150,7 @@ describe('BossService', () => {
         name: 'Tuần 46',
         bossName: 'Ma Vương',
         bossMaxHp: 1500,
+        isInfiniteHp: false,
         milestoneConfig: [
           { at: 300, coin: 5, name: 'Rương Đồng' },
           { at: 600, coin: 5, name: 'Rương Bạc' },
@@ -182,6 +190,45 @@ describe('BossService', () => {
       expect(overview.milestones[0].unlocked).toBe(true); // 300 <= 820
       expect(overview.milestones[1].unlocked).toBe(true); // 600 <= 820
       expect(overview.milestones[2].unlocked).toBe(false); // 900 > 820
+    });
+
+    it('returns null HP and isInfiniteHp=true for infinite HP season in overview and getCommunityStatus', async () => {
+      const mockSeason = {
+        id: 'season-inf',
+        weekKey: '2026-W46',
+        name: 'Tuần 46',
+        bossName: 'Ma Vương',
+        bossMaxHp: 0,
+        isInfiniteHp: true,
+        milestoneConfig: [
+          { at: 300, coin: 5, name: 'Rương Đồng' },
+          { at: 600, coin: 5, name: 'Rương Bạc' },
+        ],
+        startsAt: new Date(),
+        endsAt: new Date(Date.now() + 86400000),
+        isActive: true,
+        isSettled: false,
+      };
+
+      mockPrismaService.bossWeeklySeason.findUnique.mockResolvedValue(mockSeason);
+      mockPrismaService.bossUserWeeklyStat.findMany.mockResolvedValue([
+        { highestScore: 350 },
+      ]);
+      mockPrismaService.bossUserWeeklyStat.findUnique.mockResolvedValue(null);
+      mockPrismaService.bossBattleSession.findFirst.mockResolvedValue(null);
+
+      const overview = await service.getOverview('user-1');
+
+      expect(overview.season.isInfiniteHp).toBe(true);
+      expect(overview.community.bossCurrentHp).toBeNull();
+      expect(overview.community.bossHpPercent).toBeNull();
+      expect(overview.community.isInfiniteHp).toBe(true);
+      expect(overview.milestones[0].unlocked).toBe(false); // 100 capped < 300
+
+      const status = await service.getCommunityStatus(mockSeason);
+      expect(status.community.bossCurrentHp).toBeNull();
+      expect(status.community.bossHpPercent).toBeNull();
+      expect(status.community.isInfiniteHp).toBe(true);
     });
   });
 

@@ -65,25 +65,31 @@ export interface BossMilestoneStatusDto {
   unlocked: boolean;
 }
 
+export interface BossSeasonDto {
+  id: string;
+  weekKey: string;
+  name: string;
+  bossName: string;
+  bossImageUrl: string | null;
+  bossMaxHp?: number | null;
+  isInfiniteHp?: boolean;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+  isSettled: boolean;
+}
+
+export interface BossCommunityStatusDto {
+  communityScore: number;
+  bossCurrentHp?: number | null;
+  bossHpPercent?: number | null;
+  totalParticipants: number;
+  isInfiniteHp?: boolean;
+}
+
 export interface BossOverviewDto {
-  season: {
-    id: string;
-    weekKey: string;
-    name: string;
-    bossName: string;
-    bossImageUrl: string | null;
-    bossMaxHp: number;
-    startsAt: string;
-    endsAt: string;
-    isActive: boolean;
-    isSettled: boolean;
-  };
-  community: {
-    communityScore: number;
-    bossCurrentHp: number;
-    bossHpPercent: number;
-    totalParticipants: number;
-  };
+  season: BossSeasonDto;
+  community: BossCommunityStatusDto;
   milestones: BossMilestoneStatusDto[];
   personal: {
     personalBest: number;
@@ -168,10 +174,11 @@ export class UpsertBossSeasonDto {
   @MaxLength(500)
   bossImageUrl?: string | null;
 
+  @IsOptional()
   @IsInt()
-  @Min(100)
+  @Min(0)
   @Max(100_000)
-  bossMaxHp!: number;
+  bossMaxHp?: number | null;
 
   @IsArray()
   @ArrayMinSize(1)

@@ -92,7 +92,8 @@ export class BossService {
   /** Current week's season if it already exists; never creates one (used by read-only endpoints). */
   async findCurrentSeason(): Promise<{
     id: string;
-    bossMaxHp: number;
+    bossMaxHp: number | null;
+    isInfiniteHp: boolean;
     milestoneConfig: BossMilestoneConfigItem[];
   } | null> {
     const { weekKey } = this.getWeekBoundaries();
@@ -103,6 +104,7 @@ export class BossService {
     return {
       id: season.id,
       bossMaxHp: season.bossMaxHp,
+      isInfiniteHp: season.isInfiniteHp,
       milestoneConfig: Array.isArray(season.milestoneConfig)
         ? (season.milestoneConfig as unknown as BossMilestoneConfigItem[])
         : DEFAULT_MILESTONES,
@@ -118,7 +120,8 @@ export class BossService {
     name: string;
     bossName: string;
     bossImageUrl: string | null;
-    bossMaxHp: number;
+    bossMaxHp: number | null;
+    isInfiniteHp: boolean;
     milestoneConfig: BossMilestoneConfigItem[];
     startsAt: Date;
     endsAt: Date;
@@ -138,7 +141,8 @@ export class BossService {
             weekKey,
             name: `Tuần ${weekNumber}: Đại Ma Vương Hư Không`,
             bossName: 'Ma Vương Hư Không',
-            bossMaxHp: BOSS_DEFAULT_MAX_HP,
+            bossMaxHp: 0,
+            isInfiniteHp: true,
             milestoneConfig:
               DEFAULT_MILESTONES as unknown as Prisma.InputJsonValue,
             startsAt,
@@ -172,6 +176,7 @@ export class BossService {
 
     return {
       ...season,
+      isInfiniteHp: season.isInfiniteHp ?? true,
       milestoneConfig: milestones,
     };
   }
@@ -182,7 +187,8 @@ export class BossService {
    */
   async getCommunityStatus(season: {
     id: string;
-    bossMaxHp: number;
+    bossMaxHp?: number | null;
+    isInfiniteHp?: boolean;
     milestoneConfig: BossMilestoneConfigItem[];
   }): Promise<{
     community: BossOverviewDto['community'];
@@ -201,11 +207,24 @@ export class BossService {
       0,
     );
     const totalParticipants = communityRows.length;
-    const bossCurrentHp = Math.max(0, season.bossMaxHp - communityScore);
-    const bossHpPercent = Math.max(
-      0,
-      Math.min(100, Math.round((bossCurrentHp / season.bossMaxHp) * 100)),
+
+    const isInfinite = Boolean(
+      season.isInfiniteHp || !season.bossMaxHp || season.bossMaxHp <= 0,
     );
+    const bossCurrentHp = isInfinite
+      ? null
+      : Math.max(0, (season.bossMaxHp as number) - communityScore);
+    const bossHpPercent = isInfinite
+      ? null
+      : Math.max(
+          0,
+          Math.min(
+            100,
+            Math.round(
+              ((bossCurrentHp as number) / (season.bossMaxHp as number)) * 100,
+            ),
+          ),
+        );
 
     const milestones: BossMilestoneStatusDto[] = season.milestoneConfig.map(
       (m, idx) => ({
@@ -223,6 +242,7 @@ export class BossService {
         bossCurrentHp,
         bossHpPercent,
         totalParticipants,
+        isInfiniteHp: isInfinite ? true : false,
       },
       milestones,
     };
@@ -318,6 +338,7 @@ export class BossService {
         bossName: season.bossName,
         bossImageUrl: season.bossImageUrl,
         bossMaxHp: season.bossMaxHp,
+        isInfiniteHp: season.isInfiniteHp,
         startsAt: season.startsAt.toISOString(),
         endsAt: season.endsAt.toISOString(),
         isActive: season.isActive,

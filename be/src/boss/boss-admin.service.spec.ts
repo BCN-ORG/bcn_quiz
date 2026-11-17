@@ -74,6 +74,7 @@ describe('BossAdminService', () => {
     expect(created.startsAt).toEqual(b.startsAt);
     expect(created.endsAt).toEqual(b.endsAt);
     expect(created.bossMaxHp).toBe(2000);
+    expect(created.isInfiniteHp).toBe(true);
   });
 
   it('stores the boss image url, and null clears it back to the built-in image', async () => {
@@ -129,13 +130,22 @@ describe('BossAdminService', () => {
     },
   );
 
-  it('rejects milestones above the boss HP and non-ascending milestones', async () => {
+  it('allows milestones above the boss HP or with no max HP', async () => {
     await expect(
       svc.upsertUpcomingSeason(
         nextWeekKey(),
-        dto({ milestones: [{ at: 2500, coin: 5, name: 'x' }] }),
+        dto({
+          bossMaxHp: undefined,
+          milestones: [{ at: 2500, coin: 5, name: 'x' }],
+        }),
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).resolves.toBeDefined();
+    const created = prisma.bossWeeklySeason.create.mock.calls[0][0].data;
+    expect(created.bossMaxHp).toBe(0);
+    expect(created.isInfiniteHp).toBe(true);
+  });
+
+  it('rejects non-ascending milestones', async () => {
     await expect(
       svc.upsertUpcomingSeason(
         nextWeekKey(),

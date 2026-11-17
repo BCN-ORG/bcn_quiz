@@ -188,9 +188,10 @@ describe('BossLiveService', () => {
     expect(live.recentHits).toEqual([]);
     expect(live.community).toEqual({
       communityScore: 0,
-      bossCurrentHp: 1500,
-      bossHpPercent: 100,
+      bossCurrentHp: null,
+      bossHpPercent: null,
       totalParticipants: 0,
+      isInfiniteHp: true,
     });
     expect(live.milestones).toHaveLength(5);
     expect(live.milestones.every((m) => !m.unlocked)).toBe(true);

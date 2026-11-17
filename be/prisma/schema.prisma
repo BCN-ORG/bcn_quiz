@@ -560,7 +560,8 @@ model BossWeeklySeason {
   name            String
   bossName        String    @default("Ma Vương Hư Không")
   bossImageUrl    String?   // optional custom boss art set by admin; null = built-in image
-  bossMaxHp       Int       @default(1500)
+  bossMaxHp       Int?      @default(0)
+  isInfiniteHp    Boolean   @default(true)
   milestoneConfig Json      @default("[{\"at\":300,\"coin\":5,\"name\":\"Rương Đồng\"},{\"at\":600,\"coin\":5,\"name\":\"Rương Bạc\"},{\"at\":900,\"coin\":5,\"name\":\"Rương Vàng\"},{\"at\":1200,\"coin\":5,\"name\":\"Rương Bạch Kim\"},{\"at\":1500,\"coin\":5,\"name\":\"Rương Kim Cương\"}]")
   startsAt        DateTime
   endsAt          DateTime

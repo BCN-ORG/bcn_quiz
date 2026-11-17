@@ -132,9 +132,10 @@ export class BossLiveService {
         serverTime: now.toISOString(),
         community: {
           communityScore: 0,
-          bossCurrentHp: BOSS_DEFAULT_MAX_HP,
-          bossHpPercent: 100,
+          bossCurrentHp: null,
+          bossHpPercent: null,
           totalParticipants: 0,
+          isInfiniteHp: true,
         },
         milestones: DEFAULT_MILESTONES.map((m, idx) => ({
           index: idx + 1,
