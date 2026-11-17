@@ -381,19 +381,10 @@ export default function DashboardPage() {
   const towerSeasonProgressPercent = Math.min(100, Math.round((highestCompletedFloor / 100) * 100));
   const seasonRemainingText = getSeasonRemainingLabel(towerOverview?.season.endsAt, nowMs);
   const bossSeasonRemainingText = getSeasonRemainingLabel(bossOverview?.season.endsAt, nowMs);
-  const isBossInfiniteHp = Boolean(
-    bossOverview?.season.isInfiniteHp ||
-      !bossOverview?.season.bossMaxHp ||
-      bossOverview.season.bossMaxHp <= 0,
-  );
-  const bossMaxHp = bossOverview?.season.bossMaxHp ?? 10000;
-  const bossCurrentHp = bossOverview?.community.bossCurrentHp ?? bossMaxHp;
-  const bossHpPercent =
-    bossOverview?.community.bossHpPercent ??
-    (bossMaxHp > 0 ? Math.round((bossCurrentHp / bossMaxHp) * 100) : 100);
+  const isBossInfiniteHp = true;
   const bossCommunityScore = bossOverview?.community.communityScore ?? 0;
   const bossMilestones = bossOverview?.milestones ?? [];
-  const bossMaxMilestoneAt = Math.max(...bossMilestones.map((m) => m.at), 1);
+  const bossMaxMilestoneAt = Math.max(...bossMilestones.map((m) => m.at), 1500);
   const bossMilestoneProgressPercent = Math.min(
     100,
     Math.round((bossCommunityScore / bossMaxMilestoneAt) * 100),
@@ -810,33 +801,24 @@ export default function DashboardPage() {
               <div className="boss-hp-box">
                 <div className="boss-spotlight-hp-head">
                   <span className="boss-hp-title">
-                    {isBossInfiniteHp ? 'Tiến Độ Mở Rương' : 'Máu Boss Cộng Đồng'}
+                    Tiến Độ Mở Rương Cộng Đồng
                   </span>
                   <strong className="boss-hp-value">
-                    {isBossInfiniteHp ? (
-                      <>
-                        Máu Boss: Vô Hạn (∞) · Đã trừ {bossCommunityScore.toLocaleString('vi-VN')} ST
-                      </>
-                    ) : (
-                      <>
-                        {bossCurrentHp.toLocaleString('vi-VN')} / {bossMaxHp.toLocaleString('vi-VN')} HP
-                        <span className="boss-hp-pct"> ({bossHpPercent}%)</span>
-                      </>
-                    )}
+                    Máu Boss: Vô Hạn (∞) · Đã trừ {bossCommunityScore.toLocaleString('vi-VN')} ST
                   </strong>
                 </div>
                 <div
                   className="boss-hp-bar-track"
                   role="progressbar"
-                  aria-label={isBossInfiniteHp ? 'Tiến độ Mở Rương Cộng Đồng' : 'Máu Boss Cộng Đồng'}
-                  aria-valuenow={isBossInfiniteHp ? bossMilestoneProgressPercent : bossHpPercent}
+                  aria-label="Tiến độ Mở Rương Cộng Đồng"
+                  aria-valuenow={bossMilestoneProgressPercent}
                   aria-valuemin={0}
                   aria-valuemax={100}
                 >
                   <div
                     className="boss-hp-bar-fill"
                     style={{
-                      width: `${Math.max(0, Math.min(100, isBossInfiniteHp ? bossMilestoneProgressPercent : bossHpPercent))}%`,
+                      width: `${Math.max(0, Math.min(100, bossMilestoneProgressPercent))}%`,
                     }}
                   />
                 </div>

@@ -184,8 +184,11 @@ describe('BossService', () => {
 
       expect(overview.community.communityScore).toBe(820); // 24*30 + min(900, 100)
       expect(overview.community.totalParticipants).toBe(25);
-      expect(overview.community.bossCurrentHp).toBe(680); // 1500 - 820
-      expect(overview.community.bossHpPercent).toBe(45);
+      expect(overview.community.bossCurrentHp).toBeNull();
+      expect(overview.community.bossHpPercent).toBeNull();
+      expect(overview.community.isInfiniteHp).toBe(true);
+      expect(overview.season.bossMaxHp).toBe(0);
+      expect(overview.season.isInfiniteHp).toBe(true);
       expect(overview.personal.personalBest).toBe(42);
       expect(overview.milestones[0].unlocked).toBe(true); // 300 <= 820
       expect(overview.milestones[1].unlocked).toBe(true); // 600 <= 820

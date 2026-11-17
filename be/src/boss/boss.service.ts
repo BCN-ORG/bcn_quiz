@@ -18,7 +18,7 @@ import {
   BossQuestionOptionDto,
 } from './dto/boss.dto';
 
-export const BOSS_DEFAULT_MAX_HP = 1500;
+export const BOSS_DEFAULT_MAX_HP = 0;
 
 export const DEFAULT_MILESTONES: BossMilestoneConfigItem[] = [
   { at: 300, coin: 5, name: 'Rương Đồng' },
@@ -103,8 +103,8 @@ export class BossService {
     if (!season) return null;
     return {
       id: season.id,
-      bossMaxHp: season.bossMaxHp,
-      isInfiniteHp: season.isInfiniteHp,
+      bossMaxHp: 0,
+      isInfiniteHp: true,
       milestoneConfig: Array.isArray(season.milestoneConfig)
         ? (season.milestoneConfig as unknown as BossMilestoneConfigItem[])
         : DEFAULT_MILESTONES,
@@ -176,7 +176,8 @@ export class BossService {
 
     return {
       ...season,
-      isInfiniteHp: season.isInfiniteHp ?? true,
+      bossMaxHp: 0,
+      isInfiniteHp: true,
       milestoneConfig: milestones,
     };
   }
@@ -208,24 +209,6 @@ export class BossService {
     );
     const totalParticipants = communityRows.length;
 
-    const isInfinite = Boolean(
-      season.isInfiniteHp || !season.bossMaxHp || season.bossMaxHp <= 0,
-    );
-    const bossCurrentHp = isInfinite
-      ? null
-      : Math.max(0, (season.bossMaxHp as number) - communityScore);
-    const bossHpPercent = isInfinite
-      ? null
-      : Math.max(
-          0,
-          Math.min(
-            100,
-            Math.round(
-              ((bossCurrentHp as number) / (season.bossMaxHp as number)) * 100,
-            ),
-          ),
-        );
-
     const milestones: BossMilestoneStatusDto[] = season.milestoneConfig.map(
       (m, idx) => ({
         index: idx + 1,
@@ -239,10 +222,10 @@ export class BossService {
     return {
       community: {
         communityScore,
-        bossCurrentHp,
-        bossHpPercent,
+        bossCurrentHp: null,
+        bossHpPercent: null,
         totalParticipants,
-        isInfiniteHp: isInfinite ? true : false,
+        isInfiniteHp: true,
       },
       milestones,
     };
@@ -337,8 +320,8 @@ export class BossService {
         name: season.name,
         bossName: season.bossName,
         bossImageUrl: season.bossImageUrl,
-        bossMaxHp: season.bossMaxHp,
-        isInfiniteHp: season.isInfiniteHp,
+        bossMaxHp: 0,
+        isInfiniteHp: true,
         startsAt: season.startsAt.toISOString(),
         endsAt: season.endsAt.toISOString(),
         isActive: season.isActive,

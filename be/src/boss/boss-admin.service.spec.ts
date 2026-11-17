@@ -73,7 +73,7 @@ describe('BossAdminService', () => {
     expect(created.weekKey).toBe(weekKey);
     expect(created.startsAt).toEqual(b.startsAt);
     expect(created.endsAt).toEqual(b.endsAt);
-    expect(created.bossMaxHp).toBe(2000);
+    expect(created.bossMaxHp).toBe(0);
     expect(created.isInfiniteHp).toBe(true);
   });
 

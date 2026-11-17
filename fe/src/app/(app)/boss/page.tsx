@@ -416,20 +416,9 @@ export default function BossPage() {
                 prev.community.communityScore,
                 res.communityScore ?? 0,
               );
-              const isInfinite = Boolean(
-                prev.season.isInfiniteHp ||
-                  !prev.season.bossMaxHp ||
-                  prev.season.bossMaxHp <= 0,
-              );
-              const maxHp = prev.season.bossMaxHp ?? 0;
-              const bossCurrentHp = isInfinite ? null : Math.max(0, maxHp - score);
-              const bossHpPercent =
-                isInfinite || maxHp <= 0
-                  ? null
-                  : Math.max(
-                      0,
-                      Math.min(100, Math.round((bossCurrentHp! / maxHp) * 100)),
-                    );
+              const isInfinite = true;
+              const bossCurrentHp = null;
+              const bossHpPercent = null;
               return {
                 ...prev,
                 personal: {
@@ -713,22 +702,8 @@ export default function BossPage() {
 
   const { season, community, milestones, personal } = overview;
 
-  const isInfiniteHp = Boolean(
-    season.isInfiniteHp || !season.bossMaxHp || season.bossMaxHp <= 0,
-  );
-  const maxMilestoneAt = Math.max(...milestones.map((m) => m.at), 1);
-  const effectiveMaxHp = season.bossMaxHp ?? 0;
-  // When not infinite HP, calculate remaining HP from communityScore; otherwise null
-  const shownBossHp = isInfiniteHp
-    ? null
-    : Math.max(0, effectiveMaxHp - community.communityScore);
-  const shownBossPercent =
-    isInfiniteHp || effectiveMaxHp <= 0
-      ? null
-      : Math.max(
-          0,
-          Math.min(100, Math.round((shownBossHp! / effectiveMaxHp) * 100)),
-        );
+  const isInfiniteHp = true;
+  const maxMilestoneAt = Math.max(...milestones.map((m) => m.at), 1500);
   const milestoneProgressPercent = Math.min(
     100,
     Math.round((community.communityScore / maxMilestoneAt) * 100),
@@ -854,38 +829,22 @@ export default function BossPage() {
           <div className="boss-hp-meta">
             <span className="boss-hp-label">MÁU BOSS CỘNG ĐỒNG</span>
             <span className="boss-hp-count">
-              {isInfiniteHp ? (
-                <>
-                  Vô Hạn (∞ HP) · Đã trừ{" "}
-                  {community.communityScore.toLocaleString("vi-VN")} ST
-                </>
-              ) : (
-                <>
-                  <b>{shownBossHp?.toLocaleString("vi-VN")}</b> /{" "}
-                  {season.bossMaxHp?.toLocaleString("vi-VN")} HP ({shownBossPercent}
-                  %)
-                </>
-              )}
+              Vô Hạn (∞ HP) · Đã trừ{" "}
+              {community.communityScore.toLocaleString("vi-VN")} ST
             </span>
           </div>
           <div
             className="boss-hp-bar"
-            title={
-              isInfiniteHp
-                ? "Tiến độ Mở Rương Cộng Đồng"
-                : "Máu Boss Cộng Đồng"
-            }
+            title="Tiến độ Mở Rương Cộng Đồng"
           >
             <div
               className={`boss-hp-fill${pulse > 0 ? ` is-shimmer-${pulse % 2}` : ""}`}
               style={{
-                width: `${isInfiniteHp ? milestoneProgressPercent : (shownBossPercent ?? 0)}%`,
+                width: `${milestoneProgressPercent}%`,
               }}
             />
             {milestones.map((m) => {
-              const markerLeft = isInfiniteHp
-                ? (m.at / maxMilestoneAt) * 100
-                : (m.at / (season.bossMaxHp || 1)) * 100;
+              const markerLeft = (m.at / maxMilestoneAt) * 100;
               return (
                 <div
                   key={m.index}
@@ -947,10 +906,7 @@ export default function BossPage() {
                 <span>Tiến trình 5 Rương Thưởng Tuần</span>
               </div>
               <span className="boss-chip">
-                Cộng đồng: <b>{community.communityScore.toLocaleString("vi-VN")}</b>
-                {isInfiniteHp
-                  ? ` / ${maxMilestoneAt.toLocaleString("vi-VN")} ST (Rương cuối)`
-                  : ` / ${season.bossMaxHp?.toLocaleString("vi-VN")} ST`}
+                Cộng đồng: <b>{community.communityScore.toLocaleString("vi-VN")}</b> / {maxMilestoneAt.toLocaleString("vi-VN")} ST (Rương cuối)
               </span>
             </div>
             <span className="milestones-subtitle">
@@ -985,12 +941,7 @@ export default function BossPage() {
             <div
               className="milestone-track-fill"
               style={{
-                width: `${Math.min(
-                  100,
-                  (community.communityScore /
-                    (isInfiniteHp ? maxMilestoneAt : (season.bossMaxHp || 1))) *
-                    100,
-                )}%`,
+                width: `${milestoneProgressPercent}%`,
               }}
             />
           </div>
@@ -998,11 +949,7 @@ export default function BossPage() {
           {/* 5 Chest Boxes */}
           <div className="milestone-chests-row">
             {milestones.map((m) => {
-              const targetPct = Math.round(
-                (m.at /
-                  (isInfiniteHp ? maxMilestoneAt : (season.bossMaxHp || 1))) *
-                  100,
-              );
+              const targetPct = Math.round((m.at / maxMilestoneAt) * 100);
               return (
                 <div
                   key={m.index}

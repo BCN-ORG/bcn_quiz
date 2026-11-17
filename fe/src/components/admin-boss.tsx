@@ -63,7 +63,7 @@ export function AdminBoss() {
     try {
       const data = await bossApi.adminGetSeason(key);
       setDetail(data);
-      setForm(canConfigure && data.season.editable ? { name: data.season.name, bossName: data.season.bossName, bossImageUrl: data.season.bossImageUrl, bossMaxHp: data.season.bossMaxHp ?? 0, isInfiniteHp: true, milestones: data.milestoneConfig.map((m) => ({ ...m })) } : null);
+      setForm(canConfigure && data.season.editable ? { name: data.season.name, bossName: data.season.bossName, bossImageUrl: data.season.bossImageUrl, bossMaxHp: 0, isInfiniteHp: true, milestones: data.milestoneConfig.map((m) => ({ ...m })) } : null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Không tải được mùa Boss');
     }
@@ -135,18 +135,13 @@ export function AdminBoss() {
   if (!list) return <ErrorState message={error || 'Không tải được dữ liệu Boss'} />;
 
   const rows = [
-    ...list.items.map((item) => {
-      const isInf = item.isInfiniteHp || !item.bossMaxHp || item.bossMaxHp <= 0;
-      return {
-        key: item.weekKey,
-        phase: item.phase as BossSeasonPhase | 'NEW',
-        hp: isInf
-          ? `Vô hạn (∞) · ${item.communityScore.toLocaleString('vi-VN')} ST`
-          : `${item.communityScore.toLocaleString('vi-VN')}/${item.bossMaxHp?.toLocaleString('vi-VN')} ST`,
-        people: item.participants,
-        current: item.weekKey === list.currentWeekKey,
-      };
-    }),
+    ...list.items.map((item) => ({
+      key: item.weekKey,
+      phase: item.phase as BossSeasonPhase | 'NEW',
+      hp: `Vô hạn (∞) · ${item.communityScore.toLocaleString('vi-VN')} ST`,
+      people: item.participants,
+      current: item.weekKey === list.currentWeekKey,
+    })),
     ...list.upcomingWeekKeys.filter((key) => !list.items.some((item) => item.weekKey === key)).map((key) => ({ key, phase: 'NEW' as const, hp: 'Chưa cấu hình', people: 0, current: false })),
   ].sort((a, b) => (a.key < b.key ? 1 : -1));
   if (!rows.some((row) => row.key === list.currentWeekKey)) rows.push({ key: list.currentWeekKey, phase: 'RUNNING', hp: 'Vô hạn (∞) · 0 ST', people: 0, current: true });
@@ -186,13 +181,7 @@ export function AdminBoss() {
           {detail ? (
             <div className="admin-boss-kpis">
               <div>
-                <b>
-                  {detail.season.isInfiniteHp || !detail.season.bossMaxHp || detail.season.bossMaxHp <= 0 ? (
-                    <>Vô hạn (∞) · {detail.community.communityScore.toLocaleString('vi-VN')} ST</>
-                  ) : (
-                    <>{detail.community.communityScore.toLocaleString('vi-VN')}/{detail.season.bossMaxHp.toLocaleString('vi-VN')} ST</>
-                  )}
-                </b>
+                <b>Vô hạn (∞) · {detail.community.communityScore.toLocaleString('vi-VN')} ST</b>
                 <span>ST đã trừ</span>
               </div>
               <div><b>{detail.community.totalParticipants}</b><span>Người chơi</span></div>
@@ -215,23 +204,16 @@ export function AdminBoss() {
 
         {activePanel === 'overview' && detail ? (
           <section className="panel" aria-label="Tiến độ và mốc rương">
-            {detail.season.isInfiniteHp || !detail.season.bossMaxHp || detail.season.bossMaxHp <= 0 ? (
-              (() => {
-                const maxMilestoneAt = Math.max(...detail.milestones.map((m) => m.at), 1);
-                const progressVal = Math.min(100, Math.round((detail.community.communityScore / maxMilestoneAt) * 100));
-                return (
-                  <Progress
-                    value={progressVal}
-                    label={`Tiến độ rương: ${detail.community.communityScore.toLocaleString('vi-VN')} / ${maxMilestoneAt.toLocaleString('vi-VN')} ST · Máu Boss: Vô hạn (∞)`}
-                  />
-                );
-              })()
-            ) : (
-              <Progress
-                value={100 - (detail.community.bossHpPercent ?? 0)}
-                label={`Đã trừ ${detail.community.communityScore.toLocaleString('vi-VN')} / ${detail.season.bossMaxHp?.toLocaleString('vi-VN')} ST`}
-              />
-            )}
+            {(() => {
+              const maxMilestoneAt = Math.max(...detail.milestones.map((m) => m.at), 1500);
+              const progressVal = Math.min(100, Math.round((detail.community.communityScore / maxMilestoneAt) * 100));
+              return (
+                <Progress
+                  value={progressVal}
+                  label={`Tiến độ rương: ${detail.community.communityScore.toLocaleString('vi-VN')} / ${maxMilestoneAt.toLocaleString('vi-VN')} ST · Máu Boss: Vô hạn (∞)`}
+                />
+              );
+            })()}
             <ul className="admin-boss-chests">{detail.milestones.map((m) => <li key={m.index} className={m.unlocked ? 'on' : ''}><b>{m.unlocked ? <Check size={12} weight="bold" style={{ verticalAlign: '-1px', marginRight: 4 }} /> : <Circle size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />}{m.name}</b><span>{m.at.toLocaleString('vi-VN')} ST · +{m.coin} Coin/người</span></li>)}</ul>
             {!detail.season.editable ? <p className="muted">Tuần này đã khoá cấu hình (chỉ tuần chưa bắt đầu mới sửa được).</p> : null}
           </section>

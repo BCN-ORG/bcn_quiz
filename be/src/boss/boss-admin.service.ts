@@ -95,16 +95,13 @@ export class BossAdminService {
       items: seasons.map((season) => {
         const agg = bySeason.get(season.id) ?? { score: 0, players: 0 };
         const milestones = this.milestonesOf(season.milestoneConfig);
-        const isInfinite = Boolean(
-          season.isInfiniteHp || !season.bossMaxHp || season.bossMaxHp <= 0,
-        );
         return {
           weekKey: season.weekKey,
           name: season.name,
           bossName: season.bossName,
           bossImageUrl: season.bossImageUrl,
-          bossMaxHp: season.bossMaxHp,
-          isInfiniteHp: season.isInfiniteHp,
+          bossMaxHp: 0,
+          isInfiniteHp: true,
           startsAt: season.startsAt.toISOString(),
           endsAt: season.endsAt.toISOString(),
           phase: this.phase(season, now),
@@ -112,9 +109,7 @@ export class BossAdminService {
           settledAt: season.settledAt?.toISOString() ?? null,
           editable: this.phase(season, now) === 'UPCOMING',
           communityScore: agg.score,
-          bossCurrentHp: isInfinite
-            ? null
-            : Math.max(0, (season.bossMaxHp ?? 0) - agg.score),
+          bossCurrentHp: null,
           participants: agg.players,
           milestonesUnlocked: milestones.filter((m) => agg.score >= m.at)
             .length,
@@ -136,8 +131,8 @@ export class BossAdminService {
       await Promise.all([
         this.bossService.getCommunityStatus({
           id: season.id,
-          bossMaxHp: season.bossMaxHp,
-          isInfiniteHp: season.isInfiniteHp,
+          bossMaxHp: 0,
+          isInfiniteHp: true,
           milestoneConfig: milestones,
         }),
         this.prisma.bossUserWeeklyStat.findMany({
@@ -190,8 +185,8 @@ export class BossAdminService {
         name: season.name,
         bossName: season.bossName,
         bossImageUrl: season.bossImageUrl,
-        bossMaxHp: season.bossMaxHp,
-        isInfiniteHp: season.isInfiniteHp,
+        bossMaxHp: 0,
+        isInfiniteHp: true,
         startsAt: season.startsAt.toISOString(),
         endsAt: season.endsAt.toISOString(),
         phase,
@@ -261,7 +256,7 @@ export class BossAdminService {
       name: dto.name.trim(),
       bossName: dto.bossName.trim(),
       bossImageUrl: dto.bossImageUrl?.trim() || null,
-      bossMaxHp: dto.bossMaxHp ?? 0,
+      bossMaxHp: 0,
       isInfiniteHp: true,
       milestoneConfig: milestones.map((m) => ({
         at: m.at,
