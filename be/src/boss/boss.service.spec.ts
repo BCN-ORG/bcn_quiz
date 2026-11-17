@@ -210,7 +210,9 @@ describe('BossService', () => {
         isSettled: false,
       };
 
-      mockPrismaService.bossWeeklySeason.findUnique.mockResolvedValue(mockSeason);
+      mockPrismaService.bossWeeklySeason.findUnique.mockResolvedValue(
+        mockSeason,
+      );
       mockPrismaService.bossUserWeeklyStat.findMany.mockResolvedValue([
         { highestScore: 350 },
       ]);

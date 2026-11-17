@@ -40,7 +40,8 @@ describe('UpsertBossSeasonDto under the real ValidationPipe options', () => {
   });
 
   it('accepts omitting bossMaxHp', async () => {
-    const { bossMaxHp, ...withoutHp } = ok;
+    const withoutHp = { ...ok };
+    delete (withoutHp as { bossMaxHp?: number }).bossMaxHp;
     const out = (await pipe.transform(withoutHp, meta)) as UpsertBossSeasonDto;
     expect(out.bossMaxHp).toBeUndefined();
   });

@@ -5,11 +5,7 @@ import {
   ProfilesService,
   type ProfilesUserSummary,
 } from '../profiles/profiles.service';
-import {
-  BOSS_DEFAULT_MAX_HP,
-  BossService,
-  DEFAULT_MILESTONES,
-} from './boss.service';
+import { BossService, DEFAULT_MILESTONES } from './boss.service';
 import type {
   BossLiveDto,
   BossLiveFighterDto,
