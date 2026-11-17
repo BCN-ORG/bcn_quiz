@@ -36,9 +36,6 @@ import {
   BossTransactionItem,
 } from "@/lib/boss";
 
-/** Mirrors BOSS_COMMUNITY_CONTRIB_CAP in be/src/xp/xp.constants.ts: max points one player adds to the community HP. */
-const BOSS_COMMUNITY_CONTRIB_CAP = 100;
-
 const SOUND_STORAGE_KEY = "bcn_boss_sound_enabled";
 
 // ---------------------------------------------------------------------------
@@ -142,7 +139,7 @@ export default function BossPage() {
   );
   const [sessionScore, setSessionScore] = useState(0);
   /** Boss HP this session has already taken (server-confirmed, deducted as soon as the weekly record is beaten). */
-  const [sessionBossDamage, setSessionBossDamage] = useState(0);
+  const [, setSessionBossDamage] = useState(0);
   const [combo, setCombo] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [sessionRemaining, setSessionRemaining] = useState(300); // 5 minutes (seconds)
@@ -702,7 +699,6 @@ export default function BossPage() {
 
   const { season, community, milestones, personal } = overview;
 
-  const isInfiniteHp = true;
   const maxMilestoneAt = Math.max(...milestones.map((m) => m.at), 1500);
   const milestoneProgressPercent = Math.min(
     100,
@@ -827,65 +823,31 @@ export default function BossPage() {
         {/* Boss Community HP Bar */}
         <div className={`boss-hp-zone ${inCombat ? "in-combat" : ""}`}>
           <div className="boss-hp-meta">
-            <span className="boss-hp-label">MÁU BOSS CỘNG ĐỒNG</span>
+            <span className="boss-hp-label">MÁU BOSS CỘNG ĐỒNG:</span>
             <span className="boss-hp-count">
-              Vô Hạn (∞ HP) · Đã trừ{" "}
-              {community.communityScore.toLocaleString("vi-VN")} ST
+              Vô Hạn (100% · ∞ HP) · Bất Tử
             </span>
           </div>
           <div
             className="boss-hp-bar"
-            title="Tiến độ Mở Rương Cộng Đồng"
+            role="progressbar"
+            aria-label="MÁU BOSS CỘNG ĐỒNG: Vô Hạn (100% · ∞ HP) · Bất Tử"
+            aria-valuenow={100}
+            aria-valuemin={0}
+            aria-valuemax={100}
           >
             <div
               className={`boss-hp-fill${pulse > 0 ? ` is-shimmer-${pulse % 2}` : ""}`}
               style={{
-                width: `${milestoneProgressPercent}%`,
+                width: "100%",
               }}
             />
-            {milestones.map((m) => {
-              const markerLeft = (m.at / maxMilestoneAt) * 100;
-              return (
-                <div
-                  key={m.index}
-                  className="boss-hp-milestone-marker"
-                  style={{ left: `${markerLeft}%` }}
-                  title={`${m.name}: ${m.at} ST`}
-                />
-              );
-            })}
           </div>
           {inCombat && (
             <div className="boss-hp-hint">
-              {isInfiniteHp ? (
-                <span>
-                  Boss sở hữu lượng máu vô hạn — hãy gây nhiều sát thương nhất có thể trong 5 phút để vinh danh bảng vàng!
-                </span>
-              ) : personal.personalBest >= BOSS_COMMUNITY_CONTRIB_CAP ? (
-                <span>
-                  Bạn đã đóng góp tối đa {BOSS_COMMUNITY_CONTRIB_CAP} máu Boss
-                  tuần này
-                </span>
-              ) : sessionBossDamage > 0 ? (
-                <span className="is-active">
-                  Đã vượt kỷ lục · bạn đang trừ {sessionBossDamage} máu Boss
-                </span>
-              ) : (
-                <>
-                  <span>
-                    Còn {Math.max(1, personal.personalBest - sessionScore + 1)}{" "}
-                    điểm nữa để vượt kỷ lục tuần ({personal.personalBest}) và
-                    bắt đầu trừ máu
-                  </span>
-                  <span className="boss-hp-hint-track" aria-hidden>
-                    <span
-                      style={{
-                        width: `${Math.min(100, Math.round((sessionScore / Math.max(1, personal.personalBest)) * 100))}%`,
-                      }}
-                    />
-                  </span>
-                </>
-              )}
+              <span>
+                Boss sở hữu lượng máu vô hạn — hãy gây nhiều sát thương nhất có thể trong 5 phút để vinh danh bảng vàng!
+              </span>
             </div>
           )}
         </div>
@@ -1249,7 +1211,7 @@ export default function BossPage() {
               }}
             >
               Mỗi lượt chơi kéo dài tối đa <b>5 phút</b>, mỗi câu hỏi có <b>10 giây</b> để chọn đáp án.
-              Chơi lại không giới hạn số lần, chỉ lưu điểm cao nhất tuần của bạn để trừ máu Boss toàn Ban.
+              Chơi lại không giới hạn số lần, chỉ lưu điểm cao nhất tuần của bạn để tích lũy Mở Rương Thưởng toàn Ban.
             </p>
 
             <button
@@ -1266,7 +1228,7 @@ export default function BossPage() {
               <summary>Luật chơi &amp; Thưởng XP</summary>
               <ul>
                 <li>
-                  Mỗi người đóng góp tối đa <b>100 điểm</b> vào máu Boss cộng đồng (tính theo kỷ lục tuần cao nhất).
+                  Mỗi người đóng góp tối đa <b>100 ST</b> vào tiến độ Mở Rương Thưởng cộng đồng (tính theo kỷ lục tuần cao nhất).
                 </li>
                 <li>
                   Thưởng XP tính khi bạn <b>chơi trọn 5 phút</b> và trả lời đúng từ <b>5 câu</b> trở lên (tối đa 3 lượt nhận XP/ngày).

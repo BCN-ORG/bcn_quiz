@@ -381,7 +381,6 @@ export default function DashboardPage() {
   const towerSeasonProgressPercent = Math.min(100, Math.round((highestCompletedFloor / 100) * 100));
   const seasonRemainingText = getSeasonRemainingLabel(towerOverview?.season.endsAt, nowMs);
   const bossSeasonRemainingText = getSeasonRemainingLabel(bossOverview?.season.endsAt, nowMs);
-  const isBossInfiniteHp = true;
   const bossCommunityScore = bossOverview?.community.communityScore ?? 0;
   const bossMilestones = bossOverview?.milestones ?? [];
   const bossMaxMilestoneAt = Math.max(...bossMilestones.map((m) => m.at), 1500);
@@ -389,6 +388,8 @@ export default function DashboardPage() {
     100,
     Math.round((bossCommunityScore / bossMaxMilestoneAt) * 100),
   );
+  const bossUnlockedChestsCount = bossMilestones.filter((m) => m.unlocked).length;
+  const bossTotalChestsCount = bossMilestones.length > 0 ? bossMilestones.length : 5;
   const hasJoinedBoss = Boolean(
     bossOverview?.personal.hasParticipated ||
       (bossOverview?.personal.totalAttempts && bossOverview.personal.totalAttempts > 0) ||
@@ -799,41 +800,63 @@ export default function DashboardPage() {
               </div>
 
               <div className="boss-hp-box">
+                {/* Boss HP Bar: Always 100% full */}
                 <div className="boss-spotlight-hp-head">
                   <span className="boss-hp-title">
-                    Tiến Độ Mở Rương Cộng Đồng
+                    Máu Boss:
                   </span>
                   <strong className="boss-hp-value">
-                    Máu Boss: Vô Hạn (∞) · Đã trừ {bossCommunityScore.toLocaleString('vi-VN')} ST
+                    Vô Hạn (100% · ∞ HP)
                   </strong>
                 </div>
                 <div
                   className="boss-hp-bar-track"
                   role="progressbar"
-                  aria-label="Tiến độ Mở Rương Cộng Đồng"
-                  aria-valuenow={bossMilestoneProgressPercent}
+                  aria-label="Máu Boss: Vô Hạn (100% · ∞ HP)"
+                  aria-valuenow={100}
                   aria-valuemin={0}
                   aria-valuemax={100}
                 >
                   <div
                     className="boss-hp-bar-fill"
                     style={{
+                      width: '100%',
+                    }}
+                  />
+                </div>
+
+                {/* Distinct Chest Milestone Progress */}
+                <div className="boss-milestone-progress-head">
+                  <span className="boss-milestone-progress-title">
+                    Tiến độ mở rương: {bossUnlockedChestsCount}/{bossTotalChestsCount} rương ({bossCommunityScore.toLocaleString('vi-VN')}/{bossMaxMilestoneAt.toLocaleString('vi-VN')} ST)
+                  </span>
+                  <span className="boss-milestone-progress-pct">
+                    {bossMilestoneProgressPercent}%
+                  </span>
+                </div>
+                <div
+                  className="boss-milestone-bar-track"
+                  role="progressbar"
+                  aria-label={`Tiến độ mở rương: ${bossUnlockedChestsCount}/${bossTotalChestsCount} rương (${bossCommunityScore.toLocaleString('vi-VN')}/${bossMaxMilestoneAt.toLocaleString('vi-VN')} ST)`}
+                  aria-valuenow={bossMilestoneProgressPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div
+                    className="boss-milestone-bar-fill"
+                    style={{
                       width: `${Math.max(0, Math.min(100, bossMilestoneProgressPercent))}%`,
                     }}
                   />
                 </div>
+
                 <div className="boss-hp-subinfo">
                   <span>
                     <Fire weight="fill" style={{ verticalAlign: '-1px', color: '#ef4444' }} />{' '}
                     {bossOverview?.community.totalParticipants
                       ? `${bossOverview.community.totalParticipants.toLocaleString('vi-VN')} người tham chiến`
-                      : 'Hợp lực cùng cộng đồng hạ gục Boss'}
+                      : 'Hợp lực cùng cộng đồng chiến Boss săn Coin'}
                   </span>
-                  {isBossInfiniteHp && bossMilestones.length > 0 ? (
-                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                      {bossMilestones.filter((m) => m.unlocked).length}/{bossMilestones.length} rương đã mở
-                    </span>
-                  ) : null}
                   {bossOverview?.activeSession ? (
                     <span className="boss-active-status">Đang có phiên dở</span>
                   ) : null}
