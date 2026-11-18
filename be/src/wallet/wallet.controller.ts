@@ -9,10 +9,8 @@ import {
   Query,
   Request,
   UnauthorizedException,
-  UseGuards,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
-import { BearerAuthGuard } from '../auth/guards/auth.guard';
 import { CoinWalletService } from './coin-wallet.interface';
 import {
   SearchUsersQueryDto,
@@ -21,7 +19,6 @@ import {
 } from './dto/wallet.dto';
 
 @Controller('wallet')
-@UseGuards(BearerAuthGuard)
 export class WalletController {
   constructor(private readonly walletService: CoinWalletService) {}
 
