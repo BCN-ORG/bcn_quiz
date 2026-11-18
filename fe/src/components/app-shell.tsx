@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Certificate,
   BookOpen,
@@ -9,10 +9,15 @@ import {
   CaretDoubleLeft,
   CaretDoubleRight,
   CaretDown,
+  CheckSquare as FileCheck,
+  Coins,
+  Exam,
+  Folders,
   Gauge,
   ClockCounterClockwise,
   GraduationCap,
   SignOut,
+  Stack,
   Sword,
   Trophy,
   List,
@@ -24,7 +29,12 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import { canManageContent, canReadQuestions, canReadResults } from '@/lib/permissions';
+import {
+  canManageContent,
+  canReadQuestions,
+  canReadResults,
+  canUpdateContent,
+} from '@/lib/permissions';
 import { request } from '@/lib/api';
 import type { MyCertificateRequest, User } from '@/lib/types';
 import { useAuth } from './auth-provider';
@@ -85,20 +95,35 @@ const navGroups: NavGroup[] = [
     icon: GearSix,
     allow: canManageContent,
     items: [
-      { href: '/admin', label: 'Quản trị Studio', icon: GearSix, allow: canManageContent },
+      { href: '/admin?tab=courses', label: 'Khóa học', icon: BookOpen, allow: canManageContent },
+      { href: '/admin?tab=topics', label: 'Chủ đề', icon: Folders, allow: canManageContent },
+      { href: '/admin?tab=quizzes', label: 'Ngân hàng câu hỏi', icon: Exam, allow: canManageContent },
+      { href: '/admin?tab=reviews', label: 'Duyệt project', icon: FileCheck, allow: canUpdateContent },
+      { href: '/admin?tab=certificates', label: 'Chứng nhận', icon: Certificate, allow: canUpdateContent },
+      { href: '/admin?tab=leaderboards', label: 'Bảng xếp hạng', icon: Trophy, allow: canUpdateContent },
+      { href: '/admin?tab=tower', label: 'Tháp & Question Pool', icon: Stack, allow: canUpdateContent },
+      { href: '/admin?tab=boss', label: 'Sự kiện Boss', icon: Sword, allow: canUpdateContent },
+      { href: '/admin?tab=bounties', label: 'Nhiệm vụ Freelancer', icon: Coins, allow: canUpdateContent },
     ],
   },
 ];
 
-function isItemActive(pathname: string, href: string, alsoActive?: string[]): boolean {
+function isItemActive(pathname: string, href: string, currentTab?: string, alsoActive?: string[]): boolean {
+  if (href.startsWith('/admin')) {
+    if (pathname !== '/admin') return false;
+    const url = new URL(href, 'http://localhost');
+    const targetTab = url.searchParams.get('tab') || 'courses';
+    const activeTab = currentTab || 'courses';
+    return targetTab === activeTab;
+  }
   if (pathname === href || pathname.startsWith(`${href}/`)) return true;
   if (href === '/courses' && (pathname === '/topics' || pathname.startsWith('/topics/'))) return true;
   if (alsoActive && alsoActive.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
   return false;
 }
 
-function isGroupActive(pathname: string, group: NavGroup): boolean {
-  return group.items.some((item) => isItemActive(pathname, item.href, item.alsoActive));
+function isGroupActive(pathname: string, group: NavGroup, currentTab?: string): boolean {
+  return group.items.some((item) => isItemActive(pathname, item.href, currentTab, item.alsoActive));
 }
 
 const PROFILES_APP_URL = (
@@ -118,7 +143,9 @@ function roleLabel(role: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
+  const currentTab = pathname === '/admin' ? (searchParams?.get('tab') || 'courses') : undefined;
   const [menu, setMenu] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [dark, setDark] = useState(false);
@@ -200,11 +227,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Auto-open group when pathname matches any child link so user never loses context
   useEffect(() => {
     for (const group of navGroups) {
-      if (isGroupActive(pathname, group)) {
+      if (isGroupActive(pathname, group, currentTab)) {
         setOpenGroups((prev) => (prev[group.key] ? prev : { ...prev, [group.key]: true }));
       }
     }
-  }, [pathname]);
+  }, [pathname, currentTab]);
 
   if (loading || !user) return <main className="center-page"><Loading label="Đang xác thực phiên BCN" /></main>;
 
@@ -220,7 +247,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const bottomNavItems = [
     directLink,
-    ...navGroups.flatMap((g) => (g.allow ? (g.allow(user) ? g.items : []) : g.items)),
+    ...navGroups
+      .filter((g) => g.key !== 'admin')
+      .flatMap((g) => (g.allow ? (g.allow(user) ? g.items : []) : g.items)),
   ]
     .filter((item) => item.allow(user))
     .slice(0, 6);
@@ -247,7 +276,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link
             href={directLink.href}
             onClick={() => setMenu(false)}
-            className={`nav-direct-item ${isItemActive(pathname, directLink.href) ? 'active' : ''}`}
+            className={`nav-direct-item ${isItemActive(pathname, directLink.href, currentTab) ? 'active' : ''}`}
             title={directLink.label}
             aria-label={directLink.label}
           >
@@ -258,7 +287,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {visibleGroups.map((group) => {
             const GroupIcon = group.icon;
             const isOpen = openGroups[group.key] ?? false;
-            const hasActiveChild = isGroupActive(pathname, group);
+            const hasActiveChild = isGroupActive(pathname, group, currentTab);
 
             return (
               <div key={group.key} className={`nav-group ${isOpen ? 'group-open' : 'group-collapsed'}`}>
@@ -285,7 +314,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 >
                   {group.items.map((item) => {
                     const ItemIcon = item.icon;
-                    const active = isItemActive(pathname, item.href, item.alsoActive);
+                    const active = isItemActive(pathname, item.href, currentTab, item.alsoActive);
 
                     return (
                       <li key={item.href} role="none">
@@ -407,7 +436,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link
             key={href}
             href={href}
-            className={isItemActive(pathname, href, alsoActive) ? 'active' : ''}
+            className={isItemActive(pathname, href, currentTab, alsoActive) ? 'active' : ''}
           >
             <Icon />
             <span>{label}</span>

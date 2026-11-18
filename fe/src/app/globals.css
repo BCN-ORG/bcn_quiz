@@ -206,7 +206,7 @@ img { display: block; max-width: 100%; }
   pointer-events: none;
 }
 .nav-sub-list.open {
-  max-height: 500px;
+  max-height: 800px;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;

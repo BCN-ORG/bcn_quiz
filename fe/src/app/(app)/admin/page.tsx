@@ -4,9 +4,7 @@ import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react
 import {
   ArrowSquareOut,
   BookOpen,
-  CaretDown,
   Certificate,
-  Check,
   CheckCircle,
   CheckSquare as FileCheck,
   Coins,
@@ -215,7 +213,6 @@ function AdminStudioContent() {
   }, [tabQuery]);
 
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [navOpen, setNavOpen] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [courseOptions, setCourseOptions] = useState<Course[]>([]);
@@ -349,16 +346,6 @@ function AdminStudioContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anyModalOpen]);
 
-  // Đóng dropdown phân hệ bằng Escape.
-  useEffect(() => {
-    if (!navOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setNavOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [navOpen]);
-
   const switchTab = (nextTab: Tab) => {
     setTab(nextTab);
     resetCreateForm();
@@ -374,10 +361,17 @@ function AdminStudioContent() {
   };
 
   useEffect(() => {
-    if (tabQuery && (TAB_KEYS as readonly string[]).includes(tabQuery) && tabQuery !== tab) {
-      setTab(tabQuery as Tab);
-      if (tabQuery === 'reviews') void loadReviews(courseId, 1);
-      if (tabQuery === 'quizzes') void loadTopicQuizzes(quizTopicId, 1);
+    const targetTab: Tab =
+      tabQuery && (TAB_KEYS as readonly string[]).includes(tabQuery)
+        ? (tabQuery as Tab)
+        : 'courses';
+    if (targetTab !== tab) {
+      setTab(targetTab);
+      resetCreateForm();
+      setError('');
+      setNotice('');
+      if (targetTab === 'reviews') void loadReviews(courseId, 1);
+      if (targetTab === 'quizzes') void loadTopicQuizzes(quizTopicId, 1);
     }
   }, [tabQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -755,12 +749,7 @@ function AdminStudioContent() {
       ),
     []
   );
-  const visibleModules = useMemo(
-    () => allModules.filter((item) => !item.requiresUpdate || allowUpdate),
-    [allModules, allowUpdate]
-  );
   const currentModule = allModules.find((item) => item.id === tab) || allModules[0];
-  const CurrentIcon = currentModule.icon;
 
   if (authLoading || loading) return <Loading />;
   if (!allowed) return null;
@@ -771,103 +760,12 @@ function AdminStudioContent() {
       <header className="page-heading admin-page-heading">
         <div>
           <div className="admin-breadcrumbs">
-            <span>Admin Studio</span>
+            <span>Quản trị hệ thống</span>
             <span className="breadcrumb-separator">/</span>
             <span className="breadcrumb-current">{currentModule.label}</span>
           </div>
-          <h1>Admin Studio</h1>
-          <p>Quản lý lộ trình, câu hỏi, đề project và hoạt động đào tạo tại một nơi.</p>
-          <div className="admin-quick-pills" role="tablist" aria-label="Chuyển nhanh phân hệ">
-            {visibleModules.map((item) => {
-              const ItemIcon = item.icon;
-              const isActive = tab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`admin-quick-pill${isActive ? ' is-active' : ''}`}
-                  onClick={() => switchTab(item.id)}
-                >
-                  <ItemIcon size={14} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="admin-nav-wrapper">
-          <button
-            type="button"
-            className={`admin-nav-trigger${navOpen ? ' is-open' : ''}`}
-            aria-expanded={navOpen}
-            aria-haspopup="true"
-            aria-label="Chọn phân hệ quản trị"
-            onClick={() => setNavOpen((prev) => !prev)}
-          >
-            <span className="admin-nav-trigger-icon">
-              <CurrentIcon size={18} />
-            </span>
-            <span className="admin-nav-trigger-info">
-              <span className="admin-nav-trigger-title">{currentModule.label}</span>
-              <span className="admin-nav-category-badge">{currentModule.categoryName}</span>
-            </span>
-            <span className="admin-nav-trigger-caret">
-              <CaretDown size={16} />
-            </span>
-          </button>
-
-          {navOpen ? (
-            <>
-              <button
-                type="button"
-                className="admin-nav-backdrop"
-                aria-label="Đóng menu"
-                onClick={() => setNavOpen(false)}
-              />
-              <div className="admin-nav-dropdown" role="menu" aria-label="Chọn phân hệ quản trị">
-                {ADMIN_CATEGORIES.map((category) => {
-                  const items = category.modules.filter((item) => !item.requiresUpdate || allowUpdate);
-                  if (!items.length) return null;
-                  return (
-                    <div key={category.id} className="admin-nav-group">
-                      <div className="admin-nav-group-title">{category.name}</div>
-                      {items.map((item) => {
-                        const ItemIcon = item.icon;
-                        const isActive = tab === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            role="menuitemradio"
-                            aria-checked={isActive}
-                            className={`admin-nav-item${isActive ? ' is-active' : ''}`}
-                            onClick={() => {
-                              switchTab(item.id);
-                              setNavOpen(false);
-                            }}
-                          >
-                            <span className="admin-nav-item-icon">
-                              <ItemIcon size={18} />
-                            </span>
-                            <span className="admin-nav-item-body">
-                              <span className="admin-nav-item-title">{item.label}</span>
-                              <span className="admin-nav-item-desc">{item.description}</span>
-                            </span>
-                            <span className="admin-nav-item-check">
-                              <Check size={16} />
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : null}
+          <h1>{currentModule.label}</h1>
+          <p>{currentModule.description}</p>
         </div>
       </header>
       {tab === 'leaderboards' && allowUpdate ? <AdminLeaderboard /> : null}
