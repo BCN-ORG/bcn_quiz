@@ -25,7 +25,7 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 import { downloadFile, request } from '@/lib/api';
-import { Empty, Loading, PaginationNav } from '@/components/ui';
+import { Empty, ErrorState, Loading, PaginationNav } from '@/components/ui';
 
 export type CoinRewardSource = 'TOWER' | 'BOSS' | 'BOUNTY' | 'LEADERBOARD' | 'OTHER';
 export type CoinTransactionStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'UNKNOWN';
@@ -694,15 +694,38 @@ export function AdminCoins() {
 
         {loading ? (
           <Loading label="Đang tải danh sách giao dịch Coin" />
-        ) : transactions.length === 0 ? (
-          <Empty
-            title="Không tìm thấy giao dịch nào"
-            description={
-              hasActiveFilters
-                ? 'Không có giao dịch phù hợp với tiêu chí lọc hiện tại. Hãy thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.'
-                : 'Chưa có bản ghi giao dịch coin nào được lưu trong hệ thống.'
-            }
+        ) : error && transactions.length === 0 ? (
+          <ErrorState
+            title="Không thể tải danh sách giao dịch Coin"
+            message={error}
+            retry={() => {
+              void loadOverview();
+              void loadTransactions();
+            }}
           />
+        ) : transactions.length === 0 ? (
+          <div className="admin-coins-empty-state">
+            <Empty
+              title="Không tìm thấy giao dịch nào"
+              description={
+                hasActiveFilters
+                  ? 'Không có giao dịch phù hợp với tiêu chí lọc hiện tại. Hãy thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.'
+                  : 'Chưa có bản ghi giao dịch coin nào được lưu trong hệ thống.'
+              }
+            />
+            {hasActiveFilters && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={resetFilters}
+                >
+                  <X size={14} />
+                  <span>Xóa bộ lọc & Đặt lại</span>
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="admin-table-scroll" tabIndex={0} role="region" aria-label="Bảng giao dịch coin, cuộn ngang để xem hết">
             <table className="admin-coins-table">
@@ -870,10 +893,13 @@ export function AdminCoins() {
             {detailLoading ? (
               <Loading label="Đang tải chi tiết giao dịch" />
             ) : detailError ? (
-              <div className="notice form-error" role="alert" style={{ marginTop: 16 }}>
-                <WarningOctagon size={18} />
-                <span>{detailError}</span>
-              </div>
+              <ErrorState
+                title="Không thể tải chi tiết giao dịch"
+                message={detailError}
+                retry={() => {
+                  if (selectedTxId) void openDetail(selectedTxId);
+                }}
+              />
             ) : detailTx ? (
               <div className="tx-detail-body">
                 {/* Status & Amount banner */}
@@ -1102,10 +1128,13 @@ export function AdminCoins() {
             {userLoading ? (
               <Loading label="Đang tải lịch sử ví học viên" />
             ) : userError ? (
-              <div className="notice form-error" role="alert" style={{ marginTop: 16 }}>
-                <WarningOctagon size={18} />
-                <span>{userError}</span>
-              </div>
+              <ErrorState
+                title="Không thể tải lịch sử nhận coin của học viên"
+                message={userError}
+                retry={() => {
+                  if (userModalId) void openUserHistory(userModalId);
+                }}
+              />
             ) : userHistory ? (
               <div className="user-history-body">
                 {/* User Summary Card */}

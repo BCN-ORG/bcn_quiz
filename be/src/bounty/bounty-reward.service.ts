@@ -96,7 +96,9 @@ export class BountyRewardService {
           requestPayload: payload,
         })
         .catch((e) =>
-          this.logger.warn(`Failed to track pending bounty coin tx: ${e.message}`),
+          this.logger.warn(
+            `Failed to track pending bounty coin tx: ${e.message}`,
+          ),
         );
     }
 
@@ -109,7 +111,9 @@ export class BountyRewardService {
           await this.coinTrackingService
             .recordSuccess(idempotencyKey, response.externalTxId, response)
             .catch((e) =>
-              this.logger.warn(`Failed to track success bounty coin tx: ${e.message}`),
+              this.logger.warn(
+                `Failed to track success bounty coin tx: ${e.message}`,
+              ),
             );
         }
 
@@ -145,7 +149,9 @@ export class BountyRewardService {
               response,
             )
             .catch((e) =>
-              this.logger.warn(`Failed to track failed bounty coin tx: ${e.message}`),
+              this.logger.warn(
+                `Failed to track failed bounty coin tx: ${e.message}`,
+              ),
             );
         }
 
@@ -169,7 +175,9 @@ export class BountyRewardService {
         await this.coinTrackingService
           .recordUnknown(idempotencyKey, msg)
           .catch((e) =>
-            this.logger.warn(`Failed to track unknown bounty coin tx: ${e.message}`),
+            this.logger.warn(
+              `Failed to track unknown bounty coin tx: ${e.message}`,
+            ),
           );
       }
 

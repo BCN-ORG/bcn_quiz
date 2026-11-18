@@ -388,6 +388,7 @@ export function AdminTower() {
                   fr.availableQuestions ?? fr.matchingCount ?? 0;
                 const requiredStreak = fr.requiredStreakMax ?? fr.maxFloor ?? 30;
                 const hasWarnings = (fr.warnings?.length || 0) > 0 || !fr.isSufficient;
+                const sufficiencyRatio = Math.round((available / Math.max(1, requiredStreak)) * 100);
 
                 return (
                   <div
@@ -397,49 +398,72 @@ export function AdminTower() {
                     }`}
                   >
                     <div className="admin-tower-coverage-head">
-                      <span className="admin-tower-coverage-range">{rangeLabel}</span>
+                      <div className="admin-tower-range-info">
+                        <span className="admin-tower-coverage-range">{rangeLabel}</span>
+                        <span className="admin-tower-range-tier">Khu vực {idx + 1}</span>
+                      </div>
                       {fr.isSufficient && !hasWarnings ? (
                         <span className="admin-tower-status-badge success">
-                          <CheckCircle size={14} /> Đạt yêu cầu
+                          <CheckCircle size={14} weight="bold" /> Đạt yêu cầu
                         </span>
                       ) : (
                         <span className="admin-tower-status-badge failed">
-                          <WarningCircle size={14} /> Thiếu / Cảnh báo
+                          <WarningCircle size={14} weight="bold" /> Thiếu / Cảnh báo
                         </span>
                       )}
                     </div>
 
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.25rem' }}>
-                        <span className="muted">Câu hỏi phù hợp trong pool:</span>
-                        <strong>{available} câu</strong>
+                    <div className="admin-tower-card-metrics">
+                      <div className="admin-tower-metric-item">
+                        <span className="admin-tower-metric-label">Câu hỏi phù hợp trong pool</span>
+                        <div className="admin-tower-metric-num" style={{ color: 'var(--accent)' }}>
+                          <b>{available.toLocaleString('vi-VN')}</b>
+                          <small>câu</small>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
-                        <span className="muted">Streak yêu cầu tối đa:</span>
-                        <span>{requiredStreak} câu</span>
+                      <div className="admin-tower-metric-item">
+                        <span className="admin-tower-metric-label">Streak yêu cầu tối đa</span>
+                        <div className="admin-tower-metric-num">
+                          <b>{requiredStreak.toLocaleString('vi-VN')}</b>
+                          <small>câu</small>
+                        </div>
                       </div>
                     </div>
 
-                    {fr.subjectCoverage ? (
-                      <div style={{ marginTop: '0.25rem' }}>
-                        <small className="muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
-                          Phân bổ Chủ đề theo cấu hình:
-                        </small>
+                    <div className="admin-tower-sufficiency-bar">
+                      <div className="admin-tower-sufficiency-header">
+                        <span className="muted">Hệ số đáp ứng:</span>
+                        <strong style={{ color: fr.isSufficient && !hasWarnings ? 'var(--accent)' : 'var(--danger)' }}>
+                          {sufficiencyRatio}% {available >= requiredStreak ? '(An toàn)' : '(Cần bổ sung)'}
+                        </strong>
+                      </div>
+                      <Progress
+                        value={Math.min(100, sufficiencyRatio)}
+                        label={`Độ sẵn sàng của ${rangeLabel}`}
+                      />
+                    </div>
+
+                    {fr.subjectCoverage && Object.keys(fr.subjectCoverage).length > 0 ? (
+                      <div className="admin-tower-card-section">
+                        <span className="admin-tower-section-label">
+                          Phân bổ Chủ đề theo cấu hình
+                        </span>
                         <div className="admin-tower-badges">
                           {Object.entries(fr.subjectCoverage).map(([sub, count]) => (
                             <span key={sub} className="admin-tower-badge">
-                              {sub}: <b>{count}</b>
+                              <span>{sub}:</span>
+                              <b className="badge-count">{count}</b>
                             </span>
                           ))}
                         </div>
                       </div>
                     ) : null}
 
-                    {fr.difficultyCoverage ? (
-                      <div>
-                        <small className="muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
-                          Phân bổ Độ khó:
-                        </small>
+                    {fr.difficultyCoverage && Object.keys(fr.difficultyCoverage).length > 0 ? (
+                      <div className="admin-tower-card-section">
+                        <span className="admin-tower-section-label">
+                          Phân bổ Độ khó
+                        </span>
                         <div className="admin-tower-badges">
                           {Object.entries(fr.difficultyCoverage).map(([diff, count]) => {
                             const conf = DIFFICULTY_CONFIG[diff] || {
@@ -451,7 +475,8 @@ export function AdminTower() {
                                 key={diff}
                                 className={`admin-tower-badge ${conf.badgeClass}`}
                               >
-                                {conf.label}: <b>{count}</b>
+                                <span>{conf.label}:</span>
+                                <b className="badge-count">{count}</b>
                               </span>
                             );
                           })}
@@ -460,19 +485,13 @@ export function AdminTower() {
                     ) : null}
 
                     {fr.warnings && fr.warnings.length > 0 ? (
-                      <div
-                        style={{
-                          background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
-                          border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
-                          borderRadius: 8,
-                          padding: '0.5rem 0.75rem',
-                          fontSize: '0.75rem',
-                          color: 'var(--danger)',
-                        }}
-                      >
-                        {fr.warnings.map((w, wIdx) => (
-                          <div key={wIdx}>• {w}</div>
-                        ))}
+                      <div className="admin-tower-card-warning" role="alert">
+                        <WarningCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                        <div className="admin-tower-card-warning-list">
+                          {fr.warnings.map((w, wIdx) => (
+                            <div key={wIdx}>{w}</div>
+                          ))}
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -485,7 +504,7 @@ export function AdminTower() {
 
       {/* TAB 2: SUBJECT & DIFFICULTY BREAKDOWN */}
       {activeTab === 'breakdown' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+        <div className="admin-tower-two-col-grid">
           {/* Breakdown by Difficulty */}
           <section className="panel" aria-label="Phân bổ theo Độ khó">
             <div className="section-title">
@@ -498,32 +517,36 @@ export function AdminTower() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', marginTop: '1rem' }}>
-              {(stats.breakdown?.byDifficulty || []).map((diffRow) => {
-                const conf = DIFFICULTY_CONFIG[diffRow.difficulty] || {
-                  label: diffRow.label || diffRow.difficulty,
-                  badgeClass: 'medium',
-                  color: '#6366f1',
-                };
-                const count = diffRow.count || 0;
-                const eligible = diffRow.eligibleCount ?? count;
-                const pct =
-                  totalEligible > 0 ? Math.round((eligible / totalEligible) * 100) : 0;
+              {(stats.breakdown?.byDifficulty || []).length === 0 ? (
+                <p className="muted" style={{ padding: '1rem 0' }}>Chưa có dữ liệu độ khó</p>
+              ) : (
+                (stats.breakdown?.byDifficulty || []).map((diffRow) => {
+                  const conf = DIFFICULTY_CONFIG[diffRow.difficulty] || {
+                    label: diffRow.label || diffRow.difficulty,
+                    badgeClass: 'medium',
+                    color: '#6366f1',
+                  };
+                  const count = diffRow.count || 0;
+                  const eligible = diffRow.eligibleCount ?? count;
+                  const pct =
+                    totalEligible > 0 ? Math.round((eligible / totalEligible) * 100) : 0;
 
-                return (
-                  <div key={diffRow.difficulty} className="admin-tower-kpi-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className={`admin-tower-badge ${conf.badgeClass}`}>
-                        {conf.label} ({diffRow.difficulty})
+                  return (
+                    <div key={diffRow.difficulty} className="admin-tower-kpi-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span className={`admin-tower-badge ${conf.badgeClass}`}>
+                          {conf.label} ({diffRow.difficulty})
+                        </span>
+                        <b>{eligible.toLocaleString('vi-VN')} câu ({pct}%)</b>
+                      </div>
+                      <Progress value={pct} label={`Tỷ trọng ${conf.label}`} />
+                      <span className="admin-tower-kpi-sub">
+                        Tổng đã quét: {count} câu
                       </span>
-                      <b>{eligible.toLocaleString('vi-VN')} câu ({pct}%)</b>
                     </div>
-                    <Progress value={pct} label={`Tỷ trọng ${conf.label}`} />
-                    <span className="admin-tower-kpi-sub">
-                      Tổng đã quét: {count} câu
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </section>
 
@@ -549,29 +572,37 @@ export function AdminTower() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(stats.breakdown?.bySubject || []).map((sub) => {
-                    const eligible = sub.eligibleCount ?? sub.count;
-                    const pct =
-                      totalEligible > 0
-                        ? Math.round((eligible / totalEligible) * 100)
-                        : 0;
-                    return (
-                      <tr key={sub.subject}>
-                        <td>
-                          <strong>{sub.subject}</strong>
-                        </td>
-                        <td style={{ textAlign: 'right', color: 'var(--accent)', fontWeight: 600 }}>
-                          {eligible}
-                        </td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>
-                          {sub.count}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <span className="admin-tower-badge">{pct}%</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {(stats.breakdown?.bySubject || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--muted)' }}>
+                        Chưa có dữ liệu phân bổ theo chủ đề
+                      </td>
+                    </tr>
+                  ) : (
+                    (stats.breakdown?.bySubject || []).map((sub) => {
+                      const eligible = sub.eligibleCount ?? sub.count;
+                      const pct =
+                        totalEligible > 0
+                          ? Math.round((eligible / totalEligible) * 100)
+                          : 0;
+                      return (
+                        <tr key={sub.subject}>
+                          <td>
+                            <strong>{sub.subject}</strong>
+                          </td>
+                          <td style={{ textAlign: 'right', color: 'var(--accent)', fontWeight: 600 }}>
+                            {eligible}
+                          </td>
+                          <td style={{ textAlign: 'right', color: 'var(--muted)' }}>
+                            {sub.count}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className="admin-tower-badge">{pct}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -592,8 +623,8 @@ export function AdminTower() {
             <span className="admin-tower-badge">Mùa: <strong>{seasonKey}</strong></span>
           </div>
 
-          <div className="admin-tower-anti-repeat-box" style={{ marginTop: '1rem' }}>
-            <div>
+          <div className="admin-tower-anti-repeat-grid" style={{ marginTop: '1rem' }}>
+            <div className="admin-tower-kpi-card">
               <span className="admin-tower-kpi-title">Câu hỏi chưa dùng trong mùa này</span>
               <b className="admin-tower-kpi-val" style={{ color: 'var(--accent)' }}>
                 {unusedInSeason.toLocaleString('vi-VN')}
@@ -603,15 +634,15 @@ export function AdminTower() {
               </span>
             </div>
 
-            <div>
+            <div className="admin-tower-kpi-card">
               <span className="admin-tower-kpi-title">Câu hỏi đã dùng trong mùa này</span>
-              <b className="admin-tower-kpi-val" style={{ color: 'var(--accent-strong)' }}>
+              <b className="admin-tower-kpi-val" style={{ color: 'var(--accent-strong, #818cf8)' }}>
                 {totalUsed.toLocaleString('vi-VN')}
               </b>
               <span className="admin-tower-kpi-sub">Đã phục vụ người chơi mùa này</span>
             </div>
 
-            <div>
+            <div className="admin-tower-kpi-card">
               <span className="admin-tower-kpi-title">Câu hỏi tái sử dụng (&gt;1 lần)</span>
               <b className="admin-tower-kpi-val" style={{ color: reusedInSeason > 0 ? 'var(--warning)' : 'inherit' }}>
                 {reusedInSeason.toLocaleString('vi-VN')}
@@ -619,7 +650,7 @@ export function AdminTower() {
               <span className="admin-tower-kpi-sub">Chỉ tái sử dụng khi cạn pool</span>
             </div>
 
-            <div>
+            <div className="admin-tower-kpi-card">
               <span className="admin-tower-kpi-title">Tổng số lượt phục vụ câu hỏi</span>
               <b className="admin-tower-kpi-val">
                 {(antiRepeat.totalUsesCount ?? antiRepeat.totalHistoricalUsages ?? 0).toLocaleString('vi-VN')}
@@ -635,16 +666,7 @@ export function AdminTower() {
             />
           </div>
 
-          <div
-            style={{
-              marginTop: '1.5rem',
-              background: 'var(--surface-2)',
-              border: '1px solid var(--line)',
-              borderRadius: 10,
-              padding: '1rem 1.25rem',
-              fontSize: '0.875rem',
-            }}
-          >
+          <div className="admin-tower-algo-box" style={{ marginTop: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <Info size={18} className="muted" />
               <strong>Thuật toán lựa chọn câu hỏi 4 cấp độ:</strong>
@@ -669,7 +691,7 @@ export function AdminTower() {
 
       {/* TAB 4: COURSES & TOPICS BREAKDOWN */}
       {activeTab === 'courses' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+        <div className="admin-tower-two-col-grid">
           <section className="panel" aria-label="Nguồn Khóa học">
             <div className="section-title">
               <div>
@@ -686,16 +708,24 @@ export function AdminTower() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(stats.breakdown?.byCourse || []).map((course, cIdx) => (
-                    <tr key={course.courseId || `c-${cIdx}`}>
-                      <td>
-                        <strong>{course.courseName}</strong>
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                        {course.count}
+                  {(stats.breakdown?.byCourse || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={2} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--muted)' }}>
+                        Chưa có dữ liệu khóa học đóng góp
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    (stats.breakdown?.byCourse || []).map((course, cIdx) => (
+                      <tr key={course.courseId || `c-${cIdx}`}>
+                        <td>
+                          <strong>{course.courseName}</strong>
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          {course.count}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -717,16 +747,24 @@ export function AdminTower() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(stats.breakdown?.byTopic || []).slice(0, 15).map((topic, tIdx) => (
-                    <tr key={topic.topicId || `t-${tIdx}`}>
-                      <td>
-                        <span>{topic.topicName}</span>
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                        {topic.count}
+                  {(stats.breakdown?.byTopic || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={2} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--muted)' }}>
+                        Chưa có dữ liệu chủ đề đóng góp
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    (stats.breakdown?.byTopic || []).slice(0, 15).map((topic, tIdx) => (
+                      <tr key={topic.topicId || `t-${tIdx}`}>
+                        <td>
+                          <span>{topic.topicName}</span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          {topic.count}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

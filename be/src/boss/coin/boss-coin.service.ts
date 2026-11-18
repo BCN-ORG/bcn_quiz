@@ -149,7 +149,9 @@ export class BossCoinService {
           requestPayload,
         })
         .catch((e) =>
-          this.logger.warn(`Failed to track pending boss coin tx: ${e.message}`),
+          this.logger.warn(
+            `Failed to track pending boss coin tx: ${e.message}`,
+          ),
         );
     }
 
@@ -162,7 +164,9 @@ export class BossCoinService {
           await this.coinTrackingService
             .recordSuccess(idempotencyKey, response.externalTxId, response)
             .catch((e) =>
-              this.logger.warn(`Failed to track success boss coin tx: ${e.message}`),
+              this.logger.warn(
+                `Failed to track success boss coin tx: ${e.message}`,
+              ),
             );
         } else if (response.status === 'FAILED') {
           await this.coinTrackingService
@@ -172,7 +176,9 @@ export class BossCoinService {
               response,
             )
             .catch((e) =>
-              this.logger.warn(`Failed to track failed boss coin tx: ${e.message}`),
+              this.logger.warn(
+                `Failed to track failed boss coin tx: ${e.message}`,
+              ),
             );
         }
       }
@@ -197,7 +203,9 @@ export class BossCoinService {
         await this.coinTrackingService
           .recordUnknown(idempotencyKey, errorMsg)
           .catch((e) =>
-            this.logger.warn(`Failed to track unknown boss coin tx: ${e.message}`),
+            this.logger.warn(
+              `Failed to track unknown boss coin tx: ${e.message}`,
+            ),
           );
       }
 

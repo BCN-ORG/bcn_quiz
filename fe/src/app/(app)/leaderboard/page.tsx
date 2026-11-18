@@ -148,21 +148,23 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
       {/* Module Meta Strip */}
       <div className="leaderboard-meta-strip">
         <div className="leaderboard-meta-info">
-          {tab === 'boss' ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={data?.season?.bossImageUrl || '/images/boss-pixel.png'}
-              alt={data?.season?.bossName || 'Boss Tuần'}
-              className="leaderboard-boss-mini-avatar"
-            />
-          ) : tab === 'tower' ? (
-            <ShieldStar size={36} weight="duotone" style={{ color: 'var(--accent-strong)' }} aria-hidden="true" />
-          ) : tab === 'bounty' ? (
-            <Briefcase size={36} weight="duotone" style={{ color: '#eab308' }} aria-hidden="true" />
-          ) : (
-            <Trophy size={36} weight="duotone" style={{ color: '#d97706' }} aria-hidden="true" />
-          )}
-          <div>
+          <div className="leaderboard-meta-icon-badge">
+            {tab === 'boss' ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={data?.season?.bossImageUrl || '/images/boss-pixel.png'}
+                alt={data?.season?.bossName || 'Boss Tuần'}
+                className="leaderboard-boss-mini-avatar"
+              />
+            ) : tab === 'tower' ? (
+              <ShieldStar size={32} weight="duotone" style={{ color: 'var(--accent-strong)' }} aria-hidden="true" />
+            ) : tab === 'bounty' ? (
+              <Briefcase size={32} weight="duotone" style={{ color: '#eab308' }} aria-hidden="true" />
+            ) : (
+              <Trophy size={32} weight="duotone" style={{ color: '#d97706' }} aria-hidden="true" />
+            )}
+          </div>
+          <div className="leaderboard-meta-text">
             <h2 ref={titleRef} tabIndex={-1} className="leaderboard-meta-title">
               {tab === 'weekly'
                 ? data ? `Tuần ${fmtDay(data.weekStart)} → ${fmtDay(data.weekEnd)}` : 'Bảng xếp hạng tuần'
@@ -194,7 +196,7 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
           </p>
           <button
             type="button"
-            className="button secondary"
+            className="button secondary leaderboard-refresh-btn"
             aria-disabled={loading}
             onClick={() => {
               if (!loading) void load();
@@ -230,55 +232,59 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
           {/* User Hero Rank Banner */}
           {isMine ? (
             <div className="leaderboard-user-hero joined">
-              <div>
-                <span>Thứ hạng hiện tại của bạn: </span>
-                <RankBadge rank={data.currentUserRank!} />
-                <span style={{ marginLeft: 8 }}>
+              <div className="leaderboard-user-hero-body">
+                <div className="leaderboard-user-hero-rank">
+                  <span className="leaderboard-user-hero-label">Thứ hạng của bạn</span>
+                  <RankBadge rank={data.currentUserRank!} />
+                </div>
+                <div className="leaderboard-user-hero-stats">
                   {tab === 'weekly' && (
                     <>
-                      Tổng điểm: <strong>{(data.currentUserResult?.weeklyScore ?? 0).toLocaleString('vi-VN')} đ</strong> ({data.currentUserResult?.topicsCompleted ?? 0} topic hoàn thành)
+                      <span>Tổng điểm: <strong>{(data.currentUserResult?.weeklyScore ?? 0).toLocaleString('vi-VN')} đ</strong></span>
+                      <span className="leaderboard-stat-sub">({data.currentUserResult?.topicsCompleted ?? 0} topic hoàn thành)</span>
                     </>
                   )}
                   {tab === 'tower' && (
                     <>
-                      Tầng cao nhất: <strong>Tầng {data.currentUserResult?.highestCompletedFloor ?? 0}/100</strong>
+                      <span>Tầng cao nhất: <strong>Tầng {data.currentUserResult?.highestCompletedFloor ?? 0}/100</strong></span>
                     </>
                   )}
                   {tab === 'boss' && (
                     <>
-                      Sát thương cao nhất: <strong>{(data.currentUserResult?.highestScore ?? 0).toLocaleString('vi-VN')} đ</strong> (Combo x{data.currentUserResult?.bestCombo ?? 0} · {data.currentUserResult?.totalAttempts ?? 0} lượt đánh)
+                      <span>Sát thương cao nhất: <strong>{(data.currentUserResult?.highestScore ?? 0).toLocaleString('vi-VN')} đ</strong></span>
+                      <span className="leaderboard-stat-sub">(Combo x{data.currentUserResult?.bestCombo ?? 0} · {data.currentUserResult?.totalAttempts ?? 0} lượt đánh)</span>
                     </>
                   )}
                   {tab === 'bounty' && (
                     <>
-                      Nhiệm vụ hoàn thành: <strong>{data.currentUserResult?.completedBountiesCount ?? 0}</strong> · Tổng Coin:{' '}
-                      <strong style={{ color: '#eab308' }}>
-                        +{(data.currentUserResult?.totalCoinsEarned ?? 0).toLocaleString('vi-VN')} Coin
-                      </strong>
+                      <span>Nhiệm vụ: <strong>{data.currentUserResult?.completedBountiesCount ?? 0}</strong></span>
+                      <span className="leaderboard-stat-sub">· Tổng Coin: <strong style={{ color: '#eab308' }}>+{(data.currentUserResult?.totalCoinsEarned ?? 0).toLocaleString('vi-VN')} Coin</strong></span>
                     </>
                   )}
-                </span>
+                </div>
               </div>
               <Link
                 href={tab === 'tower' ? '/tower' : tab === 'boss' ? '/boss' : tab === 'bounty' ? '/bounties' : '/courses'}
                 className="leaderboard-hero-cta"
               >
-                {tab === 'tower' ? 'Tiếp tục leo tháp' : tab === 'boss' ? 'Vào săn Boss' : tab === 'bounty' ? 'Nhận nhiệm vụ mới' : 'Học thêm topic'} <ArrowRight weight="bold" />
+                <span>{tab === 'tower' ? 'Tiếp tục leo tháp' : tab === 'boss' ? 'Vào săn Boss' : tab === 'bounty' ? 'Nhận nhiệm vụ mới' : 'Học thêm topic'}</span>
+                <ArrowRight weight="bold" />
               </Link>
             </div>
           ) : (
             <div className="leaderboard-user-hero unjoined">
-              <span>
+              <div className="leaderboard-user-hero-msg">
                 {tab === 'weekly' && 'Bạn chưa có điểm trong tuần này. Hoàn thành topic bài tập để xuất hiện trên bảng xếp hạng tuần!'}
                 {tab === 'tower' && 'Bạn chưa vượt tầng nào trong mùa giải này. Vượt qua tầng 1 tại Leo Tháp để ghi danh bảng vàng!'}
                 {tab === 'boss' && 'Bạn chưa tham chiến săn Boss tuần này. Hãy gia nhập trận chiến để ghi danh bảng vàng!'}
                 {tab === 'bounty' && 'Bạn chưa hoàn thành nhiệm vụ nào. Nhận và nộp dự án Freelancer Bounty để ghi danh thợ săn!'}
-              </span>
+              </div>
               <Link
                 href={tab === 'tower' ? '/tower' : tab === 'boss' ? '/boss' : tab === 'bounty' ? '/bounties' : '/courses'}
                 className="leaderboard-hero-cta"
               >
-                {tab === 'tower' ? 'Chinh phục ngay' : tab === 'boss' ? 'Tham chiến ngay' : tab === 'bounty' ? 'Săn nhiệm vụ ngay' : 'Khám phá khóa học'} <ArrowRight weight="bold" />
+                <span>{tab === 'tower' ? 'Chinh phục ngay' : tab === 'boss' ? 'Tham chiến ngay' : tab === 'bounty' ? 'Săn nhiệm vụ ngay' : 'Khám phá khóa học'}</span>
+                <ArrowRight weight="bold" />
               </Link>
             </div>
           )}
@@ -307,74 +313,82 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
           ) : (
             <>
               {/* Podium Top 3 */}
-              <h3>Top 3 Vinh Danh</h3>
-              <ol className="leaderboard-podium" aria-label="Top 3">
-                {[1, 2, 3].map((rank) => {
-                  const row = data.top3.find((item) => item.rank === rank);
-                  return (
-                    <li key={rank} className={`leaderboard-slot leaderboard-slot-${rank}`}>
-                      {row ? (
-                        <div className={`leaderboard-top leaderboard-top-${rank}`}>
-                          <PodiumCup rank={rank} />
-                          <LeaderboardPlayer
-                            row={row}
-                            large
-                            current={row.user.id === user?.id}
-                            namesUnavailable={namesUnavailable}
-                          />
-                          {tab === 'tower' ? (
-                            <strong>Tầng {row.highestCompletedFloor ?? row.score ?? 0}</strong>
-                          ) : tab === 'boss' ? (
-                            <div>
-                              <strong>{(row.highestScore ?? row.score ?? 0).toLocaleString('vi-VN')} đ</strong>
-                              <small style={{ display: 'block', color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>
-                                Combo x{row.bestCombo ?? 0}
-                              </small>
-                            </div>
-                          ) : tab === 'bounty' ? (
-                            <div>
-                              <strong>{(row.completedBountiesCount ?? 0).toLocaleString('vi-VN')} nhiệm vụ</strong>
-                              <small
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  color: '#eab308',
-                                  fontSize: 13,
-                                  fontWeight: 700,
-                                  marginTop: 2,
-                                }}
-                              >
-                                <Coins weight="fill" size={14} aria-hidden="true" />
-                                +{(row.totalCoinsEarned ?? 0).toLocaleString('vi-VN')} Coin
-                              </small>
-                            </div>
-                          ) : (
-                            <strong>{leaderboardPoints(row, 'weekly').toLocaleString('vi-VN')} điểm</strong>
-                          )}
+              <div className="leaderboard-podium-section">
+                <div className="leaderboard-section-heading">
+                  <Trophy size={18} weight="fill" className="leaderboard-heading-icon" aria-hidden="true" />
+                  <h3>Top 3 Vinh Danh</h3>
+                </div>
+                <ol className="leaderboard-podium" aria-label="Top 3">
+                  {[1, 2, 3].map((rank) => {
+                    const row = data.top3.find((item) => item.rank === rank);
+                    return (
+                      <li key={rank} className={`leaderboard-slot leaderboard-slot-${rank}`}>
+                        {row ? (
+                          <div className={`leaderboard-top leaderboard-top-${rank}`}>
+                            <PodiumCup rank={rank} />
+                            <LeaderboardPlayer
+                              row={row}
+                              large
+                              current={row.user.id === user?.id}
+                              namesUnavailable={namesUnavailable}
+                            />
+                            {tab === 'tower' ? (
+                              <strong>Tầng {row.highestCompletedFloor ?? row.score ?? 0}</strong>
+                            ) : tab === 'boss' ? (
+                              <div>
+                                <strong>{(row.highestScore ?? row.score ?? 0).toLocaleString('vi-VN')} đ</strong>
+                                <small style={{ display: 'block', color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>
+                                  Combo x{row.bestCombo ?? 0}
+                                </small>
+                              </div>
+                            ) : tab === 'bounty' ? (
+                              <div>
+                                <strong>{(row.completedBountiesCount ?? 0).toLocaleString('vi-VN')} nhiệm vụ</strong>
+                                <small
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    color: '#eab308',
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  <Coins weight="fill" size={14} aria-hidden="true" />
+                                  +{(row.totalCoinsEarned ?? 0).toLocaleString('vi-VN')} Coin
+                                </small>
+                              </div>
+                            ) : (
+                              <strong>{leaderboardPoints(row, 'weekly').toLocaleString('vi-VN')} điểm</strong>
+                            )}
+                          </div>
+                        ) : (
+                          <div className={`leaderboard-top leaderboard-top-${rank} leaderboard-top-empty`}>
+                            <PodiumCup rank={rank} faded />
+                            <span className="leaderboard-empty-avatar" aria-hidden="true">
+                              <User />
+                            </span>
+                            <p className="leaderboard-empty-label">HẠNG {rank}</p>
+                            <p className="leaderboard-empty-rank">Chưa có người đạt hạng này</p>
+                          </div>
+                        )}
+                        <div className={`leaderboard-step leaderboard-step-${rank}`} aria-hidden="true">
+                          <span className="leaderboard-step-num">{rank}</span>
                         </div>
-                      ) : (
-                        <div className={`leaderboard-top leaderboard-top-${rank} leaderboard-top-empty`}>
-                          <PodiumCup rank={rank} faded />
-                          <span className="leaderboard-empty-avatar" aria-hidden="true">
-                            <User />
-                          </span>
-                          <p className="leaderboard-empty-label">HẠNG {rank}</p>
-                          <p className="leaderboard-empty-rank">Chưa có người đạt hạng này</p>
-                        </div>
-                      )}
-                      <div className={`leaderboard-step leaderboard-step-${rank}`} aria-hidden="true">
-                        <span className="leaderboard-step-num">{rank}</span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
 
               {/* Around Me */}
               {data.aroundMe.length > 0 && (
-                <>
-                  <h3>Quanh bạn</h3>
+                <div className="leaderboard-table-section">
+                  <div className="leaderboard-section-heading">
+                    <User size={18} weight="bold" className="leaderboard-heading-icon" aria-hidden="true" />
+                    <h3>Quanh bạn</h3>
+                  </div>
                   <LeaderboardTable
                     rows={data.aroundMe}
                     mode={tab}
@@ -382,39 +396,44 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
                     caption="Các hạng quanh bạn"
                     namesUnavailable={namesUnavailable}
                   />
-                </>
+                </div>
               )}
 
               {/* All Items */}
-              <h3 ref={listRef} tabIndex={-1}>
-                Tất cả người chơi
-              </h3>
-              {data.items.length > 0 ? (
-                <LeaderboardTable
-                  rows={data.items}
-                  mode={tab}
-                  currentUserId={user?.id}
-                  caption={`Bảng xếp hạng ${tab}, trang ${data.pagination.page} trên ${data.pagination.totalPages}`}
-                  namesUnavailable={namesUnavailable}
-                />
-              ) : (
-                <>
-                  <Empty
-                    title="Trang này không có dữ liệu."
-                    description={`Bảng chỉ có ${data.pagination.totalPages} trang.`}
+              <div className="leaderboard-table-section">
+                <div className="leaderboard-section-heading">
+                  <Trophy size={18} weight="bold" className="leaderboard-heading-icon" aria-hidden="true" />
+                  <h3 ref={listRef} tabIndex={-1}>
+                    Tất cả người chơi
+                  </h3>
+                </div>
+                {data.items.length > 0 ? (
+                  <LeaderboardTable
+                    rows={data.items}
+                    mode={tab}
+                    currentUserId={user?.id}
+                    caption={`Bảng xếp hạng ${tab}, trang ${data.pagination.page} trên ${data.pagination.totalPages}`}
+                    namesUnavailable={namesUnavailable}
                   />
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => {
-                      goToPage(1);
-                      listRef.current?.focus();
-                    }}
-                  >
-                    Về trang 1
-                  </button>
-                </>
-              )}
+                ) : (
+                  <>
+                    <Empty
+                      title="Trang này không có dữ liệu."
+                      description={`Bảng chỉ có ${data.pagination.totalPages} trang.`}
+                    />
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => {
+                        goToPage(1);
+                        listRef.current?.focus();
+                      }}
+                    >
+                      Về trang 1
+                    </button>
+                  </>
+                )}
+              </div>
 
               {/* Pagination */}
               {data.pagination.totalPages > 1 && (
