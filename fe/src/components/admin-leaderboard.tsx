@@ -85,7 +85,9 @@ export function AdminLeaderboard() {
   return (
     <div className="admin-grid section">
       <section className="panel" aria-label="Bộ lọc bảng xếp hạng">
-        <div className="section-title"><h2>Bộ lọc</h2></div>
+        <div className="section-title">
+          <h2 style={{ margin: 0 }}>Bộ lọc</h2>
+        </div>
         <div className="grid">
           {mode === 'daily' ? <label className="field"><span>Khóa học</span><select value={courseId} onChange={(event) => { setCourseId(event.target.value); setData(null); setPage(1); }}><option value="">Tất cả khóa học</option>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
           {mode === 'daily' ? <label className="field"><span>Chủ đề</span><select value={topicId} onChange={(event) => { setTopicId(event.target.value); setData(null); setPage(1); }}><option value="">Chọn chủ đề</option>{topics.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
@@ -93,22 +95,24 @@ export function AdminLeaderboard() {
           <label className="field"><span>{mode === 'daily' ? 'Ngày' : 'Tuần chứa ngày'}</span><input type="date" value={date || (mode === 'daily' ? data?.date : data?.weekStart) || ''} onChange={(event) => { setDate(event.target.value); setData(null); setPage(1); }} /></label>
           <label className="field"><span>Tìm theo tên người dùng</span><span className="leaderboard-search"><MagnifyingGlass className="search-icon" aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên người dùng" />{query.trim() && (query.trim() !== search || loading) ? <CircleNotch className="spin" aria-label="Đang tìm kiếm" /> : null}</span></label>
         </div>
-        <div className="list-actions">
-          <button className="button" type="button" disabled={(mode === 'daily' && !topicId) || exporting} onClick={() => void exportRows()}>{exporting ? 'Đang xuất…' : 'Xuất toàn bộ XLSX'}</button>
+        <div className="list-actions" style={{ marginTop: '18px' }}>
+          <button className="button" type="button" style={{ width: '100%', justifyContent: 'center' }} disabled={(mode === 'daily' && !topicId) || exporting} onClick={() => void exportRows()}>{exporting ? 'Đang xuất…' : 'Xuất toàn bộ XLSX'}</button>
         </div>
       </section>
       <section className="panel" aria-label="Bảng xếp hạng">
-        <div className="section-title"><h2>{mode === 'daily' ? 'Bảng xếp hạng Topic' : 'Bảng xếp hạng tuần (tổng thể)'}</h2></div>
+        <div className="section-title" style={{ flexWrap: 'wrap', gap: '8px' }}>
+          <h2 style={{ margin: 0 }}>{mode === 'daily' ? 'Bảng xếp hạng Topic' : 'Bảng xếp hạng tuần (tổng thể)'}</h2>
+        </div>
         {error ? <ErrorState title={searchFailed ? 'Không thể tìm kiếm người dùng lúc này.' : undefined} message={error} retry={() => void load()} /> : null}
         {mode === 'daily' && !topicId ? <Empty title="Chọn một chủ đề" description="Bảng theo ngày là của từng Topic. Bảng theo tuần là bảng tổng thể, không cần chọn chủ đề." /> : null}
         {loading && !data ? <Loading label="Đang tải bảng xếp hạng" /> : null}
         {data && (mode === 'weekly' || topicId) ? <>
-          {data.profilesAvailable === false ? <div className="notice leaderboard-profiles-warning" role="alert">
+          {data.profilesAvailable === false ? <div className="notice leaderboard-profiles-warning" role="alert" style={{ marginBottom: '14px' }}>
             <strong>Chưa lấy được họ tên và email từ BCN Profiles.</strong>
             <p>Điểm và thứ hạng vẫn đúng. Cột họ tên hiện &quot;Chưa tải được tên&quot;, email để trống, và file Excel xuất lúc này sẽ ghi &quot;Unknown&quot; ở cột Full Name và để trống Email.</p>
             <p>Thường do khóa server của ứng dụng Quiz bị sai hoặc đã đổi: tạo khóa server mới ở Profiles → Administration → Applications → QUIZ, cập nhật PROFILES_CLIENT_SECRET rồi deploy lại.</p>
           </div> : null}
-          <p aria-live="polite">{searchFailed ? 'Kết quả tải lần cuối' : mode === 'daily' ? `Ngày ${data.date}` : `Tuần ${data.weekStart} → ${data.weekEnd}`} · {data.pagination.total} người</p>
+          <p aria-live="polite" style={{ margin: '6px 0 14px 0', fontSize: '13px', color: 'var(--muted)' }}>{searchFailed ? 'Kết quả tải lần cuối' : mode === 'daily' ? `Ngày ${data.date}` : `Tuần ${data.weekStart} → ${data.weekEnd}`} · {data.pagination.total} người</p>
           {data.items.length ? <AdminLeaderboardTable rows={data.items} mode={mode} namesUnavailable={data.profilesAvailable === false} /> : <Empty title={search ? 'Chưa có kết quả phù hợp.' : 'Chưa có kết quả trong kỳ này.'} description={search ? 'Thử tên khác hoặc xóa ô tìm kiếm.' : 'Chọn ngày hoặc tuần khác để xem.'} />}
           <PaginationNav {...data.pagination} disabled={loading} onChange={setPage} />
         </> : null}

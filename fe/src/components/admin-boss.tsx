@@ -168,13 +168,13 @@ export function AdminBoss() {
       </aside>
 
       <div className="admin-boss-main">
-        {error ? <div className="notice" role="alert">{error}</div> : null}
-        {notice ? <div className="notice" role="status">{notice}</div> : null}
+        {error ? <div className="notice form-error" role="alert">{error}</div> : null}
+        {notice ? <div className="notice form-success" role="status">{notice}</div> : null}
 
         <section className="panel admin-boss-head" aria-label="Tổng quan tuần">
           <div>
-            <h2>{detail?.season.name ?? `Tuần ${weekKey}`}</h2>
-            <p className="muted">
+            <h2 style={{ margin: '0 0 4px 0' }}>{detail?.season.name ?? `Tuần ${weekKey}`}</h2>
+            <p className="muted" style={{ margin: 0 }}>
               {detail ? `${detail.season.bossName} · ${PHASE_LABEL[detail.season.phase]} · ${when(detail.season.startsAt)} → ${when(detail.season.endsAt)}${detail.season.isSettled && detail.season.settledAt ? ` · Đã chốt ${when(detail.season.settledAt)}` : ''}` : `Chưa có dữ liệu.${canConfigure ? '' : ' Chỉ admin mới tạo/sửa cấu hình tuần sắp tới.'}`}
             </p>
           </div>
@@ -189,13 +189,13 @@ export function AdminBoss() {
               <div><b className={problems ? 'bad' : ''}>{problems}</b><span>GD lỗi</span></div>
             </div>
           ) : null}
-          <div className="list-actions">
+          <div className="list-actions" style={{ marginTop: '4px' }}>
             {canSettle && detail?.season.canSettle ? <button className="button" type="button" disabled={busy} onClick={() => setConfirmSettle(true)}>Chốt thưởng tuần</button> : null}
             {canSettle && detail ? <button className="button secondary" type="button" disabled={busy} onClick={() => void reconcile()}>Đối soát GD chưa rõ</button> : null}
           </div>
         </section>
 
-        <div className="tabs" role="tablist" aria-label="Mục quản lý Boss">
+        <div className="tabs" role="tablist" aria-label="Mục quản lý Boss" style={{ margin: '4px 0 2px 0' }}>
           {detail ? <button role="tab" aria-selected={activePanel === 'overview'} className={activePanel === 'overview' ? 'active' : ''} onClick={() => setPanel('overview')}>Tổng quan</button> : null}
           {form ? <button role="tab" aria-selected={activePanel === 'config'} className={activePanel === 'config' ? 'active' : ''} onClick={() => setPanel('config')}>Cấu hình</button> : null}
           {detail ? <button role="tab" aria-selected={activePanel === 'players'} className={activePanel === 'players' ? 'active' : ''} onClick={() => setPanel('players')}>Người chơi ({detail.topPlayers.length})</button> : null}
@@ -214,8 +214,8 @@ export function AdminBoss() {
                 />
               );
             })()}
-            <ul className="admin-boss-chests">{detail.milestones.map((m) => <li key={m.index} className={m.unlocked ? 'on' : ''}><b>{m.unlocked ? <Check size={12} weight="bold" style={{ verticalAlign: '-1px', marginRight: 4 }} /> : <Circle size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />}{m.name}</b><span>{m.at.toLocaleString('vi-VN')} ST · +{m.coin} Coin/người</span></li>)}</ul>
-            {!detail.season.editable ? <p className="muted">Tuần này đã khoá cấu hình (chỉ tuần chưa bắt đầu mới sửa được).</p> : null}
+            <ul className="admin-boss-chests">{detail.milestones.map((m) => <li key={m.index} className={m.unlocked ? 'on' : ''}><b>{m.unlocked ? <Check size={12} weight="bold" style={{ verticalAlign: '-1px', marginRight: 4, color: 'var(--accent)' }} /> : <Circle size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />}{m.name}</b><span>{m.at.toLocaleString('vi-VN')} ST · +{m.coin} Coin/người</span></li>)}</ul>
+            {!detail.season.editable ? <p className="muted" style={{ marginTop: '14px', fontSize: '13px' }}>Tuần này đã khoá cấu hình (chỉ tuần chưa bắt đầu mới sửa được).</p> : null}
           </section>
         ) : null}
 
@@ -227,7 +227,7 @@ export function AdminBoss() {
                 <label className="field"><span>Tên Boss</span><input value={form.bossName} maxLength={60} onChange={(event) => setForm({ ...form, bossName: event.target.value })} /></label>
                 <div className="field">
                   <span>Trạng thái Máu Boss</span>
-                  <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.25)', fontSize: '13px', lineHeight: 1.5, marginTop: '4px' }}>
+                  <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--accent-soft)', color: 'var(--accent-strong)', border: '1px solid var(--line)', fontSize: '13px', lineHeight: 1.5, marginTop: '4px' }}>
                     Máu Boss: Mặc định vô hạn (∞) — Người chơi có thể khiêu chiến liên tục trong tuần mà không bị giới hạn
                   </div>
                 </div>
@@ -237,21 +237,21 @@ export function AdminBoss() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={form.bossImageUrl || '/images/boss-pixel.png'} alt="Ảnh Boss" />
                 <small>{uploading ? 'Đang tải lên…' : form.bossImageUrl ? 'Ảnh tuỳ chỉnh' : 'Ảnh mặc định'}</small>
-                {form.bossImageUrl ? <button className="button secondary" type="button" onClick={() => setForm({ ...form, bossImageUrl: null })}>Dùng ảnh mặc định</button> : null}
+                {form.bossImageUrl ? <button className="button secondary" type="button" style={{ fontSize: '12px', padding: '4px 10px' }} onClick={() => setForm({ ...form, bossImageUrl: null })}>Dùng ảnh mặc định</button> : null}
               </div>
             </div>
-            <h3>Mốc rương (chung cả cộng đồng, tăng dần)</h3>
+            <h3 style={{ marginTop: '20px', marginBottom: '10px' }}>Mốc rương (chung cả cộng đồng, tăng dần)</h3>
             <div className="admin-boss-milestones">
               {form.milestones.map((milestone, index) => (
                 <div className="admin-boss-milestone" key={index}>
                   <label className="field"><span>Mốc {index + 1} (ST)</span><input type="number" min={1} value={milestone.at} onChange={(event) => patchMilestone(index, { at: Number(event.target.value) })} /></label>
                   <label className="field"><span>Coin/người</span><input type="number" min={0} max={1000} value={milestone.coin} onChange={(event) => patchMilestone(index, { coin: Number(event.target.value) })} /></label>
                   <label className="field"><span>Tên rương</span><input value={milestone.name} maxLength={40} onChange={(event) => patchMilestone(index, { name: event.target.value })} /></label>
-                  <button className="button secondary" type="button" aria-label={`Xoá mốc ${index + 1}`} disabled={form.milestones.length <= 1} onClick={() => setForm({ ...form, milestones: form.milestones.filter((_, i) => i !== index) })}>Xoá</button>
+                  <button className="button secondary" type="button" aria-label={`Xoá mốc ${index + 1}`} disabled={form.milestones.length <= 1} style={{ alignSelf: 'flex-end', height: '42px', minHeight: '42px' }} onClick={() => setForm({ ...form, milestones: form.milestones.filter((_, i) => i !== index) })}>Xoá</button>
                 </div>
               ))}
             </div>
-            <div className="admin-boss-savebar">
+            <div className="admin-boss-savebar" style={{ marginTop: '16px' }}>
               <button className="button secondary" type="button" disabled={form.milestones.length >= 10} onClick={() => setForm({ ...form, milestones: [...form.milestones, { at: (form.milestones.at(-1)?.at ?? 0) + 100, coin: 5, name: `Rương ${form.milestones.length + 1}` }] })}>Thêm mốc</button>
               <button className="button" type="button" disabled={busy || uploading} onClick={() => void save()}>{busy ? 'Đang lưu…' : 'Lưu cấu hình'}</button>
             </div>

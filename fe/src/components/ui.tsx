@@ -1,7 +1,7 @@
 'use client';
 
-import { Warning } from '@phosphor-icons/react';
-import { useEffect, useRef } from 'react';
+import { DotsThree, Warning } from '@phosphor-icons/react';
+import { useEffect, useRef, useState } from 'react';
 
 export function Loading({ label = 'Đang tải dữ liệu' }: { label?: string }) {
   return (
@@ -187,6 +187,109 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function RowMenu({
+  label,
+  canEdit = true,
+  canDelete = false,
+  onEdit,
+  onDelete,
+  items,
+}: {
+  label: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  items?: Array<{
+    label: string;
+    onClick: () => void;
+    danger?: boolean;
+    disabled?: boolean;
+  }>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  if (!canEdit && !canDelete && (!items || !items.length)) return null;
+
+  return (
+    <div className="row-menu">
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={`Tùy chọn ${label}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((val) => !val)}
+      >
+        <DotsThree weight="bold" />
+      </button>
+      {open ? (
+        <>
+          <button
+            type="button"
+            className="row-menu-backdrop"
+            aria-label="Đóng menu"
+            onClick={() => setOpen(false)}
+          />
+          <div className="row-menu-panel" role="menu">
+            {items
+              ? items.map((it, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    role="menuitem"
+                    disabled={it.disabled}
+                    className={it.danger ? 'danger' : ''}
+                    onClick={() => {
+                      setOpen(false);
+                      it.onClick();
+                    }}
+                  >
+                    {it.label}
+                  </button>
+                ))
+              : null}
+            {!items && canEdit && onEdit ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onEdit();
+                }}
+              >
+                Sửa
+              </button>
+            ) : null}
+            {!items && canDelete && onDelete ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="danger"
+                onClick={() => {
+                  setOpen(false);
+                  onDelete();
+                }}
+              >
+                Xóa
+              </button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

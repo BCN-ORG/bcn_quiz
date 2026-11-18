@@ -136,12 +136,15 @@ export function AdminCertificates() {
           {detailLoading && !detail ? <Loading label="Đang kiểm tra điều kiện" /> : null}
           {detailError ? <p className="form-error" role="alert">{detailError}</p> : null}
           {detail ? <>
-            <div className="section-title"><h3>{who(detail.user)} · {detail.eligibility.course.name}</h3><CertStatus value={detail.status} /></div>
+            <div className="section-title" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'flex-start' }}>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', wordBreak: 'break-word' }}>{who(detail.user)} · {detail.eligibility.course.name}</h3>
+              <CertStatus value={detail.status} />
+            </div>
             <p role="status" className={detail.eligibility.eligible || detail.status === 'REVOKED' ? 'notice' : 'form-error'}>{detail.eligibility.eligible ? 'Đủ điều kiện: đã hoàn thành khóa học theo nội dung hiện tại.' : detail.status === 'REVOKED' ? `Học viên hiện chưa hoàn thành khóa học theo nội dung mới (${detail.eligibility.reasons.join('; ') || 'khóa học chưa hoàn thành'}). Vẫn có thể cấp lại chứng nhận đã thu hồi: việc này chỉ hoàn tác thu hồi và cần ghi lý do.` : `Chưa đủ điều kiện: ${detail.eligibility.reasons.join('; ') || 'khóa học chưa hoàn thành'}`}</p>
             {detail.eligibility.warnings.map((warning) => <p className="notice" key={warning}>{warning}</p>)}
-            <p>Topic: <strong>{detail.eligibility.topicsDone}/{detail.eligibility.topicsTotal}</strong>{detail.eligibility.project.required ? <> · Đồ án: <strong>{detail.eligibility.project.status ?? 'chưa nộp'}</strong></> : ' · Không có đồ án'}</p>
+            <p style={{ margin: '8px 0', fontSize: '13px' }}>Topic: <strong>{detail.eligibility.topicsDone}/{detail.eligibility.topicsTotal}</strong>{detail.eligibility.project.required ? <> · Đồ án: <strong>{detail.eligibility.project.status ?? 'chưa nộp'}</strong></> : ' · Không có đồ án'}</p>
             <div className="admin-table-scroll" tabIndex={0} role="region" aria-label="Các topic của khóa học, cuộn ngang để xem hết cột">
-              <table className="admin-leaderboard-table"><caption className="sr-only">Tiến độ từng topic</caption>
+              <table className="admin-leaderboard-table" style={{ minWidth: '100%' }}><caption className="sr-only">Tiến độ từng topic</caption>
                 <thead><tr><th scope="col">Topic</th><th scope="col">Trạng thái</th><th className="num" scope="col">Chính xác</th><th className="num" scope="col">Số lượt</th></tr></thead>
                 <tbody>{detail.eligibility.topics.map((topic) => <tr key={topic.id}>
                   <th scope="row">{topic.name}{topic.addedAfterRequest ? <span className="status status-late"> Mới thêm</span> : null}</th>
@@ -151,32 +154,35 @@ export function AdminCertificates() {
                 </tr>)}</tbody>
               </table>
             </div>
-            <p><small>Yêu cầu {when(detail.requestedAt)}{detail.resubmittedAt ? ` · gửi lại ${when(detail.resubmittedAt)}` : ''}{detail.reviewedAt ? ` · quyết định ${when(detail.reviewedAt)}` : ''}</small></p>
-            {detail.reviewerNote ? <p className="notice"><strong>Ghi chú/lý do gần nhất:</strong> {detail.reviewerNote}</p> : null}
-            {detail.certificate ? <p>Mã chứng nhận: <code>{detail.certificate.certificateCode}</code>{detail.certificate.revokedAt ? ` · đã thu hồi ${when(detail.certificate.revokedAt)}` : ''}</p> : null}
-            <div className="list-actions">
+            <p style={{ marginTop: '8px' }}><small>Yêu cầu {when(detail.requestedAt)}{detail.resubmittedAt ? ` · gửi lại ${when(detail.resubmittedAt)}` : ''}{detail.reviewedAt ? ` · quyết định ${when(detail.reviewedAt)}` : ''}</small></p>
+            {detail.reviewerNote ? <p className="notice" style={{ marginTop: '8px' }}><strong>Ghi chú/lý do gần nhất:</strong> {detail.reviewerNote}</p> : null}
+            {detail.certificate ? <p style={{ marginTop: '8px' }}>Mã chứng nhận: <code>{detail.certificate.certificateCode}</code>{detail.certificate.revokedAt ? ` · đã thu hồi ${when(detail.certificate.revokedAt)}` : ''}</p> : null}
+            <div className="list-actions" style={{ marginTop: '14px', alignItems: 'center' }}>
               {detail.status === 'PENDING' || detail.status === 'REVOKED' ? <button className="button" disabled={detail.status === 'PENDING' && !detail.eligibility.eligible} onClick={() => { setAction({ kind: 'APPROVE', id: detail.id, reinstate: detail.status === 'REVOKED' }); setNote(''); setDetailError(''); }}>{detail.status === 'REVOKED' ? 'Cấp lại' : 'Duyệt'}</button> : null}
-              {detail.status === 'PENDING' && !detail.eligibility.eligible ? <small id="certificate-approve-blocked">Chưa thể duyệt: {detail.eligibility.reasons.join('; ') || 'khóa học chưa hoàn thành'}.</small> : null}
               {detail.status === 'PENDING' ? <button className="button danger" onClick={() => { setAction({ kind: 'REJECT', id: detail.id }); setNote(''); setDetailError(''); }}>Từ chối</button> : null}
               {detail.status === 'APPROVED' ? <button className="button danger" onClick={() => { setAction({ kind: 'REVOKE', id: detail.id }); setNote(''); setDetailError(''); }}>Thu hồi chứng nhận</button> : null}
-              {detail.status === 'ON_HOLD' ? <small>Đang tạm hoãn: chờ học viên hoàn thành nội dung mới của khóa học.</small> : null}
+              {detail.status === 'PENDING' && !detail.eligibility.eligible ? <small id="certificate-approve-blocked" style={{ width: '100%', color: 'var(--muted)', marginTop: '4px' }}>Chưa thể duyệt: {detail.eligibility.reasons.join('; ') || 'khóa học chưa hoàn thành'}.</small> : null}
+              {detail.status === 'ON_HOLD' ? <small style={{ width: '100%', color: 'var(--muted)', marginTop: '4px' }}>Đang tạm hoãn: chờ học viên hoàn thành nội dung mới của khóa học.</small> : null}
             </div>
           </> : null}
         </> : <Empty title="Chọn một yêu cầu để xem xét" description="Bấm «Xem xét» ở một yêu cầu bên phải để xem điều kiện và duyệt." /> }
       </section>
       <section className="panel" aria-label="Danh sách yêu cầu chứng nhận">
-        <div className="section-title"><h2>Duyệt chứng nhận</h2>{data ? <span aria-live="polite">Chờ duyệt: <strong>{data.pendingCount}</strong> · Tạm hoãn: <strong>{data.onHoldCount}</strong></span> : null}</div>
-        <p>Hoàn thành khóa học chỉ tạo yêu cầu. Chứng nhận chỉ được cấp khi bạn duyệt.</p>
+        <div className="section-title" style={{ flexWrap: 'wrap', gap: '8px' }}>
+          <h2 style={{ margin: 0 }}>Duyệt chứng nhận</h2>
+          {data ? <span aria-live="polite" style={{ fontSize: '13px', color: 'var(--muted)' }}>Chờ duyệt: <strong style={{ color: 'var(--text)' }}>{data.pendingCount}</strong> · Tạm hoãn: <strong style={{ color: 'var(--text)' }}>{data.onHoldCount}</strong></span> : null}
+        </div>
+        <p style={{ marginTop: '4px', marginBottom: '14px', color: 'var(--muted)', fontSize: '13px' }}>Hoàn thành khóa học chỉ tạo yêu cầu. Chứng nhận chỉ được cấp khi bạn duyệt.</p>
         <div className="grid grid-2">
           <label className="field"><span>Trạng thái</span><select value={status} onChange={(event) => { setStatus(event.target.value as CertificateRequestStatus | ''); setPage(1); }}><option value="">Tất cả</option>{STATUSES.map((item) => <option key={item} value={item}>{CERT_STATUS[item].label}</option>)}</select></label>
           <label className="field"><span>Khóa học</span><select value={courseId} onChange={(event) => { setCourseId(event.target.value); setPage(1); }}><option value="">Tất cả khóa học</option>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="field" style={{ gridColumn: '1 / -1' }}><span>Tìm theo tên người dùng</span><span className="leaderboard-search"><MagnifyingGlass className="search-icon" aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên hoặc email" />{query.trim() && (query.trim() !== search || loading) ? <CircleNotch className="spin" aria-label="Đang tìm kiếm" /> : null}</span></label>
         </div>
-        {notice ? <p className="notice" role="status">{notice}</p> : null}
-        {bulkResult ? <div className="panel" id="bulk-result" role="status">
+        {notice ? <p className="notice" role="status" style={{ marginTop: '12px' }}>{notice}</p> : null}
+        {bulkResult ? <div className="panel" id="bulk-result" role="status" style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <strong>Kết quả duyệt hàng loạt: đã duyệt {bulkResult.approved.length}, bỏ qua {bulkResult.skipped.length}.</strong>
-          {bulkResult.skipped.length ? <ul>{bulkResult.skipped.map((item) => <li key={item.id}>{bulkNames[item.id] ?? item.id}: {item.reason}</li>)}</ul> : null}
-          <button className="button secondary" onClick={() => setBulkResult(null)}>Đóng kết quả</button>
+          {bulkResult.skipped.length ? <ul style={{ margin: '4px 0 8px 18px', padding: 0 }}>{bulkResult.skipped.map((item) => <li key={item.id}>{bulkNames[item.id] ?? item.id}: {item.reason}</li>)}</ul> : null}
+          <div><button className="button secondary" onClick={() => setBulkResult(null)}>Đóng kết quả</button></div>
         </div> : null}
         {error ? <ErrorState message={error} retry={() => void load()} /> : null}
         {loading && !data ? <Loading label="Đang tải yêu cầu" /> : null}
@@ -185,10 +191,10 @@ export function AdminCertificates() {
             <label className="bulk-check"><input type="checkbox" checked={allTicked} onChange={() => setSelected(allTicked ? new Set() : new Set(pendingRows.map((item) => item.id)))} /> Chọn tất cả chờ duyệt trên trang ({pendingRows.length})</label>
             <button className="button" disabled={!selected.size || busy} onClick={() => { setBulkNote(''); setBulkOpen(true); }}>Duyệt {selected.size ? `${selected.size} đã chọn` : 'hàng loạt'}</button>
           </div> : null}
-          <div className="list">{data.items.map((item) => <div className="list-row" key={item.id}>
-            {item.status === 'PENDING' ? <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} aria-label={`Chọn ${who(item.user)}`} /> : null}
-            <div><strong>{who(item.user)}</strong><small>{item.user.email ? `${item.user.email} · ` : ''}{item.course.name} · yêu cầu {when(item.requestedAt)}</small></div>
-            <div className="list-actions"><CertStatus value={item.status} /><button className="button secondary" aria-pressed={openId === item.id} onClick={() => setOpenId(openId === item.id ? '' : item.id)}>{openId === item.id ? 'Đóng' : 'Xem xét'}</button></div>
+          <div className="list" style={{ marginTop: '12px' }}>{data.items.map((item) => <div className="list-row" key={item.id} style={{ gap: '12px', flexWrap: 'wrap' }}>
+            {item.status === 'PENDING' ? <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} aria-label={`Chọn ${who(item.user)}`} style={{ width: 18, height: 18, flexShrink: 0, accentColor: 'var(--accent)', cursor: 'pointer' }} /> : null}
+            <div style={{ flex: 1, minWidth: '180px' }}><strong>{who(item.user)}</strong><small>{item.user.email ? `${item.user.email} · ` : ''}{item.course.name} · yêu cầu {when(item.requestedAt)}</small></div>
+            <div className="list-actions" style={{ flexShrink: 0, alignItems: 'center' }}><CertStatus value={item.status} /><button className="button secondary" aria-pressed={openId === item.id} onClick={() => setOpenId(openId === item.id ? '' : item.id)}>{openId === item.id ? 'Đóng' : 'Xem xét'}</button></div>
           </div>)}</div>
           <PaginationNav {...data.pagination} disabled={loading} onChange={setPage} />
         </> : <Empty title="Không có yêu cầu nào" description={status === 'PENDING' ? 'Chưa có học viên nào chờ duyệt chứng nhận.' : 'Không có yêu cầu phù hợp bộ lọc.'} />) : null}

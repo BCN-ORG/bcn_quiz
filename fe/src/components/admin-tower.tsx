@@ -26,9 +26,9 @@ const DIFFICULTY_CONFIG: Record<
   string,
   { label: string; badgeClass: string; color: string }
 > = {
-  EASY: { label: 'Dễ', badgeClass: 'easy', color: '#16a34a' },
-  MEDIUM: { label: 'Trung bình', badgeClass: 'medium', color: '#eab308' },
-  HARD: { label: 'Khó', badgeClass: 'hard', color: '#dc2626' },
+  EASY: { label: 'Dễ', badgeClass: 'easy', color: 'var(--accent)' },
+  MEDIUM: { label: 'Trung bình', badgeClass: 'medium', color: 'var(--warning)' },
+  HARD: { label: 'Khó', badgeClass: 'hard', color: 'var(--danger)' },
 };
 
 function formatDateTime(val?: string | null): string {
@@ -213,14 +213,14 @@ export function AdminTower() {
 
       {/* Notifications */}
       {error ? (
-        <div className="notice form-error" role="alert">
-          <WarningCircle size={18} />
+        <div className="notice form-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <WarningCircle size={18} style={{ flexShrink: 0 }} />
           <span>{error}</span>
         </div>
       ) : null}
       {notice ? (
-        <div className="notice form-success" role="status">
-          <CheckCircle size={18} />
+        <div className="notice form-success" role="status" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <CheckCircle size={18} style={{ flexShrink: 0 }} />
           <span>{notice}</span>
         </div>
       ) : null}
@@ -278,7 +278,7 @@ export function AdminTower() {
 
         <div className="admin-tower-kpi-card">
           <span className="admin-tower-kpi-title">Câu hỏi hợp lệ đưa vào Tháp</span>
-          <b className="admin-tower-kpi-val" style={{ color: '#16a34a' }}>
+          <b className="admin-tower-kpi-val" style={{ color: 'var(--accent)' }}>
             {totalEligible.toLocaleString('vi-VN')}
           </b>
           <span className="admin-tower-kpi-sub">
@@ -290,7 +290,7 @@ export function AdminTower() {
           <span className="admin-tower-kpi-title">Phát hiện trùng lặp</span>
           <b
             className="admin-tower-kpi-val"
-            style={{ color: totalDuplicates > 0 ? '#eab308' : 'inherit' }}
+            style={{ color: totalDuplicates > 0 ? 'var(--warning)' : 'inherit' }}
           >
             {totalDuplicates.toLocaleString('vi-VN')}
           </b>
@@ -299,7 +299,7 @@ export function AdminTower() {
 
         <div className="admin-tower-kpi-card">
           <span className="admin-tower-kpi-title">Không đủ điều kiện / Hết hạn</span>
-          <b className="admin-tower-kpi-val" style={{ color: '#dc2626' }}>
+          <b className="admin-tower-kpi-val" style={{ color: 'var(--danger)' }}>
             {ineligibleCount.toLocaleString('vi-VN')}
           </b>
           <span className="admin-tower-kpi-sub">Chủ đề hết hạn lịch hoặc trùng nội dung</span>
@@ -322,7 +322,7 @@ export function AdminTower() {
       ) : null}
 
       {/* Section Sub-Navigation Tabs */}
-      <div className="tabs" role="tablist" aria-label="Mục quản trị Question Pool">
+      <div className="tabs" role="tablist" aria-label="Mục quản trị Question Pool" style={{ flexWrap: 'wrap', gap: '6px' }}>
         <button
           type="button"
           role="tab"
@@ -462,12 +462,12 @@ export function AdminTower() {
                     {fr.warnings && fr.warnings.length > 0 ? (
                       <div
                         style={{
-                          background: 'rgba(220, 38, 38, 0.08)',
-                          border: '1px solid rgba(220, 38, 38, 0.25)',
+                          background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
                           borderRadius: 8,
                           padding: '0.5rem 0.75rem',
                           fontSize: '0.75rem',
-                          color: '#dc2626',
+                          color: 'var(--danger)',
                         }}
                       >
                         {fr.warnings.map((w, wIdx) => (
@@ -560,7 +560,7 @@ export function AdminTower() {
                         <td>
                           <strong>{sub.subject}</strong>
                         </td>
-                        <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>
+                        <td style={{ textAlign: 'right', color: 'var(--accent)', fontWeight: 600 }}>
                           {eligible}
                         </td>
                         <td style={{ textAlign: 'right', color: 'var(--muted)' }}>
@@ -595,7 +595,7 @@ export function AdminTower() {
           <div className="admin-tower-anti-repeat-box" style={{ marginTop: '1rem' }}>
             <div>
               <span className="admin-tower-kpi-title">Câu hỏi chưa dùng trong mùa này</span>
-              <b className="admin-tower-kpi-val" style={{ color: '#16a34a' }}>
+              <b className="admin-tower-kpi-val" style={{ color: 'var(--accent)' }}>
                 {unusedInSeason.toLocaleString('vi-VN')}
               </b>
               <span className="admin-tower-kpi-sub">
@@ -605,7 +605,7 @@ export function AdminTower() {
 
             <div>
               <span className="admin-tower-kpi-title">Câu hỏi đã dùng trong mùa này</span>
-              <b className="admin-tower-kpi-val" style={{ color: '#6366f1' }}>
+              <b className="admin-tower-kpi-val" style={{ color: 'var(--accent-strong)' }}>
                 {totalUsed.toLocaleString('vi-VN')}
               </b>
               <span className="admin-tower-kpi-sub">Đã phục vụ người chơi mùa này</span>
@@ -613,7 +613,7 @@ export function AdminTower() {
 
             <div>
               <span className="admin-tower-kpi-title">Câu hỏi tái sử dụng (&gt;1 lần)</span>
-              <b className="admin-tower-kpi-val" style={{ color: reusedInSeason > 0 ? '#eab308' : 'inherit' }}>
+              <b className="admin-tower-kpi-val" style={{ color: reusedInSeason > 0 ? 'var(--warning)' : 'inherit' }}>
                 {reusedInSeason.toLocaleString('vi-VN')}
               </b>
               <span className="admin-tower-kpi-sub">Chỉ tái sử dụng khi cạn pool</span>
@@ -638,8 +638,8 @@ export function AdminTower() {
           <div
             style={{
               marginTop: '1.5rem',
-              background: 'var(--surface-2, rgba(127,127,127,0.06))',
-              border: '1px solid var(--border, rgba(127,127,127,0.15))',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--line)',
               borderRadius: 10,
               padding: '1rem 1.25rem',
               fontSize: '0.875rem',

@@ -20,7 +20,7 @@ import {
   WarningCircle,
   X,
 } from '@phosphor-icons/react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { Empty, ErrorState, Loading, PaginationNav, Status, ConfirmDialog } from '@/components/ui';
 import {
@@ -201,7 +201,6 @@ function RowMenu({ label, canEdit, canDelete, onEdit, onDelete }: { label: strin
 function AdminStudioContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const tabQuery = searchParams.get('tab');
@@ -255,6 +254,7 @@ function AdminStudioContent() {
   // Toast (08/11/2026): báo tạo/sửa/xóa thành công và lỗi, thay cho dòng chữ inline (bị popup che mất).
   const [toasts, setToasts] = useState<{ id: number; kind: 'success' | 'error'; message: string }[]>([]);
   const toastId = useRef(0);
+  const editingCourseIdRef = useRef<string | null>(null);
   const showToast = (kind: 'success' | 'error', message: string) => {
     const id = ++toastId.current;
     setToasts((items) => [...items, { id, kind, message }]);
@@ -303,6 +303,7 @@ function AdminStudioContent() {
   }, [authLoading, allowed, router]);
 
   const resetCreateForm = () => {
+    editingCourseIdRef.current = null;
     setEditing(null);
     setHasProject(false);
     setSelectedTopicIds([]);
@@ -345,20 +346,6 @@ function AdminStudioContent() {
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = previousOverflow; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anyModalOpen]);
-
-  const switchTab = (nextTab: Tab) => {
-    setTab(nextTab);
-    resetCreateForm();
-    setError('');
-    setNotice('');
-    if (nextTab === 'reviews') void loadReviews(courseId, 1);
-    if (nextTab === 'quizzes') void loadTopicQuizzes(quizTopicId, 1);
-    const params = new URLSearchParams(searchParams.toString());
-    if (params.get('tab') !== nextTab) {
-      params.set('tab', nextTab);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }
-  };
 
   useEffect(() => {
     const targetTab: Tab =
@@ -457,16 +444,27 @@ function AdminStudioContent() {
   };
 
   const editCourse = async (item: Course) => {
-    const detail = await request.get<Course>(`/course/${item.id}`);
-    setEditing(detail);
-    setHasProject(detail.hasProject);
-    setSelectedTopicIds(detail.topics?.map((link) => link.topic.id) || []);
+    editingCourseIdRef.current = item.id;
+    setEditing(item);
+    setHasProject(Boolean(item.hasProject));
+    setSelectedTopicIds(item.topics?.map((link) => link.topic.id) || []);
     setCoverFileName('');
     setProjectFileName('');
     setCourseModalOpen(true);
-    switchTab('courses');
     setError('');
     setNotice('');
+    try {
+      const detail = await request.get<Course>(`/course/${item.id}`);
+      if (editingCourseIdRef.current === item.id) {
+        setEditing(detail);
+        setHasProject(Boolean(detail.hasProject));
+        setSelectedTopicIds(detail.topics?.map((link) => link.topic.id) || []);
+      }
+    } catch (reason) {
+      if (editingCourseIdRef.current === item.id) {
+        showToast('error', reason instanceof Error ? reason.message : 'Không tải được chi tiết khóa học');
+      }
+    }
   };
 
   const remove = async () => {
@@ -500,6 +498,13 @@ function AdminStudioContent() {
     if (saving) return;
     setSaving(true); setError(''); setNotice('');
     const form = new FormData(event.currentTarget);
+    const name = String(form.get('name') || '').trim();
+    const slug = String(form.get('slug') || '').trim();
+    if (!name || !slug) {
+      showToast('error', 'Vui lòng nhập tên và slug khóa học.');
+      setSaving(false);
+      return;
+    }
     const projectTitle = String(form.get('projectTitle') || '').trim();
     const projectDescription = String(form.get('projectDescription') || '').trim();
     if (hasProject && (!projectTitle || !projectDescription)) {
@@ -508,9 +513,9 @@ function AdminStudioContent() {
       return;
     }
     const body: Record<string, unknown> = {
-      name: String(form.get('name')),
-      slug: String(form.get('slug')),
-      description: String(form.get('description') || ''),
+      name,
+      slug,
+      description: String(form.get('description') || '').trim(),
       hasProject,
       topicWeight: hasProject ? 50 : 100,
       projectWeight: hasProject ? 50 : 0,
@@ -810,7 +815,7 @@ function AdminStudioContent() {
           </div>
         </div>
         <label className="field"><span>Chủ đề</span><select value={quizTopicId} onChange={(event) => void loadTopicQuizzes(event.target.value, 1)}>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        {quizQuery.trim() && !shownQuizzes.length ? <div className="empty-state"><strong>Không tìm thấy câu hỏi</strong><p>Không có câu hỏi nào khớp với “{quizQuery.trim()}”.</p></div> : <div className="list">{shownQuizzes.map((item) => <div className="list-row" key={item.id}><div><strong>{item.quizCode}</strong><small>{item.content?.text || item.question}</small></div><div className="list-actions"><RowMenu label={item.quizCode} canEdit={allowUpdate} canDelete={allowDelete} onEdit={() => { setEditing(item); setQuizModalOpen(true); setError(''); setNotice(''); }} onDelete={() => setPendingDelete({ kind: 'quiz', id: item.id })} /></div></div>)}</div>}
+        {quizQuery.trim() && !shownQuizzes.length ? <div className="empty-state"><strong>Không tìm thấy câu hỏi</strong><p>Không có câu hỏi nào khớp với “{quizQuery.trim()}”.</p></div> : <div className="list">{shownQuizzes.map((item) => <div className="list-row" key={item.id}><div><strong>{item.quizCode}</strong><small>{item.content?.text || item.question}</small></div><div className="list-actions"><RowMenu label={item.quizCode} canEdit={allowUpdate} canDelete={allowDelete} onEdit={() => { setQuizImageFileName(''); setEditing(item); setQuizModalOpen(true); setError(''); setNotice(''); }} onDelete={() => setPendingDelete({ kind: 'quiz', id: item.id })} /></div></div>)}</div>}
         {quizQuery.trim() ? null : <PaginationNav {...quizPagination} onChange={(page) => void loadTopicQuizzes(quizTopicId, page)} />}
       </div> : null}
 
@@ -957,7 +962,7 @@ function AdminStudioContent() {
                     ) : null}
                   </section>
                 </div>
-                <div className="form-footer dialog-footer"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button>{editingCourse ? <button type="button" className="button secondary" onClick={closeCourseModal}>Hủy</button> : null}</div>
+                <div className="form-footer dialog-footer"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button><button type="button" className="button secondary" onClick={closeCourseModal}>Hủy</button></div>
               </form>
             ) : null}
           </div>
@@ -990,7 +995,7 @@ function AdminStudioContent() {
                     </div>
                   </section>
                 </div>
-                <div className="form-footer dialog-footer"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button>{editingTopic ? <button type="button" className="button secondary" onClick={closeTopicModal}>Hủy</button> : null}</div>
+                <div className="form-footer dialog-footer"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button><button type="button" className="button secondary" onClick={closeTopicModal}>Hủy</button></div>
               </form>
             ) : null}
           </div>
@@ -1031,7 +1036,7 @@ function AdminStudioContent() {
                     <label className="field"><span>Giải thích</span><textarea name="explanation" defaultValue={editingQuiz?.explanation || ''} /></label>
                   </section>
                 </div>
-                <div className="form-footer dialog-footer"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button>{editingQuiz ? <button type="button" className="button secondary" onClick={closeQuizModal}>Hủy</button> : null}</div>
+                <div className="form-footer dialog-footer"><button className="button" disabled={saving}><FloppyDisk /> {saving ? 'Đang lưu…' : 'Lưu'}</button><button type="button" className="button secondary" onClick={closeQuizModal}>Hủy</button></div>
               </form>
             ) : null}
           </div>

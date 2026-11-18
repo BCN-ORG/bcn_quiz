@@ -211,14 +211,87 @@ body.quiz-playing .page-content {
 .form .field .required { color: var(--danger); }
 .form-subsection { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--accent-soft); }
 .form-subsection-title { margin: 0; font-size: 14px; font-weight: 700; }
-.file-picker { position: relative; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 8px 12px; border: 1.5px dashed var(--line); border-radius: 11px; background: var(--bg); cursor: pointer; }
-.file-picker:hover { border-color: var(--accent); }
-.file-picker input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
-.file-picker-button { flex-shrink: 0; padding: 6px 12px; border-radius: 8px; background: var(--surface-2); font-size: 13px; font-weight: 700; }
-.file-picker-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
-.form-footer { display: flex; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
-.form-footer .button { flex: 1; justify-content: center; }
-.form-footer .button.secondary { flex: 0 0 auto; }
+.file-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.file-picker:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg));
+}
+.file-picker:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--line-glow);
+}
+.file-picker input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  pointer-events: none;
+}
+.file-picker-button {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.file-picker:hover .file-picker-button {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.file-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.form-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.form-footer .button {
+  flex: 1;
+  min-width: 120px;
+  justify-content: center;
+}
+.form-footer .button.secondary {
+  flex: 0 0 auto;
+  min-width: 90px;
+}
+.button-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
 /* Danh sách chọn chủ đề: tên và slug xếp 2 dòng, không cắt chữ. */
 .admin-grid .form .choice-list label { align-items: flex-start; padding: 8px 10px; }
 .admin-grid .form .choice-list label input { flex-shrink: 0; margin-top: 3px; }
@@ -233,14 +306,71 @@ body.quiz-playing .page-content {
 
 /* Popup tạo/sửa khóa học (08/11/2026): form dài nên đưa vào popup, nút Tạo nằm trên danh sách. */
 .section-title-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.dialog-wide { width: min(640px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-.dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 22px 0; }
-.dialog-header h2 { margin: 0; font-size: 20px; }
-.dialog-form { display: flex; flex-direction: column; gap: 0; min-height: 0; flex: 1; }
-.dialog-body { display: grid; gap: 16px; overflow-y: auto; padding: 16px 22px; }
-.dialog-footer { display: flex; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--line); }
-.dialog-footer .button { flex: 1; justify-content: center; }
-.dialog-footer .button.secondary { flex: 0 0 auto; }
+.dialog-wide {
+  width: min(640px, 100%);
+  max-height: min(90dvh, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  margin: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28), var(--shadow);
+}
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+  background: var(--surface);
+}
+.dialog-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 750;
+  color: var(--text);
+}
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.dialog-body {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 20px 22px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.dialog-footer .button {
+  flex: 0 0 auto;
+  min-width: 100px;
+  justify-content: center;
+}
+.dialog-footer .button.secondary {
+  flex: 0 0 auto;
+}
+.dialog-footer .button:only-child {
+  margin-left: auto;
+}
 /* Trong popup rộng: danh sách chủ đề chia 2 cột cho gọn. */
 .dialog-wide .choice-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 /* Trong popup: 2 ô cạnh nhau không kéo giãn theo ô cao hơn (vd Slug có gợi ý) — 2 input cao bằng nhau. */
@@ -281,48 +411,83 @@ body.quiz-playing .page-content {
 /* Menu ⋮ ở mỗi dòng (Figma Action Menu), chỉ Sửa/Xóa */
 .row-menu {
   position: relative;
+  display: inline-flex;
+}
+
+.row-menu:focus-within,
+.row-menu:has(.row-menu-panel) {
+  z-index: 95;
+}
+
+/* Ensure parent row / cell establishes stacking context above succeeding sibling rows when menu is open */
+.list-row:has(.row-menu-panel),
+tr:has(.row-menu-panel),
+td:has(.row-menu-panel) {
+  position: relative;
+  z-index: 15;
 }
 
 .row-menu-panel {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
-  z-index: 30;
-  min-width: 150px;
+  z-index: 95;
+  min-width: 160px;
+  max-width: calc(100vw - 32px);
+  max-height: min(320px, calc(100vh - 120px));
+  overflow-y: auto;
   display: grid;
+  gap: 3px;
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22), var(--shadow);
+  animation: dialog-fade-in .12s ease-out;
 }
 
 .row-menu-panel button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  padding: 10px 12px;
+  min-height: 40px;
+  padding: 9px 14px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--text);
   text-align: left;
   font: inherit;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1.4;
   cursor: pointer;
+  transition: background .15s ease, color .15s ease, transform .1s ease;
+  user-select: none;
 }
 
 .row-menu-panel button:hover {
   background: var(--surface-2);
 }
 
+.row-menu-panel button:active {
+  background: var(--surface-3);
+  transform: scale(.98);
+}
+
 .row-menu-panel button.danger {
   color: var(--danger);
+}
+
+.row-menu-panel button.danger:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 .row-menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 25;
+  z-index: 90;
   border: 0;
   background: transparent;
   cursor: default;
@@ -386,7 +551,7 @@ body.quiz-playing .page-content {
 }
 
 /* Toast Quản trị (08/11/2026): báo tạo/sửa/xóa thành công và lỗi, góc phải dưới, tự tắt sau 4,5 giây. */
-.admin-toasts { position: fixed; right: 22px; bottom: 22px; z-index: 60; display: grid; gap: 10px; width: min(360px, calc(100vw - 32px)); }
+.admin-toasts { position: fixed; right: 22px; bottom: 22px; z-index: 120; display: grid; gap: 10px; width: min(360px, calc(100vw - 32px)); }
 .admin-toast { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: left; cursor: pointer; font-size: 14px; line-height: 1.45; }
 .admin-toast svg { width: 22px; height: 22px; margin-top: 1px; }
 .admin-toast-success { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
@@ -395,12 +560,13 @@ body.quiz-playing .page-content {
 .admin-toast-error svg { color: var(--danger); }
 
 /* Thanh tìm kiếm Quản trị (08/11/2026): dùng đúng chuẩn form của app (class .search-input: cao 46px, bo 11px, viền line, nền bg), chỉ chừa chỗ cho icon kính lúp bên trái. */
-.admin-search { position: relative; display: block; }
-.admin-search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
-.admin-search input { padding-left: 42px; }
+.admin-search { position: relative; display: flex; align-items: center; width: 100%; }
+.admin-search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); pointer-events: none; transition: color .18s ease; }
+.admin-search:focus-within svg { color: var(--accent); }
+.admin-search input { width: 100%; padding-left: 42px; }
 /* Ô tìm gọn trong hàng tiêu đề, nằm bên trái nút Tạo (08/11/2026, theo ý anh). */
 .panel.section .section-title { flex-wrap: wrap; }
-.admin-search-compact { width: 240px; flex: none; }
+.admin-search-compact { width: 260px; flex: none; }
 @media (max-width: 680px) {
   .admin-search-compact { width: 100%; }
 }
@@ -7410,6 +7576,97 @@ body.boss-arena-mode {
   background: var(--surface);
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme='dark'] .row-menu-panel {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme='dark'] .row-menu-panel button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+:root[data-theme='dark'] .row-menu-panel button.danger:hover {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--danger);
+}
+
+:root[data-theme='dark'] .file-picker {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+
+:root[data-theme='dark'] .file-picker:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+}
+
+:root[data-theme='dark'] .file-picker-button {
+  background: var(--surface-3);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+:root[data-theme='dark'] .file-picker:hover .file-picker-button {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface-2);
+}
+
+:root[data-theme='dark'] .dialog-wide {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .dialog-header,
+:root[data-theme='dark'] .dialog-footer {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+/* Dialog & Form Mobile Polishing */
+@media (max-width: 640px) {
+  .dialog-wide {
+    max-height: calc(100dvh - 24px);
+    border-radius: 14px;
+    margin: auto 8px;
+  }
+
+  .dialog-header {
+    padding: 16px 18px;
+  }
+
+  .dialog-body {
+    padding: 16px 18px;
+    gap: 14px;
+  }
+
+  .dialog-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+    padding: 14px 18px;
+  }
+
+  .dialog-footer .button,
+  .dialog-footer .button.secondary {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .form-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .form-footer .button,
+  .form-footer .button.secondary {
+    width: 100%;
+    flex: 1 1 auto;
+  }
 }
 
 /* 9. Mobile Responsiveness */

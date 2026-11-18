@@ -269,10 +269,10 @@ export function AdminBounties() {
 
       {/* Sub-navigation Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             type="button"
-            className={`button ${activeSection === 'reviews' ? 'primary' : 'secondary'}`}
+            className={`button ${activeSection === 'reviews' ? '' : 'secondary'}`}
             onClick={() => setActiveSection('reviews')}
           >
             <CheckCircle size={18} weight="bold" />
@@ -280,7 +280,7 @@ export function AdminBounties() {
           </button>
           <button
             type="button"
-            className={`button ${activeSection === 'list' ? 'primary' : 'secondary'}`}
+            className={`button ${activeSection === 'list' ? '' : 'secondary'}`}
             onClick={() => setActiveSection('list')}
           >
             <Briefcase size={18} weight="bold" />
@@ -314,7 +314,7 @@ export function AdminBounties() {
             </div>
 
             {/* Filter pills */}
-            <div style={{ display: 'flex', gap: '0.375rem' }}>
+            <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
               {(['SUBMITTED', 'APPROVED', 'REJECTED', 'ALL'] as const).map((st) => (
                 <button
                   key={st}
@@ -391,7 +391,7 @@ export function AdminBounties() {
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <span
                             className={`status ${
                               sub.status === 'APPROVED'
@@ -407,7 +407,7 @@ export function AdminBounties() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                             <span style={{ color: 'var(--warning)' }}>+{sub.bounty.rewardCoins} Coin</span>
                             <span>•</span>
-                            <span style={{ color: '#6366f1' }}>+{sub.bounty.rewardXp} XP</span>
+                            <span style={{ color: 'var(--accent-strong)' }}>+{sub.bounty.rewardXp} XP</span>
                           </div>
                         </div>
                       </div>
@@ -464,7 +464,7 @@ export function AdminBounties() {
                             }}
                           />
 
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
                             <button
                               type="button"
                               className="button danger"
@@ -515,7 +515,7 @@ export function AdminBounties() {
               </small>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.375rem' }}>
+            <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
               {(['ALL', 'OPEN', 'CLOSED'] as const).map((st) => (
                 <button
                   key={st}
@@ -544,7 +544,7 @@ export function AdminBounties() {
             <Empty title="Chưa có nhiệm vụ nào" description="Hãy tạo một nhiệm vụ mới để học viên có thể nhận job!" />
           ) : (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '1rem' }}>
                 {displayedBounties.map((b) => {
                   const IconComponent = CATEGORY_ICONS[b.category] || Briefcase;
                   const isOpen = b.status === 'OPEN';
@@ -615,7 +615,7 @@ export function AdminBounties() {
 
                           <div style={{ display: 'flex', gap: '0.5rem', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
                             <span style={{ color: 'var(--warning)' }}>+{b.rewardCoins} Coin</span>
-                            <span style={{ color: '#6366f1' }}>+{b.rewardXp} XP</span>
+                            <span style={{ color: 'var(--accent-strong)' }}>+{b.rewardXp} XP</span>
                           </div>
                         </div>
                       </div>
@@ -666,7 +666,7 @@ export function AdminBounties() {
         <div className="bounty-modal-backdrop" onClick={() => setCreateModalOpen(false)}>
           <div
             className="bounty-modal-card"
-            style={{ maxWidth: '42rem' }}
+            style={{ maxWidth: '42rem', maxHeight: '90vh', overflowY: 'auto' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bounty-modal-header">
@@ -681,8 +681,8 @@ export function AdminBounties() {
             </div>
 
             <form onSubmit={handleCreateBounty} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
-                <div style={{ gridColumn: 'span 2' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '0.75rem' }}>
+                <div style={{ gridColumn: '1 / -1' }}>
                   <label className="bounty-field-label">Tiêu đề nhiệm vụ *</label>
                   <input
                     type="text"
@@ -694,7 +694,7 @@ export function AdminBounties() {
                   />
                 </div>
 
-                <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ gridColumn: '1 / -1' }}>
                   <label className="bounty-field-label">Mô tả yêu cầu dự án *</label>
                   <textarea
                     rows={3}
@@ -806,7 +806,7 @@ export function AdminBounties() {
                   />
                 </div>
 
-                <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ gridColumn: '1 / -1' }}>
                   <label className="bounty-field-label">Lời nhắn từ Khách Hàng (Client Quote)</label>
                   <input
                     type="text"
@@ -818,7 +818,7 @@ export function AdminBounties() {
                 </div>
 
                 {/* Tasks checklist builder */}
-                <div style={{ gridColumn: 'span 2', background: 'var(--surface-2)', padding: '0.875rem', borderRadius: '0.75rem' }}>
+                <div style={{ gridColumn: '1 / -1', background: 'var(--surface-2)', padding: '0.875rem', borderRadius: '0.75rem' }}>
                   <label className="bounty-field-label" style={{ marginBottom: '0.5rem' }}>
                     Checklist tiêu chuẩn nghiệm thu ({formTasks.length} mục)
                   </label>
@@ -826,11 +826,12 @@ export function AdminBounties() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '0.5rem' }}>
                     {formTasks.map((t, idx) => (
                       <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', background: 'var(--surface)', padding: '0.375rem 0.625rem', borderRadius: '6px', fontSize: '12px' }}>
-                        <span>• {t}</span>
+                        <span style={{ wordBreak: 'break-word', flex: 1 }}>• {t}</span>
                         <button
                           type="button"
+                          aria-label={`Xoá tiêu chuẩn ${idx + 1}`}
                           onClick={() => handleRemoveTask(idx)}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', flexShrink: 0, padding: '2px' }}
                         >
                           <X size={14} />
                         </button>
