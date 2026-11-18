@@ -1,7 +1,8 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Prisma, XpSourceType } from '@prisma/client';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { CoinRewardSource, Prisma, XpSourceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { XpService } from '../xp/xp.service';
+import { CoinTrackingService } from '../coin/coin-tracking.service';
 import {
   BOUNTY_COIN_SERVICE_PROVIDER,
   type BountyCoinServiceProvider,
@@ -16,6 +17,8 @@ export class BountyRewardService {
     private readonly xpService: XpService,
     @Inject(BOUNTY_COIN_SERVICE_PROVIDER)
     private readonly coinProvider: BountyCoinServiceProvider,
+    @Optional()
+    private readonly coinTrackingService?: CoinTrackingService,
   ) {}
 
   generateIdempotencyKey(assignmentId: string): string {
@@ -79,11 +82,37 @@ export class BountyRewardService {
           },
         });
 
+    if (this.coinTrackingService) {
+      await this.coinTrackingService
+        .recordPending({
+          userId,
+          amount: rewardCoins,
+          source: CoinRewardSource.BOUNTY,
+          reason: bountyDetails?.title
+            ? `Nhiệm vụ: ${bountyDetails.title}`
+            : 'Hoàn thành nhiệm vụ Bounty',
+          referenceId: assignmentId,
+          idempotencyKey,
+          requestPayload: payload,
+        })
+        .catch((e) =>
+          this.logger.warn(`Failed to track pending bounty coin tx: ${e.message}`),
+        );
+    }
+
     // 3. Call coin provider
     try {
       const response = await this.coinProvider.creditReward(payload);
 
       if (response.success && response.status === 'SUCCESS') {
+        if (this.coinTrackingService) {
+          await this.coinTrackingService
+            .recordSuccess(idempotencyKey, response.externalTxId, response)
+            .catch((e) =>
+              this.logger.warn(`Failed to track success bounty coin tx: ${e.message}`),
+            );
+        }
+
         // Award XP
         await this.xpService.award(
           userId,
@@ -108,6 +137,18 @@ export class BountyRewardService {
         );
         return completed;
       } else {
+        if (this.coinTrackingService) {
+          await this.coinTrackingService
+            .recordFailed(
+              idempotencyKey,
+              response.errorMessage || 'Coin provider rejected reward',
+              response,
+            )
+            .catch((e) =>
+              this.logger.warn(`Failed to track failed bounty coin tx: ${e.message}`),
+            );
+        }
+
         return await this.prisma.bountyRewardTransaction.update({
           where: { id: txRecord.id },
           data: {
@@ -123,11 +164,21 @@ export class BountyRewardService {
       this.logger.error(
         `[BountyRewardService] Error crediting coins for assignment ${assignmentId}: ${msg}`,
       );
+
+      if (this.coinTrackingService) {
+        await this.coinTrackingService
+          .recordUnknown(idempotencyKey, msg)
+          .catch((e) =>
+            this.logger.warn(`Failed to track unknown bounty coin tx: ${e.message}`),
+          );
+      }
+
       return await this.prisma.bountyRewardTransaction.update({
         where: { id: txRecord.id },
         data: {
-          status: 'FAILED',
+          status: 'UNKNOWN',
           errorMessage: msg,
+          retryCount: { increment: 1 },
         },
       });
     }

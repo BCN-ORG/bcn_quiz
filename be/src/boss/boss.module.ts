@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ProfilesModule } from '../profiles/profiles.module';
 import { XpModule } from '../xp/xp.module';
+import { CoinModule } from '../coin/coin.module';
 import { BossController } from './boss.controller';
 import { BossAdminService } from './boss-admin.service';
 import { BossLiveService } from './boss-live.service';
@@ -12,7 +13,7 @@ import { BOSS_COIN_SERVICE_PROVIDER } from './coin/coin-provider.interface';
 import { MockBossCoinProvider } from './coin/mock-boss-coin.provider';
 
 @Module({
-  imports: [PrismaModule, ProfilesModule, XpModule],
+  imports: [PrismaModule, ProfilesModule, XpModule, CoinModule],
   controllers: [BossController],
   providers: [
     BossService,

@@ -14,6 +14,7 @@ import {
   Folders,
   MagnifyingGlass,
   Plus,
+  Receipt,
   Stack,
   Sword,
   Trophy,
@@ -40,6 +41,7 @@ import { AdminLeaderboard } from '@/components/admin-leaderboard';
 import { AdminBoss } from '@/components/admin-boss';
 import { AdminBounties } from '@/components/admin-bounties';
 import { AdminTower } from '@/components/admin-tower';
+import { AdminCoins } from '@/components/admin-coins';
 import {
   canCreateContent,
   canDeleteContent,
@@ -57,7 +59,8 @@ type Tab =
   | 'leaderboards'
   | 'tower'
   | 'boss'
-  | 'bounties';
+  | 'bounties'
+  | 'coins';
 
 const TAB_KEYS: readonly Tab[] = [
   'courses',
@@ -69,6 +72,7 @@ const TAB_KEYS: readonly Tab[] = [
   'tower',
   'boss',
   'bounties',
+  'coins',
 ];
 
 interface ModuleConfig {
@@ -160,6 +164,13 @@ const ADMIN_CATEGORIES: CategoryConfig[] = [
         label: 'Nhiệm vụ Freelancer',
         description: 'Duyệt nhiệm vụ, trả thưởng & bảng xếp hạng',
         icon: Coins,
+        requiresUpdate: true,
+      },
+      {
+        id: 'coins',
+        label: 'Giao dịch Coin',
+        description: 'Theo dõi, đối soát và lịch sử trả thưởng Coin',
+        icon: Receipt,
         requiresUpdate: true,
       },
     ],
@@ -780,6 +791,7 @@ function AdminStudioContent() {
       {tab === 'certificates' && allowUpdate ? <AdminCertificates /> : null}
       {tab === 'bounties' && allowUpdate ? <AdminBounties /> : null}
       {tab === 'tower' && allowUpdate ? <AdminTower /> : null}
+      {tab === 'coins' && allowUpdate ? <AdminCoins /> : null}
       {error ? <p className="form-error" style={{ marginTop: 16 }} role="alert">{error}</p> : null}
       {notice ? <p className="form-success" style={{ marginTop: 16 }} role="status">{notice}</p> : null}
 

@@ -1,6 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { CoinRewardSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CoinTrackingService } from '../../coin/coin-tracking.service';
 import {
   BOSS_COIN_SERVICE_PROVIDER,
   type BossCoinServiceProvider,
@@ -14,6 +15,8 @@ export class BossCoinService {
     private readonly prisma: PrismaService,
     @Inject(BOSS_COIN_SERVICE_PROVIDER)
     private readonly coinProvider: BossCoinServiceProvider,
+    @Optional()
+    private readonly coinTrackingService?: CoinTrackingService,
   ) {}
 
   generateIdempotencyKey(
@@ -131,9 +134,48 @@ export class BossCoinService {
 
     if (!transaction) return null;
 
+    if (this.coinTrackingService) {
+      await this.coinTrackingService
+        .recordPending({
+          userId,
+          amount: rewardCoins,
+          source: CoinRewardSource.BOSS,
+          reason: milestoneName
+            ? `Đạt mốc ${milestoneIndex}: ${milestoneName} Boss Chiến (${milestoneAt} điểm)`
+            : `Đạt mốc ${milestoneIndex} Boss Chiến (${milestoneAt} điểm)`,
+          referenceId: String(milestoneIndex),
+          seasonId,
+          idempotencyKey,
+          requestPayload,
+        })
+        .catch((e) =>
+          this.logger.warn(`Failed to track pending boss coin tx: ${e.message}`),
+        );
+    }
+
     // 3. Invoke external Coin API
     try {
       const response = await this.coinProvider.creditReward(requestPayload);
+
+      if (this.coinTrackingService) {
+        if (response.status === 'SUCCESS') {
+          await this.coinTrackingService
+            .recordSuccess(idempotencyKey, response.externalTxId, response)
+            .catch((e) =>
+              this.logger.warn(`Failed to track success boss coin tx: ${e.message}`),
+            );
+        } else if (response.status === 'FAILED') {
+          await this.coinTrackingService
+            .recordFailed(
+              idempotencyKey,
+              response.errorMessage || 'Provider rejected credit',
+              response,
+            )
+            .catch((e) =>
+              this.logger.warn(`Failed to track failed boss coin tx: ${e.message}`),
+            );
+        }
+      }
 
       return await this.prisma.bossRewardTransaction.update({
         where: { id: transaction.id },
@@ -150,6 +192,14 @@ export class BossCoinService {
       this.logger.error(
         `[BossCoinService] Coin provider call failed ambiguously for ${idempotencyKey}: ${errorMsg}`,
       );
+
+      if (this.coinTrackingService) {
+        await this.coinTrackingService
+          .recordUnknown(idempotencyKey, errorMsg)
+          .catch((e) =>
+            this.logger.warn(`Failed to track unknown boss coin tx: ${e.message}`),
+          );
+      }
 
       // On ambiguous error (timeout, network drop), mark UNKNOWN so reconciliation handles it safely
       return await this.prisma.bossRewardTransaction.update({

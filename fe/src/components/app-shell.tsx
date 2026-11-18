@@ -25,6 +25,7 @@ import {
   Moon,
   GearSix,
   Plus,
+  Receipt,
   Sun,
   X,
 } from '@phosphor-icons/react';
@@ -104,6 +105,7 @@ const navGroups: NavGroup[] = [
       { href: '/admin?tab=tower', label: 'Tháp & Question Pool', icon: Stack, allow: canUpdateContent },
       { href: '/admin?tab=boss', label: 'Sự kiện Boss', icon: Sword, allow: canUpdateContent },
       { href: '/admin?tab=bounties', label: 'Nhiệm vụ Freelancer', icon: Coins, allow: canUpdateContent },
+      { href: '/admin?tab=coins', label: 'Giao dịch Coin', icon: Receipt, allow: canUpdateContent },
     ],
   },
 ];

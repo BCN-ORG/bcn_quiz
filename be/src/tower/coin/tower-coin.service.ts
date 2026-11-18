@@ -1,6 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { CoinRewardSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CoinTrackingService } from '../../coin/coin-tracking.service';
 import {
   COIN_SERVICE_PROVIDER,
   type CoinServiceProvider,
@@ -14,6 +15,8 @@ export class TowerCoinService {
     private readonly prisma: PrismaService,
     @Inject(COIN_SERVICE_PROVIDER)
     private readonly coinProvider: CoinServiceProvider,
+    @Optional()
+    private readonly coinTrackingService?: CoinTrackingService,
   ) {}
 
   /**
@@ -110,11 +113,35 @@ export class TowerCoinService {
       throw new Error('Failed to initialize tower reward transaction');
     }
 
+    if (this.coinTrackingService) {
+      await this.coinTrackingService
+        .recordPending({
+          userId,
+          amount: 1,
+          source: CoinRewardSource.TOWER,
+          reason: `Hoàn thành tầng ${floor} Tháp Tri Thức`,
+          referenceId: String(floor),
+          seasonId,
+          idempotencyKey,
+          requestPayload,
+        })
+        .catch((e) =>
+          this.logger.warn(`Failed to track pending coin tx: ${e.message}`),
+        );
+    }
+
     // 3. Dispatch to External Coin Provider
     try {
       const response = await this.coinProvider.creditReward(requestPayload);
 
       if (response.status === 'SUCCESS') {
+        if (this.coinTrackingService) {
+          await this.coinTrackingService
+            .recordSuccess(idempotencyKey, response.externalTxId, response)
+            .catch((e) =>
+              this.logger.warn(`Failed to track success coin tx: ${e.message}`),
+            );
+        }
         return await this.prisma.towerRewardTransaction.update({
           where: { id: transaction.id },
           data: {
@@ -125,6 +152,17 @@ export class TowerCoinService {
           },
         });
       } else if (response.status === 'FAILED') {
+        if (this.coinTrackingService) {
+          await this.coinTrackingService
+            .recordFailed(
+              idempotencyKey,
+              response.errorMessage || 'Provider rejected credit',
+              response,
+            )
+            .catch((e) =>
+              this.logger.warn(`Failed to track failed coin tx: ${e.message}`),
+            );
+        }
         return await this.prisma.towerRewardTransaction.update({
           where: { id: transaction.id },
           data: {
@@ -152,6 +190,14 @@ export class TowerCoinService {
       this.logger.error(
         `[TowerCoinService] Coin provider call failed ambiguously for ${idempotencyKey}: ${errMsg}`,
       );
+
+      if (this.coinTrackingService) {
+        await this.coinTrackingService
+          .recordUnknown(idempotencyKey, errMsg)
+          .catch((e) =>
+            this.logger.warn(`Failed to track unknown coin tx: ${e.message}`),
+          );
+      }
 
       return await this.prisma.towerRewardTransaction.update({
         where: { id: transaction.id },

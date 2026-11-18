@@ -761,6 +761,7 @@ enum BountyRewardStatus {
   PENDING
   COMPLETED
   FAILED
+  UNKNOWN
 }
 
 model Bounty {
@@ -842,4 +843,47 @@ model BountyRewardTransaction {
   @@index([status, retryCount, createdAt])
   @@map("bounty_reward_transactions")
 }
+
+enum CoinRewardSource {
+  TOWER
+  BOSS
+  BOUNTY
+  LEADERBOARD
+  OTHER
+}
+
+enum CoinTransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  UNKNOWN
+}
+
+model CoinTransaction {
+  id                    String                @id @default(cuid())
+  userId                String
+  username              String?
+  amount                Int
+  source                CoinRewardSource
+  reason                String?
+  referenceId           String?
+  seasonId              String?
+  idempotencyKey        String                @unique
+  externalTxId          String?
+  status                CoinTransactionStatus @default(PENDING)
+  requestPayload        Json?
+  responsePayload       Json?
+  retryCount            Int                   @default(0)
+  errorMessage          String?
+  reconciliationHistory Json?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  processedAt           DateTime?
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([source, createdAt])
+  @@map("coin_transactions")
+}
+
 
