@@ -886,4 +886,51 @@ model CoinTransaction {
   @@map("coin_transactions")
 }
 
+enum MockWalletTxType {
+  RECEIVED
+  SENT
+  REWARD
+  SYNC_ADJUSTMENT
+}
+
+enum MockWalletTxStatus {
+  SUCCESS
+  PENDING
+  FAILED
+}
+
+model MockWallet {
+  id           String                    @id @default(cuid())
+  userId       String                    @unique
+  balance      Int                       @default(100)
+  lastSyncedAt DateTime                  @default(now())
+  syncStatus   String                    @default("SYNCED")
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  transactions MockWalletTransaction[]
+
+  @@map("mock_wallets")
+}
+
+model MockWalletTransaction {
+  id                String             @id @default(cuid())
+  reference         String             @unique
+  walletId          String
+  userId            String
+  type              MockWalletTxType
+  amount            Int
+  status            MockWalletTxStatus
+  counterpartUserId String?
+  counterpartName   String?
+  description       String
+  idempotencyKey    String?            @unique
+  createdAt         DateTime           @default(now())
+
+  wallet            MockWallet         @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([walletId, createdAt])
+  @@map("mock_wallet_transactions")
+}
+
 

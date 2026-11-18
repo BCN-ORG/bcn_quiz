@@ -27,6 +27,7 @@ import {
   Plus,
   Receipt,
   Sun,
+  Wallet,
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
@@ -61,12 +62,20 @@ type NavGroup = {
   items: NavItem[];
 };
 
-const directLink: NavItem = {
-  href: '/dashboard',
-  label: 'Tổng quan',
-  icon: Gauge,
-  allow: () => true,
-};
+const primaryLinks: NavItem[] = [
+  {
+    href: '/dashboard',
+    label: 'Tổng quan',
+    icon: Gauge,
+    allow: () => true,
+  },
+  {
+    href: '/wallet',
+    label: 'Ví Coin',
+    icon: Wallet,
+    allow: () => true,
+  },
+];
 
 const navGroups: NavGroup[] = [
   {
@@ -248,7 +257,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     .filter((g) => g.items.length > 0);
 
   const bottomNavItems = [
-    directLink,
+    ...primaryLinks,
     ...navGroups
       .filter((g) => g.key !== 'admin')
       .flatMap((g) => (g.allow ? (g.allow(user) ? g.items : []) : g.items)),
@@ -275,16 +284,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button className="icon-button mobile-only" onClick={() => setMenu(false)} aria-label="Đóng menu"><X /></button>
         </div>
         <nav aria-label="Điều hướng chính">
-          <Link
-            href={directLink.href}
-            onClick={() => setMenu(false)}
-            className={`nav-direct-item ${isItemActive(pathname, directLink.href, currentTab) ? 'active' : ''}`}
-            title={directLink.label}
-            aria-label={directLink.label}
-          >
-            <directLink.icon aria-hidden="true" />
-            <span>{directLink.label}</span>
-          </Link>
+          {primaryLinks.map((item) => {
+            const ItemIcon = item.icon;
+            const active = isItemActive(pathname, item.href, currentTab);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMenu(false)}
+                className={`nav-direct-item ${active ? 'active' : ''}`}
+                title={item.label}
+                aria-label={item.label}
+              >
+                <ItemIcon aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
 
           {visibleGroups.map((group) => {
             const GroupIcon = group.icon;

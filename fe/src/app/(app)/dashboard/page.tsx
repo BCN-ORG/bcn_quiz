@@ -21,9 +21,12 @@ import {
   Sword,
   Target,
   Trophy,
+  PaperPlaneTilt,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { TransferModal } from '@/components/wallet/transfer-modal';
+import { walletApi, type WalletBalance } from '@/lib/wallet';
 import {
   LeaderboardPlayer,
   RankBadge,
@@ -167,6 +170,8 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<TowerRewardTransactionItem[]>([]);
   const [weeklyBoard, setWeeklyBoard] = useState<WeeklyLeaderboardSummary | null>(null);
   const [xp, setXp] = useState<XpMe | null>(null);
+  const [wallet, setWallet] = useState<WalletBalance | null>(null);
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -175,7 +180,7 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const [progress, catalog, certs, sessionList, towerData, txList, weeklyData, xpData, bossData] =
+      const [progress, catalog, certs, sessionList, towerData, txList, weeklyData, xpData, bossData, walletData] =
         await Promise.all([
           canReadQuestions(user)
             ? request.get<Pagination<CourseProgress>>('/course/progress/me?limit=12')
@@ -209,6 +214,7 @@ export default function DashboardPage() {
           request.get<WeeklyLeaderboardSummary>('/leaderboards/weekly?page=1&limit=5').catch(() => null),
           xpApi.getMe().catch(() => null),
           bossApi.getOverview().catch(() => null),
+          walletApi.getBalance().catch(() => null),
         ]);
 
       setCourses(progress.items);
@@ -221,6 +227,7 @@ export default function DashboardPage() {
       setTransactions(txList);
       setWeeklyBoard(weeklyData);
       setXp(xpData);
+      setWallet(walletData);
 
       if (towerData?.progress.isCooldownActive && towerData.progress.cooldownRemainingSeconds > 0) {
         setCooldownRemaining(towerData.progress.cooldownRemainingSeconds);
@@ -320,16 +327,18 @@ export default function DashboardPage() {
   const isCooldownActive = cooldownRemaining > 0;
   const activeAttempt = towerOverview?.activeAttempt ?? null;
 
-  // Tổng Coin thật từ giao dịch SUCCESS
+  // Tổng Coin thật từ ví cá nhân hoặc giao dịch SUCCESS
   const successTxCoins = transactions
     .filter((tx) => tx.status === 'SUCCESS')
     .reduce((sum, tx) => sum + (tx.rewardCoins || 0), 0);
   const totalCoins =
-    transactions.length > 0
-      ? successTxCoins > 0
-        ? successTxCoins
-        : highestCompletedFloor
-      : highestCompletedFloor;
+    typeof wallet?.balance === 'number'
+      ? wallet.balance
+      : transactions.length > 0
+        ? successTxCoins > 0
+          ? successTxCoins
+          : highestCompletedFloor
+        : highestCompletedFloor;
 
   // Ngày hoạt động thực tế theo múi giờ Việt Nam (UTC+7)
   const nowMs = serverNow();
@@ -550,6 +559,44 @@ export default function DashboardPage() {
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===================================================================
+          SECTION: Coin Wallet Summary Card (Ví Coin của tôi)
+          =================================================================== */}
+      <section className="dashboard-wallet-section" aria-label="Ví Coin của tôi">
+        <div className="dashboard-wallet-card">
+          <div className="dashboard-wallet-main">
+            <div className="dashboard-wallet-icon-box" aria-hidden="true">
+              <Coins size={32} weight="fill" className="wallet-coin-icon-gold" />
+            </div>
+            <div className="dashboard-wallet-info">
+              <div className="dashboard-wallet-title-row">
+                <h3 className="dashboard-wallet-title">Ví Coin của tôi</h3>
+                <span className="wallet-mock-badge-sm">Môi trường Mock</span>
+              </div>
+              <div className="dashboard-wallet-balance-row">
+                <strong className="dashboard-wallet-amount">{totalCoins.toLocaleString('vi-VN')}</strong>
+                <span className="dashboard-wallet-unit">Coin khả dụng</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-wallet-actions">
+            <Link href="/wallet" className="button secondary dashboard-wallet-view-btn">
+              <span>Đến ví Coin</span>
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+            <button
+              type="button"
+              className="button primary dashboard-wallet-transfer-btn"
+              onClick={() => setIsTransferOpen(true)}
+            >
+              <PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />
+              <span>Chuyển Coin</span>
+            </button>
           </div>
         </div>
       </section>
@@ -1124,6 +1171,32 @@ export default function DashboardPage() {
           />
         )}
       </section>
+
+      {/* Modal Chuyển Coin trên Dashboard */}
+      {user ? (
+        <TransferModal
+          open={isTransferOpen}
+          onClose={() => setIsTransferOpen(false)}
+          currentBalance={totalCoins}
+          currentUser={user}
+          onSuccess={(result) => {
+            if (typeof result.balance === 'number') {
+              setWallet((prev) =>
+                prev
+                  ? { ...prev, balance: result.balance! }
+                  : {
+                      balance: result.balance!,
+                      lastSyncedAt: new Date().toISOString(),
+                      syncStatus: 'SYNCED',
+                      isMock: true,
+                    },
+              );
+            } else {
+              void load();
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }
