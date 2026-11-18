@@ -25,6 +25,8 @@ import {
   TowerRewardTransactionItem,
 } from '@/lib/tower';
 import { QuizTimer, type TimerTier } from '@/components/quiz-timer';
+import { CodeBlock, FormattedText } from '@/components/code-block';
+import { QuizImage } from '@/components/quiz-image';
 
 export default function TowerPage() {
   const [loading, setLoading] = useState(true);
@@ -391,28 +393,15 @@ export default function TowerPage() {
             </div>
 
             <h2 id="tower-question-text" style={{ overflowWrap: 'anywhere' }}>
-              {currentQuestion.question}
+              <FormattedText text={currentQuestion.question} />
             </h2>
 
             {currentQuestion.code ? (
-              <pre className="code-block">
-                <code>{currentQuestion.code}</code>
-              </pre>
+              <CodeBlock code={currentQuestion.code} />
             ) : null}
 
             {currentQuestion.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={currentQuestion.imageUrl}
-                alt="Minh họa cho câu hỏi"
-                style={{
-                  width: '100%',
-                  maxHeight: 420,
-                  objectFit: 'contain',
-                  borderRadius: 12,
-                  marginTop: 16,
-                }}
-              />
+              <QuizImage src={currentQuestion.imageUrl} alt="Minh họa cho câu hỏi" />
             ) : null}
 
             <div
@@ -449,7 +438,7 @@ export default function TowerPage() {
                       {opt.isCode ? (
                         <code className="tower-code-option">{opt.content}</code>
                       ) : (
-                        opt.content
+                        <FormattedText text={opt.content} />
                       )}
                     </span>
                     <span>
@@ -798,7 +787,11 @@ export default function TowerPage() {
                         <div className="review-explanation-header">
                           <Sparkle size={13} weight="fill" /> Giải thích câu hoàn thành
                         </div>
-                        <p className="review-explanation-text">{resultModal.explanation}</p>
+                        <FormattedText
+                          text={resultModal.explanation}
+                          as="p"
+                          className="review-explanation-text"
+                        />
                       </div>
                     </div>
                   ) : null}
@@ -884,7 +877,7 @@ export default function TowerPage() {
                       >
                         Câu hỏi vừa làm
                       </strong>
-                      <span>{relevantQuestion.question}</span>
+                      <span><FormattedText text={relevantQuestion.question} /></span>
                     </div>
                   ) : null}
 
@@ -898,9 +891,11 @@ export default function TowerPage() {
                           <div className="review-answer-content">
                             <span className="review-answer-label">{resultModal.correctAnswer}</span>
                             <span className="review-answer-text">
-                              {correctOption?.content && correctOption.content !== resultModal.correctAnswer
-                                ? correctOption.content
-                                : `Lựa chọn ${resultModal.correctAnswer}`}
+                              {correctOption?.content && correctOption.content !== resultModal.correctAnswer ? (
+                                <FormattedText text={correctOption.content} />
+                              ) : (
+                                `Lựa chọn ${resultModal.correctAnswer}`
+                              )}
                             </span>
                           </div>
                         </div>
@@ -915,7 +910,11 @@ export default function TowerPage() {
                           <div className="review-explanation-header">
                             <Sparkle size={13} weight="fill" /> Giải thích chi tiết
                           </div>
-                          <p className="review-explanation-text">{resultModal.explanation}</p>
+                          <FormattedText
+                            text={resultModal.explanation}
+                            as="p"
+                            className="review-explanation-text"
+                          />
                         </div>
                       ) : null}
                     </div>

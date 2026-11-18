@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Check, CheckCircle, Flag, ListChecks, PaperPlaneTilt, Target, Trophy } from '@phosphor-icons/react';
-import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CodeBlock, FormattedText } from '@/components/code-block';
+import { QuizImage } from '@/components/quiz-image';
 import { QuizReview } from '@/components/quiz-review';
 import { TopicClock } from '@/components/topic-clock';
 import { Empty, ErrorState, Loading, Status, ConfirmDialog } from '@/components/ui';
@@ -367,9 +368,9 @@ function TopicQuizPage() {
             {topic.endsAt ? <TopicClock endsAt={topic.endsAt} /> : null}
             <p className={`save-status ${failedSave ? 'is-error' : savingCount > 0 ? 'is-saving' : ''}`} role="status" aria-live="polite">{saveLabel}</p>
           </div>
-          <h2 id="question-text">{content.text}</h2>
-          {content.code ? <pre className="code-block"><code>{content.code}</code></pre> : null}
-          {content.image ? <Image src={content.image} alt="Minh họa cho câu hỏi" width={960} height={540} style={{ width: '100%', height: 'auto', borderRadius: 12 }} /> : null}
+          <h2 id="question-text"><FormattedText text={content.text} /></h2>
+          {content.code ? <CodeBlock code={content.code} /> : null}
+          {content.image ? <QuizImage src={content.image} alt="Minh họa cho câu hỏi" /> : null}
           <div className="answer-list" role="radiogroup" aria-labelledby="question-text">{optionsOf(quiz).map(([optionId, label, text], index, options) => {
             const selected = answers[quiz.id] === label;
             const tabbable = selected || (!answers[quiz.id] && index === 0);
@@ -394,7 +395,7 @@ function TopicQuizPage() {
                 onClick={() => choose(optionId, label)}
               >
                 <span>{label}</span>
-                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{text}</span>
+                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}><FormattedText text={text} /></span>
                 {selected ? <Check weight="bold" aria-hidden="true" /> : <span />}
               </button>
             );

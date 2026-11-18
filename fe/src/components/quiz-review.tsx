@@ -1,8 +1,9 @@
 'use client';
 
 import { ArrowLeft, ArrowRight, Check, X } from '@phosphor-icons/react';
-import Image from 'next/image';
 import { useState, type ReactNode } from 'react';
+import { CodeBlock, FormattedText } from '@/components/code-block';
+import { QuizImage } from '@/components/quiz-image';
 
 export type ReviewItem = {
   quizId: string;
@@ -42,16 +43,10 @@ export function QuizReview({
           {correct ? <Check size={14} weight="bold" /> : <X size={14} weight="bold" />}
           {correct ? 'Đúng' : blank ? 'Bỏ trống' : 'Sai'}
         </p>
-        <h1>{item.content.text}</h1>
-        {item.content.code ? <pre className="code-block"><code>{item.content.code}</code></pre> : null}
+        <h1><FormattedText text={item.content.text} /></h1>
+        {item.content.code ? <CodeBlock code={item.content.code} /> : null}
         {item.content.image ? (
-          <Image
-            src={item.content.image}
-            alt="Minh họa cho câu hỏi"
-            width={960}
-            height={540}
-            style={{ width: '100%', height: 'auto', borderRadius: 12 }}
-          />
+          <QuizImage src={item.content.image} alt="Minh họa cho câu hỏi" />
         ) : null}
         <div className="answer-list">
           {options.length ? options.map(([label, text]) => {
@@ -61,7 +56,7 @@ export function QuizReview({
             return (
               <div key={label} className={`answer review ${state}`}>
                 <span>{label}</span>
-                <span>{text}</span>
+                <span><FormattedText text={text} /></span>
               </div>
             );
           }) : (
@@ -72,7 +67,11 @@ export function QuizReview({
         </div>
         <div className="review-explain">
           <strong>Giải thích</strong>
-          <p>{item.explanation?.trim() || 'Câu này chưa có giải thích.'}</p>
+          {item.explanation?.trim() ? (
+            <FormattedText text={item.explanation.trim()} as="p" />
+          ) : (
+            <p>Câu này chưa có giải thích.</p>
+          )}
         </div>
         <div className="list-actions" style={{ justifyContent: 'space-between', marginTop: 24 }}>
           <button type="button" className="button secondary" disabled={current === 0} onClick={() => setCurrent((value) => value - 1)}>

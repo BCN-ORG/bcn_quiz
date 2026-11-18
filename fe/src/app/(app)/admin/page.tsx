@@ -22,6 +22,8 @@ import {
 } from '@phosphor-icons/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
+import { CodeBlock, FormattedText } from '@/components/code-block';
+import { QuizImage } from '@/components/quiz-image';
 import { Empty, ErrorState, Loading, PaginationNav, Status, ConfirmDialog } from '@/components/ui';
 import {
   ApiError,
@@ -815,7 +817,62 @@ function AdminStudioContent() {
           </div>
         </div>
         <label className="field"><span>Chủ đề</span><select value={quizTopicId} onChange={(event) => void loadTopicQuizzes(event.target.value, 1)}>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        {quizQuery.trim() && !shownQuizzes.length ? <div className="empty-state"><strong>Không tìm thấy câu hỏi</strong><p>Không có câu hỏi nào khớp với “{quizQuery.trim()}”.</p></div> : <div className="list">{shownQuizzes.map((item) => <div className="list-row" key={item.id}><div><strong>{item.quizCode}</strong><small>{item.content?.text || item.question}</small></div><div className="list-actions"><RowMenu label={item.quizCode} canEdit={allowUpdate} canDelete={allowDelete} onEdit={() => { setQuizImageFileName(''); setEditing(item); setQuizModalOpen(true); setError(''); setNotice(''); }} onDelete={() => setPendingDelete({ kind: 'quiz', id: item.id })} /></div></div>)}</div>}
+        {quizQuery.trim() && !shownQuizzes.length ? (
+          <div className="empty-state">
+            <strong>Không tìm thấy câu hỏi</strong>
+            <p>Không có câu hỏi nào khớp với “{quizQuery.trim()}”.</p>
+          </div>
+        ) : (
+          <div className="list">
+            {shownQuizzes.map((item) => (
+              <div className="list-row" key={item.id} style={{ alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <strong>{item.quizCode}</strong>
+                    {item.content?.code ? (
+                      <span className="quiz-code-lang" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                        Code
+                      </span>
+                    ) : null}
+                    {item.content?.image ? (
+                      <span className="quiz-code-lang" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                        Ảnh
+                      </span>
+                    ) : null}
+                  </div>
+                  <div style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: item.content?.code || item.content?.image ? 6 : 0 }}>
+                    <FormattedText text={item.content?.text || item.question} />
+                  </div>
+                  {item.content?.code ? (
+                    <div style={{ margin: '8px 0', maxWidth: '100%' }}>
+                      <CodeBlock code={item.content.code} />
+                    </div>
+                  ) : null}
+                  {item.content?.image ? (
+                    <div style={{ margin: '8px 0', maxWidth: 360 }}>
+                      <QuizImage src={item.content.image} alt={`Minh họa ${item.quizCode}`} maxHeight={180} />
+                    </div>
+                  ) : null}
+                </div>
+                <div className="list-actions">
+                  <RowMenu
+                    label={item.quizCode}
+                    canEdit={allowUpdate}
+                    canDelete={allowDelete}
+                    onEdit={() => {
+                      setQuizImageFileName('');
+                      setEditing(item);
+                      setQuizModalOpen(true);
+                      setError('');
+                      setNotice('');
+                    }}
+                    onDelete={() => setPendingDelete({ kind: 'quiz', id: item.id })}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {quizQuery.trim() ? null : <PaginationNav {...quizPagination} onChange={(page) => void loadTopicQuizzes(quizTopicId, page)} />}
       </div> : null}
 
@@ -1025,7 +1082,12 @@ function AdminStudioContent() {
                       </label>
                       <small>Không bắt buộc. Giữ trống để dùng ảnh hiện tại.</small>
                     </div>
-                    {editingQuiz?.content?.image ? <small>Ảnh hiện tại: đã gắn.</small> : null}
+                    {editingQuiz?.content?.image ? (
+                      <div style={{ marginTop: 8, maxWidth: 280 }}>
+                        <small style={{ display: 'block', marginBottom: 4 }}>Ảnh hiện tại:</small>
+                        <QuizImage src={editingQuiz.content.image} alt="Ảnh hiện tại" maxHeight={140} />
+                      </div>
+                    ) : null}
                   </section>
                   <section className="form-section">
                     <h3 className="form-section-title">Đáp án</h3>

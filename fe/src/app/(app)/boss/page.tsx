@@ -24,6 +24,8 @@ import {
   XCircle,
 } from "@phosphor-icons/react";
 import { BossSquad } from "@/components/boss-squad";
+import { CodeBlock, FormattedText } from "@/components/code-block";
+import { QuizImage } from "@/components/quiz-image";
 import { ErrorState, Loading } from "@/components/ui";
 import { serverNow } from "@/lib/api";
 import { useBossLive } from "@/lib/use-boss-live";
@@ -1045,28 +1047,15 @@ export default function BossPage() {
             className="boss-question-title"
             style={{ overflowWrap: "anywhere" }}
           >
-            {currentQuestion.question}
+            <FormattedText text={currentQuestion.question} />
           </h2>
 
           {currentQuestion.code && (
-            <pre className="code-block" style={{ marginBottom: 16 }}>
-              <code>{currentQuestion.code}</code>
-            </pre>
+            <CodeBlock code={currentQuestion.code} />
           )}
 
           {currentQuestion.imageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={currentQuestion.imageUrl}
-              alt="Minh họa cho câu hỏi"
-              style={{
-                width: "100%",
-                maxHeight: 380,
-                objectFit: "contain",
-                borderRadius: 12,
-                marginBottom: 16,
-              }}
-            />
+            <QuizImage src={currentQuestion.imageUrl} alt="Minh họa cho câu hỏi" />
           )}
 
           {/* Options Grid */}
@@ -1100,7 +1089,7 @@ export default function BossPage() {
                     {opt.isCode ? (
                       <code className="tower-code-option">{opt.content}</code>
                     ) : (
-                      opt.content
+                      <FormattedText text={opt.content} />
                     )}
                   </span>
                 </button>
@@ -1127,7 +1116,7 @@ export default function BossPage() {
                   className="boss-wrong-feedback-text"
                   style={{ color: "#cdb287" }}
                 >
-                  <b>Giải thích:</b> {wrongFeedback.explanation}
+                  <b>Giải thích:</b> <FormattedText text={wrongFeedback.explanation} />
                 </p>
               )}
               <div style={{ marginTop: 8 }}>
