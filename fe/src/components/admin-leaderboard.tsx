@@ -83,7 +83,7 @@ export function AdminLeaderboard() {
   };
 
   return (
-    <div className="admin-grid section">
+    <div className="admin-grid admin-leaderboard-grid section">
       <section className="panel" aria-label="Bộ lọc bảng xếp hạng">
         <div className="section-title">
           <h2 style={{ margin: 0 }}>Bộ lọc</h2>

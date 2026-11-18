@@ -4,7 +4,9 @@ import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react
 import {
   ArrowSquareOut,
   BookOpen,
+  CaretDown,
   Certificate,
+  Check,
   CheckCircle,
   CheckSquare as FileCheck,
   Coins,
@@ -225,6 +227,7 @@ function AdminStudioContent() {
   }, [tabQuery]);
 
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [navOpen, setNavOpen] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [courseOptions, setCourseOptions] = useState<Course[]>([]);
@@ -768,6 +771,20 @@ function AdminStudioContent() {
     []
   );
   const currentModule = allModules.find((item) => item.id === tab) || allModules[0];
+  const CurrentIcon = currentModule.icon;
+
+  const handleSelectModule = (target: Tab) => {
+    setNavOpen(false);
+    if (target !== tab) {
+      setTab(target);
+      router.push(`/admin?tab=${target}`);
+      resetCreateForm();
+      setError('');
+      setNotice('');
+      if (target === 'reviews') void loadReviews(courseId, 1);
+      if (target === 'quizzes') void loadTopicQuizzes(quizTopicId, 1);
+    }
+  };
 
   if (authLoading || loading) return <Loading />;
   if (!allowed) return null;
@@ -776,7 +793,7 @@ function AdminStudioContent() {
   return (
     <>
       <header className="page-heading admin-page-heading">
-        <div>
+        <div className="admin-heading-main">
           <div className="admin-breadcrumbs">
             <span>Quản trị hệ thống</span>
             <span className="breadcrumb-separator">/</span>
@@ -784,6 +801,89 @@ function AdminStudioContent() {
           </div>
           <h1>{currentModule.label}</h1>
           <p>{currentModule.description}</p>
+          <div className="admin-quick-pills" role="tablist" aria-label="Chuyển nhanh phân hệ quản trị">
+            {allModules.map((m) => {
+              if (m.requiresUpdate && !allowUpdate) return null;
+              const Icon = m.icon;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === m.id}
+                  className={`admin-quick-pill ${tab === m.id ? 'is-active' : ''}`}
+                  onClick={() => handleSelectModule(m.id)}
+                >
+                  <Icon size={14} />
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Executive In-Page Module Navigator */}
+        <div className="admin-nav-wrapper">
+          <button
+            type="button"
+            className={`admin-nav-trigger ${navOpen ? 'is-open' : ''}`}
+            aria-expanded={navOpen}
+            aria-haspopup="menu"
+            onClick={() => setNavOpen((prev) => !prev)}
+          >
+            <span className="admin-nav-trigger-icon">
+              <CurrentIcon size={18} />
+            </span>
+            <span className="admin-nav-trigger-info">
+              <span className="admin-nav-category-badge">{currentModule.categoryName}</span>
+              <span className="admin-nav-trigger-title">{currentModule.label}</span>
+            </span>
+            <CaretDown size={16} className="admin-nav-trigger-caret" />
+          </button>
+
+          {navOpen && (
+            <>
+              <button
+                type="button"
+                className="admin-nav-backdrop"
+                aria-label="Đóng menu chuyển mục"
+                onClick={() => setNavOpen(false)}
+              />
+              <div className="admin-nav-dropdown" role="menu">
+                {ADMIN_CATEGORIES.map((cat) => {
+                  const visibleModules = cat.modules.filter((m) => !m.requiresUpdate || allowUpdate);
+                  if (visibleModules.length === 0) return null;
+                  return (
+                    <div key={cat.id} className="admin-nav-group">
+                      <span className="admin-nav-group-title">{cat.name}</span>
+                      {visibleModules.map((m) => {
+                        const Icon = m.icon;
+                        const isActive = tab === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            role="menuitem"
+                            className={`admin-nav-item ${isActive ? 'is-active' : ''}`}
+                            onClick={() => handleSelectModule(m.id)}
+                          >
+                            <span className="admin-nav-item-icon">
+                              <Icon size={18} />
+                            </span>
+                            <span className="admin-nav-item-content">
+                              <span className="admin-nav-item-title">{m.label}</span>
+                              <small className="admin-nav-item-desc">{m.description}</small>
+                            </span>
+                            {isActive && <Check size={18} className="admin-nav-item-check" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </header>
       {tab === 'leaderboards' && allowUpdate ? <AdminLeaderboard /> : null}
@@ -828,7 +928,9 @@ function AdminStudioContent() {
             {allowCreate ? <button type="button" className="button" onClick={openQuizCreate}><Plus /> Tạo câu hỏi</button> : null}
           </div>
         </div>
-        <label className="field"><span>Chủ đề</span><select value={quizTopicId} onChange={(event) => void loadTopicQuizzes(event.target.value, 1)}>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <div className="admin-filter-bar" style={{ marginBottom: 16 }}>
+          <label className="field" style={{ margin: 0 }}><span>Chủ đề</span><select value={quizTopicId} onChange={(event) => void loadTopicQuizzes(event.target.value, 1)}>{topicOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        </div>
         {quizQuery.trim() && !shownQuizzes.length ? (
           <div className="empty-state">
             <strong>Không tìm thấy câu hỏi</strong>
@@ -889,7 +991,7 @@ function AdminStudioContent() {
       </div> : null}
 
       {tab === 'reviews' && allowUpdate ? (
-        <div className="admin-grid section">
+        <div className="admin-grid admin-reviews-grid section">
           <section className="panel" aria-label="Duyệt bài nộp">
             <div className="section-title"><h2>Duyệt bài</h2></div>
             {selectedSubmission ? (

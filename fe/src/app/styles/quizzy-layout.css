@@ -35,10 +35,10 @@
   }
 }
 
-/* --- 4 thẻ số liệu kiểu Figma (Dashboard, Chi tiết khóa học) --- */
+/* --- 4 thẻ số liệu kiểu Figma (Dashboard, Chi tiết khóa học: tự co giãn 3-4 thẻ) --- */
 .figma-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -50,6 +50,12 @@
   background: var(--surface);
   display: grid;
   gap: 6px;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.figma-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
 .figma-stat > span {
@@ -73,13 +79,24 @@
 /* --- Chia 2 cột kiểu Figma (Dashboard, Chi tiết khóa học) --- */
 .figma-split {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 1fr);
+  gap: 24px;
   align-items: start;
 }
 
 .figma-split > * {
   min-width: 0;
+}
+
+.figma-split:has(> :only-child),
+.figma-split.no-project {
+  grid-template-columns: 1fr;
+}
+
+.figma-split.no-project .topic-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 14px;
 }
 
 /* --- Danh sách "Cần hoàn thành" (Dashboard): tối đa 4 hàng, quá thì trượt dọc --- */
@@ -115,7 +132,21 @@ body.quiz-playing .main-column {
 }
 
 body.quiz-playing .page-content {
-  width: min(1280px, 100%);
+  width: min(1200px, 100%);
+  margin: 0 auto;
+}
+
+.quiz-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 24px;
+  align-items: start;
+}
+
+.quiz-question {
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* Topbar riêng của bài làm: quay lại | tên chủ đề | thao tác */
@@ -500,10 +531,82 @@ td:has(.row-menu-panel) {
   box-shadow: none;
 }
 
-/* --- Bảng xếp hạng: bảng kiểu Figma Students --- */
+/* --- Bảng xếp hạng: bảng kiểu Figma Students & Podium Cân Đối --- */
+.leaderboard-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.leaderboard-podium {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  align-items: end;
+  gap: 16px;
+  max-width: 860px;
+  margin: 16px auto 32px;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 680px) {
+  .leaderboard-podium {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    max-width: 100%;
+  }
+}
+
+.leaderboard-meta-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.leaderboard-meta-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1 1 280px;
+}
+
+.leaderboard-fresh {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .leaderboard-meta-strip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .leaderboard-fresh {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+.leaderboard-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  margin-top: 14px;
+  margin-bottom: 20px;
+  scrollbar-width: thin;
+}
+
 .leaderboard-table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 580px;
 }
 
 .leaderboard-table th {
@@ -526,6 +629,26 @@ td:has(.row-menu-panel) {
   border-bottom: 0;
 }
 
+/* --- Lịch sử làm bài: spacing và responsive --- */
+.history-pagination-wrap {
+  margin-top: 24px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 680px) {
+  .history-list .list-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .history-list .list-row .card-meta {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
 
 /* --- Mobile: stat 2 cột, form 1 cột, login xếp dọc --- */
 @media (max-width: 900px) {
@@ -538,6 +661,10 @@ td:has(.row-menu-panel) {
     grid-template-columns: 1fr;
   }
 
+  .figma-split.no-project .topic-list {
+    grid-template-columns: 1fr;
+  }
+
   .quiz-topbar {
     flex-wrap: wrap;
   }
@@ -547,7 +674,36 @@ td:has(.row-menu-panel) {
     flex-basis: 100%;
     text-align: left;
   }
+}
 
+@media (max-width: 640px) {
+  .quiz-topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .quiz-topbar .list-actions {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .quiz-topbar .list-actions .button {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 13px;
+    justify-content: center;
+  }
+  .quiz-progress {
+    font-size: 12px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .figma-stats {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Toast Quản trị (08/11/2026): báo tạo/sửa/xóa thành công và lỗi, góc phải dưới, tự tắt sau 4,5 giây. */
@@ -693,22 +849,82 @@ td:has(.row-menu-panel) {
   white-space: pre-wrap;
 }
 
+.tower-page-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tower-lobby-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.tower-lobby-grid .topic-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tower-start-card {
+  justify-content: space-between;
+}
+
+@media (max-width: 900px) {
+  .tower-lobby-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tower-floor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 8px;
+  max-width: 980px;
+  margin: 0 auto;
 }
 
 .tower-floor-cell {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  min-width: 44px;
   gap: 2px;
-  padding: 8px 6px;
+  padding: 8px 4px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface-2);
   color: var(--muted);
   text-align: center;
   font-variant-numeric: tabular-nums;
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.tower-floor-cell:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+}
+
+.tower-cooldown-notice {
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
+.tower-cooldown-timer {
+  font-family: var(--font-mono), monospace;
+  font-size: 15px;
+  color: var(--danger);
+  letter-spacing: 0.04em;
 }
 
 .tower-floor-cell strong {
@@ -1120,10 +1336,32 @@ td:has(.row-menu-panel) {
   border-color: color-mix(in srgb, var(--line) 150%, transparent);
 }
 
+@media (max-width: 1024px) {
+  .tower-floor-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    max-width: 100%;
+  }
+}
+
 @media (max-width: 680px) {
   .tower-floor-grid {
-    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
+  }
+}
+
+@media (max-width: 440px) {
+  .tower-floor-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+}
+
+@media (max-width: 340px) {
+  .tower-floor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
   }
 }
 
@@ -2811,8 +3049,14 @@ body.boss-arena-mode {
   gap: 16px;
   padding: 14px 0 48px;
   min-width: 0;
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
+}
+
+@media (min-width: 1440px) {
+  .boss-page-container {
+    max-width: 1280px;
+  }
 }
 
 .boss-page-container.in-combat {
@@ -3246,6 +3490,7 @@ body.boss-arena-mode {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+  align-items: stretch;
 }
 
 .milestone-chest-box {
@@ -3260,6 +3505,7 @@ body.boss-arena-mode {
   background: rgba(14, 23, 38, 0.85);
   text-align: center;
   font-size: 11px;
+  min-height: 172px;
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
@@ -3390,11 +3636,14 @@ body.boss-arena-mode {
 
 .boss-hud-v {
   font-family: var(--font-mono), monospace;
-  font-size: 20px;
+  font-size: clamp(16px, 2.2vw, 20px);
   font-weight: 900;
   color: #fff;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: nowrap;
 }
 
 .boss-hud-grid.in-combat .boss-hud-v {
@@ -3755,11 +4004,15 @@ body.boss-arena-mode {
   cursor: not-allowed;
 }
 
+@media (max-width: 960px) {
+  .milestone-chests-row {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+}
+
 @media (max-width: 768px) {
   .boss-hud-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .milestone-chests-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .boss-options-grid {
@@ -3767,8 +4020,21 @@ body.boss-arena-mode {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 520px) {
   .milestone-chests-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .boss-hud-v {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 380px) {
+  .milestone-chests-row {
+    grid-template-columns: 1fr;
+  }
+  .boss-hud-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -5720,9 +5986,18 @@ body.boss-arena-mode {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  overflow-x: auto;
+  flex-wrap: wrap;
   padding-bottom: 0.25rem;
   scrollbar-width: thin;
+}
+
+@media (max-width: 640px) {
+  .bounty-filter-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .bounty-filter-chip {
@@ -6067,6 +6342,7 @@ body.boss-arena-mode {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1.25rem;
+  align-items: stretch;
 }
 
 @media (min-width: 640px) {
@@ -6081,6 +6357,13 @@ body.boss-arena-mode {
   }
 }
 
+@media (min-width: 1440px) {
+  .bounty-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
+}
+
 .bounty-card {
   position: relative;
   background: var(--surface);
@@ -6089,6 +6372,7 @@ body.boss-arena-mode {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  height: 100%;
   overflow: hidden;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: var(--shadow);
@@ -7697,6 +7981,177 @@ body.boss-arena-mode {
 }
 
 /* ==========================================================================
+   Admin Studio Grid Rebalancing & Harmonization
+   ========================================================================== */
+
+.admin-heading-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-filter-bar {
+  background: var(--surface-2);
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 1. Admin Leaderboard Grid: Fixed Compact Filter Sidebar + Spacious Data Table */
+.admin-leaderboard-grid {
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.admin-leaderboard-grid > section:first-child {
+  position: sticky;
+  top: 1rem;
+}
+
+@media (max-width: 900px) {
+  .admin-leaderboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-leaderboard-grid > section:first-child {
+    position: static;
+  }
+}
+
+/* 2. Admin Certificates Grid: Balanced Topics Progress Detail & Request Queue */
+.admin-certificates-grid {
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .admin-certificates-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 3. Admin Reviews Grid: Balanced Submission Inspection & Course Project List */
+.admin-reviews-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .admin-reviews-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 4. Large Desktop Page Content Expansion (1440px - 1600px+) */
+@media (min-width: 1440px) {
+  .page-content {
+    width: min(1400px, 100%);
+  }
+  .admin-tower-coverage-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .admin-boss-chests {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* 5. Responsive Stacking for Section Titles, Filters, & Search (375px - 680px) */
+@media (max-width: 680px) {
+  .panel .section-title {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .panel .section-title .section-title-left {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .panel .section-title .list-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .panel .section-title .list-actions .admin-search-compact,
+  .panel .section-title .list-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-boss-kpis {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .admin-coins-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .admin-coins-search-box {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .filter-select-label {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .filter-select-label select,
+  .filter-select-label input[type='date'] {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .reset-filter-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-coins-modal {
+    padding: 1rem 0.875rem;
+    max-height: 90dvh;
+  }
+
+  .bounty-modal-card {
+    padding: 1.25rem 1rem !important;
+    border-radius: 1rem !important;
+    max-height: 92dvh !important;
+  }
+
+  .admin-table-scroll {
+    border-radius: 10px;
+  }
+
+  .admin-tower-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-tower-coverage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-boss-weeks {
+    position: static;
+    max-height: 200px;
+  }
+}
+
+
+/* ==========================================================================
    CODE BLOCK & SYNTAX HIGHLIGHTING (BCN Quiz Code Engine)
    --------------------------------------------------------------------------
    - High-contrast dark editor theme matching BCN Quiz branding
@@ -9068,3 +9523,301 @@ body.boss-arena-mode {
   font-size: 0.8125rem;
 }
 
+
+/* ==========================================================================
+   CORE LEARNING PAGES LAYOUT BALANCES (Courses, Detail, Dashboard, Quiz)
+   ========================================================================== */
+
+/* --- 1. Global Page Max-Width Utilization (1440px - 1600px+) --- */
+@media (min-width: 1440px) {
+  .page-content {
+    width: min(1400px, 100%);
+  }
+}
+
+/* --- 2. Courses Listing Grid (.course-grid) & Card Balances --- */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 20px;
+}
+
+.course-grid > .empty-state,
+.course-grid > .state-panel,
+.grid-3 > .empty-state,
+.grid-2 > .empty-state,
+.grid > .empty-state {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.course-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.course-card .course-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.course-card .card-meta {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+@media (min-width: 1440px) {
+  .course-grid {
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .course-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- 3. Topics & Gameplay Reading Container & Alignment --- */
+.topic-intro,
+.topic-result {
+  max-width: 1040px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.topic-intro .topic-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .topic-intro .topic-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- 4. Mobile List Rows Wrapping (prevents horizontal overflow on 375px) --- */
+@media (max-width: 680px) {
+  .list-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    height: auto;
+    min-height: 0;
+  }
+
+  .list-row .card-meta,
+  .list-row .list-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* --- 5. Dashboard Grid Alignment & Balanced Card Heights --- */
+.gamified-grid-main > * {
+  height: 100%;
+}
+
+.missions-card,
+.leaderboard-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.missions-list,
+.mini-leaderboard-list {
+  flex: 1 1 auto;
+}
+
+.discovery-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.discovery-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.discovery-card-actions {
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+/* ==========================================================================
+   CERTIFICATES PAGE (/certificates)
+   ========================================================================== */
+.cert-page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.cert-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+  align-items: stretch;
+  margin-top: 16px;
+}
+
+@media (max-width: 440px) {
+  .cert-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cert-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 18px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  height: 100%;
+}
+
+.cert-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.cert-card.is-issued {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--surface)) 0%, var(--surface) 100%);
+}
+
+.cert-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cert-icon-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  flex-shrink: 0;
+}
+
+.cert-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.cert-course-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.cert-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.cert-rejection-note {
+  margin-top: 6px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.cert-issued-box {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cert-meta-row,
+.cert-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.cert-meta-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.cert-meta-val {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cert-code-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  padding: 3px 6px 3px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.cert-code-pill code {
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--accent-strong);
+}
+
+.cert-copy-btn {
+  padding: 4px;
+  width: 26px;
+  height: 26px;
+}
+
+.cert-card-footer {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cert-verify-action {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.cert-pagination-wrap {
+  margin-top: 28px;
+  margin-bottom: 16px;
+}

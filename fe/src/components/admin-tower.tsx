@@ -538,7 +538,7 @@ export function AdminTower() {
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
+            <div className="admin-table-scroll" tabIndex={0} role="region" aria-label="Phân bổ câu hỏi theo môn học, cuộn ngang để xem hết" style={{ marginTop: '0.5rem' }}>
               <table className="admin-tower-table">
                 <thead>
                   <tr>
@@ -677,7 +677,7 @@ export function AdminTower() {
                 <p className="muted">Số lượng câu hỏi được trích xuất từ mỗi khóa học.</p>
               </div>
             </div>
-            <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
+            <div className="admin-table-scroll" tabIndex={0} role="region" aria-label="Nguồn khóa học đóng góp, cuộn ngang để xem hết" style={{ marginTop: '0.5rem' }}>
               <table className="admin-tower-table">
                 <thead>
                   <tr>
@@ -708,7 +708,7 @@ export function AdminTower() {
                 <p className="muted">Top các Topic cung cấp câu hỏi cho Tháp.</p>
               </div>
             </div>
-            <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
+            <div className="admin-table-scroll" tabIndex={0} role="region" aria-label="Nguồn chủ đề đóng góp, cuộn ngang để xem hết" style={{ marginTop: '0.5rem' }}>
               <table className="admin-tower-table">
                 <thead>
                   <tr>

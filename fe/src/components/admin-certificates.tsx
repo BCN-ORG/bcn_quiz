@@ -130,7 +130,7 @@ export function AdminCertificates() {
   }[action.kind];
 
   return <>
-    <div className="admin-grid section">
+    <div className="admin-grid admin-certificates-grid section">
       <section className="panel" id="certificate-detail" aria-label="Chi tiết yêu cầu" aria-busy={detailLoading}>
         {openId ? <>
           {detailLoading && !detail ? <Loading label="Đang kiểm tra điều kiện" /> : null}

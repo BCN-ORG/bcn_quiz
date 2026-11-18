@@ -64,59 +64,63 @@ export default function HistoryPage() {
       <header className="page-heading"><div><h1>Lịch sử làm bài</h1><p>Bài đang làm dở, đã nộp, hoặc hết hạn.</p></div></header>
       {error ? <p className="form-error">{error}</p> : null}
       {items.length ? (
-        <div className="list">
-          {items.map((item) => {
-            if (item.status === 'IN_PROGRESS') {
+        <>
+          <div className="list history-list">
+            {items.map((item) => {
+              if (item.status === 'IN_PROGRESS') {
+                return (
+                  <div className="list-row" key={item.id}>
+                    <div>
+                      <strong>{item.topic.name}</strong>
+                      <small>
+                        Đang học · {item.answeredCount}/{item.quizTotal ?? '?'} câu · bắt đầu {new Date(item.startedAt).toLocaleString('vi-VN')}
+                      </small>
+                    </div>
+                    <div className="card-meta" style={{ gap: 12 }}>
+                      <Status value="IN_PROGRESS" />
+                      <Link className="button" href={`/topics/${item.topicId}`}>Tiếp tục <ArrowRight /></Link>
+                      <button type="button" className="button secondary" onClick={() => setAbandonId(item.id)}>Hủy bài dở</button>
+                    </div>
+                  </div>
+                );
+              }
+              if (item.status === 'EXPIRED') {
+                return (
+                  <div className="list-row" key={item.id}>
+                    <div>
+                      <strong>{item.topic.name}</strong>
+                      <small>
+                        Hết hạn · đã trả lời {item.answeredCount}/{item.quizTotal ?? '?'} · {new Date(item.startedAt).toLocaleString('vi-VN')}
+                      </small>
+                    </div>
+                    <div className="card-meta" style={{ gap: 12 }}>
+                      <Status value="EXPIRED" />
+                      <Link className="button secondary" href={`/topics/${item.topicId}`}>Làm lại</Link>
+                    </div>
+                  </div>
+                );
+              }
               return (
-                <div className="list-row" key={item.id}>
+                <Link className="list-row" key={item.id} href={`/history/${item.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                   <div>
                     <strong>{item.topic.name}</strong>
-                    <small>
-                      Đang học · {item.answeredCount}/{item.quizTotal ?? '?'} câu · bắt đầu {new Date(item.startedAt).toLocaleString('vi-VN')}
-                    </small>
+                    <small>{item.submittedAt ? new Date(item.submittedAt).toLocaleString('vi-VN') : ''}</small>
                   </div>
-                  <div className="card-meta" style={{ gap: 12 }}>
-                    <Status value="IN_PROGRESS" />
-                    <Link className="button" href={`/topics/${item.topicId}`}>Tiếp tục <ArrowRight /></Link>
-                    <button type="button" className="button secondary" onClick={() => setAbandonId(item.id)}>Hủy bài dở</button>
+                  <div className="card-meta">
+                    <Status value="SUBMITTED" />
+                    <span><Check size={16} /> {item.correctCount ?? 0}</span>
+                    <span><X size={16} /> {(item.quizTotal ?? item.answeredCount) - (item.correctCount ?? 0)}</span>
+                    <span><Clock size={16} /> {Math.round((item.durationMs || 0) / 1000)}s</span>
+                    <strong>{Math.round((item.score || 0) * 100)}%</strong>
                   </div>
-                </div>
+                </Link>
               );
-            }
-            if (item.status === 'EXPIRED') {
-              return (
-                <div className="list-row" key={item.id}>
-                  <div>
-                    <strong>{item.topic.name}</strong>
-                    <small>
-                      Hết hạn · đã trả lời {item.answeredCount}/{item.quizTotal ?? '?'} · {new Date(item.startedAt).toLocaleString('vi-VN')}
-                    </small>
-                  </div>
-                  <div className="card-meta" style={{ gap: 12 }}>
-                    <Status value="EXPIRED" />
-                    <Link className="button secondary" href={`/topics/${item.topicId}`}>Làm lại</Link>
-                  </div>
-                </div>
-              );
-            }
-            return (
-              <Link className="list-row" key={item.id} href={`/history/${item.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                <div>
-                  <strong>{item.topic.name}</strong>
-                  <small>{item.submittedAt ? new Date(item.submittedAt).toLocaleString('vi-VN') : ''}</small>
-                </div>
-                <div className="card-meta">
-                  <Status value="SUBMITTED" />
-                  <span><Check size={16} /> {item.correctCount ?? 0}</span>
-                  <span><X size={16} /> {(item.quizTotal ?? item.answeredCount) - (item.correctCount ?? 0)}</span>
-                  <span><Clock size={16} /> {Math.round((item.durationMs || 0) / 1000)}s</span>
-                  <strong>{Math.round((item.score || 0) * 100)}%</strong>
-                </div>
-              </Link>
-            );
-          })}
-          <PaginationNav {...pagination} disabled={loading} onChange={setPage} />
-        </div>
+            })}
+          </div>
+          <div className="history-pagination-wrap">
+            <PaginationNav {...pagination} disabled={loading} onChange={setPage} />
+          </div>
+        </>
       ) : <Empty title="Chưa có lần làm bài" description="Bắt đầu một topic — bài dở sẽ hiện ở đây để bạn tiếp tục." />}
       <ConfirmDialog
         open={Boolean(abandonId)}

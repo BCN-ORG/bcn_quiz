@@ -130,7 +130,9 @@ export function LeaderboardTable({ rows, mode, currentUserId, caption = 'Bảng 
   const isDaily = mode === 'daily';
   const isBounty = mode === 'bounty';
 
-  return <table className="leaderboard-table">
+  return (
+    <div className="leaderboard-table-wrap" tabIndex={0} role="region" aria-label={caption}>
+      <table className="leaderboard-table">
     <caption className="sr-only">{caption}</caption>
     <thead><tr>
       <th className="num" scope="col">Hạng</th>
@@ -148,7 +150,8 @@ export function LeaderboardTable({ rows, mode, currentUserId, caption = 'Bảng 
     </tr></thead>
     <tbody>{rows.map((row) => {
       const mine = row.user.id === currentUserId;
-      return <tr key={row.user.id} className={mine ? 'leaderboard-current' : undefined} aria-current={mine ? 'true' : undefined}>
+      return (
+        <tr key={row.user.id} className={mine ? 'leaderboard-current' : undefined} aria-current={mine ? 'true' : undefined}>
         <td className="num leaderboard-rank-cell"><RankBadge rank={row.rank} /></td>
         <th scope="row">
           <LeaderboardPlayer row={row} current={mine} namesUnavailable={namesUnavailable} />
@@ -206,7 +209,10 @@ export function LeaderboardTable({ rows, mode, currentUserId, caption = 'Bảng 
                 ? `+${(row.totalXpEarned ?? 0).toLocaleString('vi-VN')} XP`
                 : leaderboardDuration(isDaily ? row.durationMs : row.totalDurationMs)}
         </td>
-      </tr>;
-    })}</tbody>
-  </table>;
+      </tr>
+    );
+  })}</tbody>
+    </table>
+  </div>
+  );
 }

@@ -96,7 +96,7 @@ export default function CoursesPage() {
           <button ref={(el) => { tabRefs.current[1] = el; }} role="tab" aria-selected={tab === 'in-progress'} className={tab === 'in-progress' ? 'active' : ''} onClick={() => selectTab('in-progress')}>Đang học</button>
           <button ref={(el) => { tabRefs.current[2] = el; }} role="tab" aria-selected={tab === 'completed'} className={tab === 'completed' ? 'active' : ''} onClick={() => selectTab('completed')}>Đã hoàn thành</button>
         </div>
-        <div className="grid grid-3" style={{ marginTop: 18 }}>
+        <div className="course-grid" style={{ marginTop: 18 }}>
           {displayed.length ? displayed.map((course) => {
             const item = progress.find((entry) => entry.courseId === course.id);
             return <CourseCard key={course.id} course={course} progress={item} />;

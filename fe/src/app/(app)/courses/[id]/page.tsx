@@ -227,11 +227,13 @@ export default function CourseDetailPage() {
       <div className="figma-stats" aria-label="Số liệu khóa học">
         <div className="figma-stat"><span>Tiến độ tổng</span><strong>{progress.progressPercent}%</strong><small>toàn khóa</small></div>
         <div className="figma-stat"><span>Quiz</span><strong>{progress.topicProgressPercent}%</strong><small>tiến độ topic</small></div>
-        <div className="figma-stat"><span>Project</span><strong>{course.hasProject ? `${progress.projectProgressPercent}%` : '—'}</strong><small>{course.hasProject ? 'tiến độ project' : 'không yêu cầu project'}</small></div>
+        {course.hasProject ? (
+          <div className="figma-stat"><span>Project</span><strong>{progress.projectProgressPercent}%</strong><small>tiến độ project</small></div>
+        ) : null}
         <div className="figma-stat"><span>Chủ đề</span><strong>{topicPagination.total}</strong><small>Mỗi topic cần 80% đáp án đúng</small></div>
       </div>
       {certRequest ? <section className="panel section" id="course-certificate"><h2>Chứng nhận</h2><p><CertStatus value={certRequest.status} /> {CERT_STATUS[certRequest.status].hint} <Link href="/certificates">Xem chứng nhận</Link></p></section> : null}
-      <div className="figma-split">
+      <div className={`figma-split ${course.hasProject ? '' : 'no-project'}`}>
       <section className="section">
         <div className="section-title"><h2>Nội dung khóa học</h2><span>{topicPagination.total} chủ đề</span></div>
         {topicsError ? <p className="form-error" role="alert">{topicsError}</p> : null}

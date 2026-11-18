@@ -552,6 +552,7 @@ export default function TowerPage() {
             </div>
           ) : null}
 
+          <div className="tower-page-wrapper">
           <div className="figma-stats" aria-label="Số liệu Leo Tháp">
             <div className="figma-stat">
               <span>Tầng hiện tại</span>
@@ -606,8 +607,8 @@ export default function TowerPage() {
             </div>
           </div>
 
-          <div className="topic-grid">
-            <article className="topic-card">
+          <div className="topic-grid tower-lobby-grid">
+            <article className="topic-card tower-rules-card">
               <h2>Thể lệ Leo Tháp</h2>
               <ul className="topic-rules">
                 <li>
@@ -625,7 +626,7 @@ export default function TowerPage() {
               </ul>
             </article>
 
-            <aside className="topic-card topic-start">
+            <aside className="topic-card topic-start tower-start-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div className="avatar" aria-hidden="true">
                   <Trophy weight="fill" size={22} />
@@ -650,13 +651,13 @@ export default function TowerPage() {
                   </p>
                 </div>
               ) : cooldownRemaining > 0 ? (
-                <div className="notice notice-danger" style={{ marginTop: 0 }}>
+                <div className="notice notice-danger tower-cooldown-notice" style={{ marginTop: 0 }}>
                   <strong style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <HourglassHigh weight="fill" /> Đang trong thời gian cooldown 4 giờ
                   </strong>
                   <p style={{ margin: '6px 0 0' }}>
                     Có thể thử lại Tầng {overview.progress.currentFloor} sau:{' '}
-                    <strong>{formatCooldown(cooldownRemaining)}</strong>
+                    <strong className="tower-cooldown-timer">{formatCooldown(cooldownRemaining)}</strong>
                   </p>
                 </div>
               ) : (
@@ -683,7 +684,7 @@ export default function TowerPage() {
             </aside>
           </div>
 
-          <section className="panel" style={{ marginTop: 20 }}>
+          <section className="panel" style={{ marginTop: 0 }}>
             <div className="section-title" style={{ flexWrap: 'wrap' }}>
               <h2>Bản đồ Tháp Kiến Thức (100 Tầng)</h2>
               <div className="list-actions">
@@ -727,6 +728,7 @@ export default function TowerPage() {
               })}
             </div>
           </section>
+          </div>
         </>
       )}
 
