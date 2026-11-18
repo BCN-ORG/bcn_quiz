@@ -44,15 +44,23 @@ export class CoinTrackingService implements OnModuleInit {
     private readonly moduleRef: ModuleRef,
   ) {}
 
-  async onModuleInit() {
-    try {
-      await this.backfillFromExistingTables();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(
-        `[CoinTrackingService] Startup backfill warning: ${msg}`,
-      );
-    }
+  onModuleInit(): void {
+    // Run historical backfill asynchronously in background so app starts and health check passes immediately
+    setImmediate(() => {
+      void (async () => {
+        try {
+          const stats = await this.backfillFromExistingTables();
+          this.logger.log(
+            `[CoinTrackingService] Startup backfill completed: ${stats.tower} tower, ${stats.boss} boss, ${stats.bounty} bounty`,
+          );
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `[CoinTrackingService] Startup backfill warning: ${msg}`,
+          );
+        }
+      })();
+    });
   }
 
   /**

@@ -351,7 +351,7 @@ jobs:
           FE_HOST_PORT_VALUE: ${{ vars.FE_HOST_PORT || '18088' }}
         run: |
           set -eu
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 45); do
             if curl --fail --silent --show-error \
               "http://127.0.0.1:${HOST_PORT_VALUE}/api/health" >/dev/null \
               && curl --fail --silent --show-error \
@@ -359,7 +359,7 @@ jobs:
               echo "API and web are healthy"
               exit 0
             fi
-            echo "Health check attempt ${attempt}/30 failed"
+            echo "Health check attempt ${attempt}/45 failed"
             sleep 2
           done
           echo "Health check failed"
