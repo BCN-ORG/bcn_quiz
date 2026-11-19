@@ -16,6 +16,7 @@ import {
   Trophy,
   Warning,
 } from '@phosphor-icons/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiUrl, request } from '@/lib/api';
@@ -70,34 +71,47 @@ export function NotificationTypeIcon({ type }: { type: string }) {
   );
 }
 
+type NotificationCache = {
+  items: Notification[];
+  unread: number;
+};
+
 export function NotificationCenter() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Notification[]>([]);
-  const [unread, setUnread] = useState(0);
   const [toast, setToast] = useState<Notification | null>(null);
   const seen = useRef(new Set<string>());
   const lastRefreshRef = useRef(0);
+  const queryKey = ['notifications', user?.id ?? ''] as const;
+
+  const { data } = useQuery<NotificationCache>({
+    queryKey,
+    queryFn: async () => {
+      lastRefreshRef.current = Date.now();
+      const [page, count] = await Promise.all([
+        request.get<NotificationPage>('/notifications?limit=20'),
+        request.get<{ count: number }>('/notifications/unread-count'),
+      ]);
+      page.items.forEach((row) => seen.current.add(row.id));
+      return { items: page.items, unread: count.count };
+    },
+    enabled: Boolean(user?.id),
+    staleTime: 30_000,
+  });
+
+  const items = data?.items ?? [];
+  const unread = data?.unread ?? 0;
 
   const refresh = useCallback(async () => {
     lastRefreshRef.current = Date.now();
-    const [page, count] = await Promise.all([
-      request.get<NotificationPage>('/notifications?limit=20'),
-      request.get<{ count: number }>('/notifications/unread-count'),
-    ]);
-    setItems(page.items);
-    setUnread(count.count);
-    page.items.forEach((row) => seen.current.add(row.id));
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: ['notifications', user?.id ?? ''] });
+  }, [queryClient, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
-    seen.current.clear();
-    setItems([]);
-    setUnread(0);
-    void refresh().catch(() => undefined);
     const stream = new EventSource(apiUrl('/notifications/stream'), {
       withCredentials: true,
     });
@@ -107,11 +121,23 @@ export function NotificationCenter() {
         const { notification, unreadCount } = JSON.parse(
           (event as MessageEvent).data,
         ) as NotificationEvent;
-        setUnread(unreadCount);
-        if (seen.current.has(notification.id)) return;
+        if (seen.current.has(notification.id)) {
+          queryClient.setQueryData<NotificationCache>(
+            ['notifications', user.id],
+            (prev) => ({ items: prev?.items ?? [], unread: unreadCount }),
+          );
+          return;
+        }
         seen.current.add(notification.id);
-        setItems((previous) =>
-          [notification, ...previous.filter((row) => row.id !== notification.id)].slice(0, 20),
+        queryClient.setQueryData<NotificationCache>(
+          ['notifications', user.id],
+          (prev) => ({
+            items: [
+              notification,
+              ...(prev?.items ?? []).filter((row) => row.id !== notification.id),
+            ].slice(0, 20),
+            unread: unreadCount,
+          }),
         );
         setToast(notification);
       } catch {
@@ -136,7 +162,7 @@ export function NotificationCenter() {
       stream.close();
       window.removeEventListener('focus', onFocus);
     };
-  }, [user?.id, refresh]);
+  }, [user?.id, queryClient, refresh]);
 
   useEffect(() => {
     if (!toast) return;
@@ -147,9 +173,12 @@ export function NotificationCenter() {
   const markRead = async (row: Notification) => {
     if (!row.isRead) {
       await request.patch(`/notifications/${row.id}/read`);
-      setItems((previous) => previous.map((item) =>
-        item.id === row.id ? { ...item, isRead: true } : item));
-      setUnread((value) => Math.max(0, value - 1));
+      queryClient.setQueryData<NotificationCache>(queryKey, (prev) => ({
+        items: (prev?.items ?? []).map((item) =>
+          item.id === row.id ? { ...item, isRead: true } : item,
+        ),
+        unread: Math.max(0, (prev?.unread ?? 0) - 1),
+      }));
     }
     setOpen(false);
     setToast(null);
@@ -165,8 +194,10 @@ export function NotificationCenter() {
 
   const markAllRead = async () => {
     await request.patch('/notifications/read-all');
-    setItems((previous) => previous.map((row) => ({ ...row, isRead: true })));
-    setUnread(0);
+    queryClient.setQueryData<NotificationCache>(queryKey, (prev) => ({
+      items: (prev?.items ?? []).map((row) => ({ ...row, isRead: true })),
+      unread: 0,
+    }));
   };
 
   return (

@@ -1,5 +1,6 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, apiUrl, request } from '@/lib/api';
 import type { User } from '@/lib/types';
@@ -53,14 +54,36 @@ function normalizeUser(raw: unknown): User | null {
   };
 }
 
+function sameStringArray(a?: string[], b?: string[]): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((val, idx) => val === b[idx]);
+}
+
+function isSameUser(a: User | null, b: User | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.email === b.email &&
+    a.fullName === b.fullName &&
+    a.avatarUrl === b.avatarUrl &&
+    a.role === b.role &&
+    sameStringArray(a.roles, b.roles) &&
+    sameStringArray(a.permissions, b.permissions)
+  );
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const lastReloadRef = useRef<number>(0);
 
   const reload = useCallback(async () => {
     try {
-      setUser(normalizeUser(await request.get<unknown>('/auth/me')));
+      const next = normalizeUser(await request.get<unknown>('/auth/me'));
+      setUser((prev) => (isSameUser(prev, next) ? prev : next));
       lastReloadRef.current = Date.now();
     } catch (error) {
       // 401 here already survived a token refresh, so the session is really gone. A dropped connection, 429 or 5xx
@@ -99,11 +122,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login: () => window.location.assign(apiUrl('/auth/login')),
       logout: async () => {
         await request.post('/auth/logout');
+        queryClient.clear();
         setUser(null);
         window.location.assign('/');
       },
     }),
-    [loading, reload, user],
+    [loading, queryClient, reload, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -22,82 +22,26 @@ import {
   Trophy,
   User as UserIcon,
 } from '@phosphor-icons/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { CharacterVideoPlayer } from '@/components/character-video-player';
 import { NotificationCenter } from '@/components/notification-center';
 import { TransferModal } from '@/components/wallet/transfer-modal';
-import { walletApi, type WalletBalance } from '@/lib/wallet';
-import { leaderboardPoints, type LeaderboardRow } from '@/components/leaderboard-table';
+import type { WalletBalance } from '@/lib/wallet';
+import { leaderboardPoints } from '@/components/leaderboard-table';
 import { ErrorState } from '@/components/ui';
-import { request, serverNow } from '@/lib/api';
-import { topicOpen } from '@/lib/format';
-import { xpApi, type XpMe } from '@/lib/xp';
-import { canReadQuestions, canReadResults } from '@/lib/permissions';
-import { bossApi, type BossOverview } from '@/lib/boss';
+import { serverNow } from '@/lib/api';
 import { getCharacterProgression } from '@/lib/character-progression';
 import type { CharacterVideoState } from '@/lib/character-video';
 import {
-  towerApi,
-  type TowerOverview,
-  type TowerRewardTransactionItem,
-} from '@/lib/tower';
-import type {
-  Certificate as CourseCertificate,
-  Course,
-  CourseProgress,
-  Pagination,
-} from '@/lib/types';
+  dashboardQueryKeys,
+  useDashboardSummary,
+  useDashboardTower,
+  useDashboardWallet,
+} from '@/lib/dashboard-queries';
 
-type CourseTopic = NonNullable<Course['topics']>[number];
-
-type SessionItem = {
-  id: string;
-  topicId: string;
-  status: 'IN_PROGRESS' | 'SUBMITTED' | 'EXPIRED';
-  answeredCount: number;
-  quizTotal?: number | null;
-  score?: number | null;
-  correctCount?: number | null;
-  startedAt?: string | null;
-  submittedAt?: string | null;
-  lastSeenAt?: string | null;
-  topic?: { name: string } | null;
-};
-
-type TodoTopic = {
-  topicId: string;
-  topicName: string;
-  courseId: string;
-  courseName: string;
-  quizCount: number;
-  inProgress: { answeredCount: number; quizTotal: number | null } | null;
-};
-
-type WeeklyLeaderboardSummary = {
-  weekStart?: string;
-  weekEnd?: string;
-  closesAt?: string;
-  profilesAvailable?: boolean;
-  items: LeaderboardRow[];
-  top3: LeaderboardRow[];
-  currentUserRank: number | null;
-  currentUserResult: LeaderboardRow | null;
-  progress?: { topicsDone: number; topicsTotal: number };
-  pagination: { page: number; limit: number; total: number; totalPages: number };
-};
-
-async function fetchAll<T>(path: string): Promise<T[]> {
-  const limit = 50;
-  const first = await request.get<Pagination<T>>(`${path}?page=1&limit=${limit}`);
-  const items = [...first.items];
-  const pages = Math.min(first.pagination.totalPages, 10);
-  for (let p = 2; p <= pages; p += 1) {
-    const next = await request.get<Pagination<T>>(`${path}?page=${p}&limit=${limit}`);
-    items.push(...next.items);
-  }
-  return items;
-}
+let sessionHasWoken = false;
 
 function toVNDateKey(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -113,29 +57,40 @@ function formatVNDateKeyFromMs(ms: number): string {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const router = useRouter();
-  const [courses, setCourses] = useState<CourseProgress[]>([]);
-  const [, setCatalogCourses] = useState<Course[]>([]);
-  const [, setCertificateCount] = useState(0);
-  const [certificates, setCertificates] = useState<CourseCertificate[]>([]);
-  const [sessions, setSessions] = useState<SessionItem[]>([]);
-  const [todos, setTodos] = useState<TodoTopic[]>([]);
-  const [towerOverview, setTowerOverview] = useState<TowerOverview | null>(null);
-  const [bossOverview, setBossOverview] = useState<BossOverview | null>(null);
-  const [transactions, setTransactions] = useState<TowerRewardTransactionItem[]>([]);
-  const [weeklyBoard, setWeeklyBoard] = useState<WeeklyLeaderboardSummary | null>(null);
-  const [xp, setXp] = useState<XpMe | null>(null);
-  const [wallet, setWallet] = useState<WalletBalance | null>(null);
+
+  const summaryQuery = useDashboardSummary(user, authLoading);
+  const towerQuery = useDashboardTower(user, authLoading);
+  const walletQuery = useDashboardWallet(user, authLoading);
+
+  const courses = summaryQuery.data?.courses ?? [];
+  const certificates = summaryQuery.data?.certificates ?? [];
+  const sessions = summaryQuery.data?.sessions ?? [];
+  const todos = summaryQuery.data?.todos ?? [];
+  const transactions = summaryQuery.data?.transactions ?? [];
+  const weeklyBoard = summaryQuery.data?.weeklyBoard ?? null;
+  const xp = summaryQuery.data?.xp ?? null;
+  const bossOverview = summaryQuery.data?.bossOverview ?? null;
+  const towerOverview = towerQuery.data ?? null;
+  const wallet = walletQuery.data ?? null;
+
+  const loading = authLoading || summaryQuery.isLoading || towerQuery.isLoading;
+  const error =
+    summaryQuery.error instanceof Error
+      ? summaryQuery.error.message
+      : summaryQuery.error
+        ? 'Đã có lỗi xảy ra'
+        : '';
+
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [darkTheme, setDarkTheme] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
 
   // Character Video dynamic state orchestration
-  const [hasWoken, setHasWoken] = useState(false);
+  const [hasWoken, setHasWoken] = useState(sessionHasWoken);
   const [isLevelUp, setIsLevelUp] = useState(false);
   const initialLevelRef = useRef<number | null>(null);
 
@@ -176,8 +131,10 @@ export default function DashboardPage() {
   const handleVideoStateComplete = useCallback((completedState: CharacterVideoState) => {
     if (completedState === 'milestone_level_up') {
       setIsLevelUp(false);
+      sessionHasWoken = true;
       setHasWoken(true);
     } else if (completedState === 'waking') {
+      sessionHasWoken = true;
       setHasWoken(true);
     }
   }, []);
@@ -208,114 +165,13 @@ export default function DashboardPage() {
     }
   };
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [progress, catalog, certs, sessionList, towerData, txList, weeklyData, xpData, bossData, walletData] =
-        await Promise.all([
-          canReadQuestions(user)
-            ? request.get<Pagination<CourseProgress>>('/course/progress/me?limit=12')
-            : Promise.resolve({
-                items: [] as CourseProgress[],
-                pagination: { page: 1, limit: 12, total: 0, totalPages: 1 },
-              }),
-          canReadQuestions(user)
-            ? request.get<Pagination<Course>>('/course?page=1&limit=6').catch(() => ({
-                items: [] as Course[],
-                pagination: { page: 1, limit: 6, total: 0, totalPages: 1 },
-              }))
-            : Promise.resolve({
-                items: [] as Course[],
-                pagination: { page: 1, limit: 6, total: 0, totalPages: 1 },
-              }),
-          canReadResults(user)
-            ? request.get<Pagination<CourseCertificate>>('/certificate/me?limit=10').catch(() => ({
-                items: [] as CourseCertificate[],
-                pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },
-              }))
-            : Promise.resolve({
-                items: [] as CourseCertificate[],
-                pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },
-              }),
-          canReadResults(user)
-            ? fetchAll<SessionItem>('/attempt/sessions/me').catch(() => [] as SessionItem[])
-            : Promise.resolve([] as SessionItem[]),
-          towerApi.getOverview().catch(() => null),
-          towerApi.getTransactions().catch(() => [] as TowerRewardTransactionItem[]),
-          request.get<WeeklyLeaderboardSummary>('/leaderboards/weekly?page=1&limit=5').catch(() => null),
-          xpApi.getMe().catch(() => null),
-          bossApi.getOverview().catch(() => null),
-          walletApi.getBalance().catch(() => null),
-        ]);
-
-      setCourses(progress.items);
-      setCatalogCourses(catalog.items);
-      setCertificateCount(certs.pagination.total);
-      setCertificates(certs.items);
-      setSessions(sessionList);
-      setTowerOverview(towerData);
-      setBossOverview(bossData);
-      setTransactions(txList);
-      setWeeklyBoard(weeklyData);
-      setXp(xpData);
-      setWallet(walletData);
-
-      if (towerData?.progress.isCooldownActive && towerData.progress.cooldownRemainingSeconds > 0) {
-        setCooldownRemaining(towerData.progress.cooldownRemainingSeconds);
-      } else {
-        setCooldownRemaining(0);
-      }
-
-      const submitted = new Set(
-        sessionList.filter((s) => s.status === 'SUBMITTED').map((s) => s.topicId),
-      );
-      const inProgress = new Map<string, SessionItem>();
-      sessionList
-        .filter((s) => s.status === 'IN_PROGRESS')
-        .forEach((s) => {
-          if (!inProgress.has(s.topicId)) inProgress.set(s.topicId, s);
-        });
-
-      const openCourses = progress.items.filter((item) => item.status !== 'COMPLETED');
-      const topicLists = await Promise.all(
-        openCourses.map((item) =>
-          fetchAll<CourseTopic>(`/course/${item.course.id}/topics`).catch(() => [] as CourseTopic[]),
-        ),
-      );
-
-      const list: TodoTopic[] = [];
-      const seenTopics = new Set<string>();
-      openCourses.forEach((item, index) => {
-        topicLists[index].forEach(({ topic }) => {
-          if (!topicOpen(topic.availability)) return;
-          if (submitted.has(topic.id)) return;
-          if (seenTopics.has(topic.id)) return;
-          seenTopics.add(topic.id);
-          const session = inProgress.get(topic.id) || null;
-          list.push({
-            topicId: topic.id,
-            topicName: topic.name,
-            courseId: item.course.id,
-            courseName: item.course.name,
-            quizCount: topic._count?.quizzes ?? 0,
-            inProgress: session
-              ? { answeredCount: session.answeredCount, quizTotal: session.quizTotal ?? null }
-              : null,
-          });
-        });
-      });
-      setTodos(list);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Đã có lỗi xảy ra');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (towerOverview?.progress.isCooldownActive && towerOverview.progress.cooldownRemainingSeconds > 0) {
+      setCooldownRemaining(towerOverview.progress.cooldownRemainingSeconds);
+    } else {
+      setCooldownRemaining(0);
+    }
+  }, [towerOverview?.progress.isCooldownActive, towerOverview?.progress.cooldownRemainingSeconds]);
 
   useEffect(() => {
     if (cooldownRemaining <= 0) return;
@@ -323,24 +179,27 @@ export default function DashboardPage() {
       setCooldownRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          void towerApi
-            .getOverview()
-            .then((fresh) => {
-              setTowerOverview(fresh);
-              setCooldownRemaining(
-                fresh.progress.isCooldownActive ? fresh.progress.cooldownRemainingSeconds : 0,
-              );
-            })
-            .catch(() => null);
+          void towerQuery.refetch();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [cooldownRemaining]);
+  }, [cooldownRemaining, towerQuery]);
 
-  if (error) return <ErrorState message={error} retry={() => void load()} />;
+  if (error) {
+    return (
+      <ErrorState
+        message={error}
+        retry={() => {
+          void summaryQuery.refetch();
+          void towerQuery.refetch();
+          void walletQuery.refetch();
+        }}
+      />
+    );
+  }
 
   // --- Calculations for RPG Game Lobby ---
   const currentFloor = towerOverview?.progress.currentFloor ?? 7;
@@ -1006,19 +865,23 @@ export default function DashboardPage() {
           currentBalance={totalCoins}
           currentUser={user}
           onSuccess={(result) => {
-            if (typeof result.balance === 'number') {
-              setWallet((prev) =>
-                prev
-                  ? { ...prev, balance: result.balance! }
-                  : {
-                      balance: result.balance!,
-                      lastSyncedAt: new Date().toISOString(),
-                      syncStatus: 'SYNCED',
-                      isMock: true,
-                    },
+            if (typeof result.balance === 'number' && user?.id) {
+              queryClient.setQueryData<WalletBalance | null>(
+                dashboardQueryKeys.wallet(user.id),
+                (prev) =>
+                  prev
+                    ? { ...prev, balance: result.balance! }
+                    : {
+                        balance: result.balance!,
+                        lastSyncedAt: new Date().toISOString(),
+                        syncStatus: 'SYNCED',
+                        isMock: true,
+                      },
               );
-            } else {
-              void load();
+            } else if (user?.id) {
+              void queryClient.invalidateQueries({
+                queryKey: dashboardQueryKeys.wallet(user.id),
+              });
             }
           }}
         />
