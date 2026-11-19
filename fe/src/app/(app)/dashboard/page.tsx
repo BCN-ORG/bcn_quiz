@@ -8,7 +8,6 @@ import {
   Certificate as CertificateIcon,
   Check,
   ClockCountdown,
-  Coins,
   Crown,
   Fire,
   MagnifyingGlass,
@@ -24,6 +23,7 @@ import {
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { NotificationCenter } from '@/components/notification-center';
 import { TransferModal } from '@/components/wallet/transfer-modal';
 import { walletApi, type WalletBalance } from '@/lib/wallet';
 import { leaderboardPoints, type LeaderboardRow } from '@/components/leaderboard-table';
@@ -33,6 +33,7 @@ import { topicOpen } from '@/lib/format';
 import { xpApi, type XpMe } from '@/lib/xp';
 import { canReadQuestions, canReadResults } from '@/lib/permissions';
 import { bossApi, type BossOverview } from '@/lib/boss';
+import { getCharacterProgression } from '@/lib/character-progression';
 import {
   towerApi,
   type TowerOverview,
@@ -343,7 +344,6 @@ export default function DashboardPage() {
 
   // Level & XP
   const userLevel = xp?.level ?? 3;
-  const levelTitle = xp?.rankTitle || 'Chiến Binh Code';
   const currentLevelXp = xp?.xpInLevel ?? 560;
   const nextLevelXp = xp?.xpRequired ?? 700;
   const remainingLevelXp = Math.max(0, nextLevelXp - currentLevelXp);
@@ -408,111 +408,115 @@ export default function DashboardPage() {
     : 2100;
 
   const displayName = user?.fullName || 'Trần Tuấn Hưng';
+  const characterProgression = getCharacterProgression(userLevel);
 
   return (
     <div className="rpg-dashboard" role="region" aria-label="BCN Arena RPG Game Lobby">
       {/* -------------------------------------------------------------------
-          0. Search Bar & Quick Controls Row
+          A. Grand Hero Banner with Integrated Topbar & Character Progression
           ------------------------------------------------------------------- */}
-      <div className="rpg-search-row">
-        <form className="rpg-search-box" onSubmit={handleSearch} role="search">
-          <MagnifyingGlass size={18} className="rpg-search-icon" aria-hidden="true" />
-          <input
-            type="search"
-            className="rpg-search-input"
-            placeholder="Tìm kiếm khóa học, chủ đề..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Tìm kiếm khóa học hoặc chủ đề"
-          />
-        </form>
+      <section className="rpg-hero-grand" aria-label="Hồ sơ nhân vật BCN Arena">
+        {/* Integrated Topbar */}
+        <div className="rpg-hero-topbar">
+          <form className="rpg-hero-search-box" onSubmit={handleSearch} role="search">
+            <MagnifyingGlass size={18} className="rpg-hero-search-icon" aria-hidden="true" />
+            <input
+              type="search"
+              className="rpg-hero-search-input"
+              placeholder="Tìm kiếm khóa học, chủ đề..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Tìm kiếm khóa học hoặc chủ đề"
+            />
+          </form>
 
-        <div className="rpg-search-actions">
-          <Link
-            href="/notifications"
-            className="rpg-action-btn"
-            aria-label="Thông báo hệ thống (1 thông báo mới)"
-            title="Thông báo"
-          >
-            <ShieldStar size={20} weight="fill" />
-            <span className="rpg-badge-dot" aria-hidden="true">1</span>
-          </Link>
-          <button
-            type="button"
-            className="rpg-action-btn"
-            onClick={toggleTheme}
-            aria-label={darkTheme ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
-            title={darkTheme ? 'Giao diện sáng' : 'Giao diện tối'}
-          >
-            {darkTheme ? <Sun size={20} weight="fill" /> : <Moon size={20} weight="fill" />}
-          </button>
+          <div className="rpg-hero-topbar-actions">
+            <NotificationCenter />
+            <button
+              type="button"
+              className="rpg-hero-action-btn rpg-theme-btn"
+              onClick={toggleTheme}
+              aria-label={darkTheme ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+              title={darkTheme ? 'Giao diện sáng' : 'Giao diện tối'}
+            >
+              {darkTheme ? <Sun size={20} weight="fill" /> : <Moon size={20} weight="fill" />}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* -------------------------------------------------------------------
-          A. Hero Section — Panoramic Fantasy Character Profile
-          ------------------------------------------------------------------- */}
-      <section className="rpg-hero-banner" aria-label="Hồ sơ nhân vật BCN Arena">
-        <div className="rpg-hero-left">
-          <div className="rpg-hero-avatar-wrap" aria-hidden="true">
+        {/* 3-Column Hero Main Stage */}
+        <div className="rpg-hero-stage">
+          {/* 1. Left: Character Artwork Showcase (Standing Illustration) */}
+          <div className="rpg-hero-character-col" aria-label={`Nhân vật: ${characterProgression.tierTitle}`}>
+            <div className="rpg-hero-character-glow" aria-hidden="true" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/images/dashboard/mockup-hero-character.png"
-              alt="Nhân vật chiến binh BCN Arena"
-              className="rpg-hero-character-img"
-              width={140}
-              height={140}
+              src={characterProgression.assetUrl}
+              alt={characterProgression.tierTitle}
+              className="rpg-hero-character-standing"
             />
           </div>
 
-          <div className="rpg-hero-info">
-            <div className="rpg-level-badge">
-              <ShieldStar size={14} weight="fill" aria-hidden="true" />
-              <span>Lv. {userLevel} · {levelTitle}</span>
-            </div>
-
-            <h1 className="rpg-hero-title">Chào mừng trở lại, {displayName}!</h1>
-            <p className="rpg-hero-subtitle">Học tập hôm nay, chinh phục đỉnh cao ngày mai ✨</p>
-
-            <div className="rpg-hero-xp-box" aria-label={`Kinh nghiệm: ${currentLevelXp} trên ${nextLevelXp} XP`}>
-              <div className="rpg-xp-label-row">
-                <span className="rpg-xp-amount">
-                  <Sparkle size={13} weight="fill" />
-                  <strong>{currentLevelXp.toLocaleString('vi-VN')} / {nextLevelXp.toLocaleString('vi-VN')} XP</strong>
+          {/* 2. Center: Player Progression Card */}
+          <div className="rpg-hero-center-col">
+            <div className="rpg-hero-profile-card">
+              <div className="rpg-level-badge-row">
+                <span className="rpg-level-badge">
+                  <ShieldStar size={14} weight="fill" aria-hidden="true" />
+                  <span>Lv. {userLevel} · {characterProgression.tierTitle}</span>
                 </span>
-                <span className="rpg-xp-remaining">Còn {remainingLevelXp} XP để lên cấp</span>
               </div>
-              <div
-                className="rpg-xp-track"
-                role="progressbar"
-                aria-valuenow={xpProgressPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div className="rpg-xp-fill" style={{ width: `${xpProgressPercent}%` }} />
+
+              <h1 className="rpg-hero-title">
+                Chào mừng trở lại,<br />
+                <span className="rpg-name-highlight">{displayName}!</span>
+              </h1>
+              <p className="rpg-hero-subtitle">{characterProgression.description}</p>
+
+              <div className="rpg-hero-xp-box" aria-label={`Kinh nghiệm: ${currentLevelXp} trên ${nextLevelXp} XP`}>
+                <div className="rpg-xp-label-row">
+                  <span className="rpg-xp-amount">
+                    <Sparkle size={13} weight="fill" />
+                    <strong>{currentLevelXp.toLocaleString('vi-VN')} / {nextLevelXp.toLocaleString('vi-VN')} XP</strong>
+                  </span>
+                  <span className="rpg-xp-remaining">Còn {remainingLevelXp} XP để lên cấp</span>
+                </div>
+                <div
+                  className="rpg-xp-track"
+                  role="progressbar"
+                  aria-valuenow={xpProgressPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div className="rpg-xp-fill" style={{ width: `${xpProgressPercent}%` }} />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="rpg-hero-stats" aria-label="Chỉ số chính">
-          <div className="rpg-stat-pill rpg-stat-pill-fire" title="Chuỗi ngày học liên tục">
-            <div className="rpg-stat-pill-icon" aria-hidden="true">
-              <Fire size={22} weight="fill" />
+          {/* 3. Right: Player Stats (Streak & Coin combined in ONE horizontal pill) */}
+          <div className="rpg-hero-stats-pill" aria-label="Chỉ số chính người chơi">
+            <div className="rpg-stat-unit" title="Chuỗi ngày học liên tục">
+              <div className="rpg-stat-icon streak" aria-hidden="true">
+                <Fire size={28} weight="fill" />
+              </div>
+              <div className="rpg-stat-info">
+                <span className="rpg-stat-num">{currentStreakDays} ngày</span>
+                <span className="rpg-stat-label">Chuỗi học</span>
+              </div>
             </div>
-            <div className="rpg-stat-pill-text">
-              <span className="rpg-stat-pill-val">{currentStreakDays} ngày</span>
-              <span className="rpg-stat-pill-sub">Chuỗi học</span>
-            </div>
-          </div>
 
-          <div className="rpg-stat-pill rpg-stat-pill-coin" title="Số coin tích lũy">
-            <div className="rpg-stat-pill-icon" aria-hidden="true">
-              <Coins size={22} weight="fill" />
-            </div>
-            <div className="rpg-stat-pill-text">
-              <span className="rpg-stat-pill-val">{totalCoins.toLocaleString('vi-VN')}</span>
-              <span className="rpg-stat-pill-sub">Coin</span>
+            <div className="rpg-stat-divider" aria-hidden="true" />
+
+            <div className="rpg-stat-unit" title="Số coin tích lũy">
+              <div className="rpg-stat-icon coin" aria-hidden="true">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/images/dashboard/mockup-coins.png" alt="Coin" width={30} height={30} />
+              </div>
+              <div className="rpg-stat-info">
+                <span className="rpg-stat-num">{totalCoins.toLocaleString('vi-VN')}</span>
+                <span className="rpg-stat-label">Coin</span>
+              </div>
             </div>
           </div>
         </div>
@@ -522,14 +526,17 @@ export default function DashboardPage() {
           B & C. Mid Grid: Continue Learning (~68%) + Daily Quest (~32%)
           ------------------------------------------------------------------- */}
       <div className="rpg-mid-grid">
-        {/* B. Continue Learning */}
+        {/* B. Continue Learning (Illustrated Adventure Banner) */}
         <section className="rpg-continue-card" aria-label="Tiếp tục hành trình học tập">
           <div className="rpg-continue-head">
             <div className="rpg-continue-tag">
               <BookOpen size={14} weight="fill" aria-hidden="true" />
               <span>Tiếp tục hành trình học tập</span>
             </div>
-            <Sparkle size={18} weight="fill" className="rpg-sparkle-icon" aria-hidden="true" />
+            <div className="rpg-continue-head-right">
+              <span className="rpg-continue-progress-badge">Tiến độ {todoPercent}%</span>
+              <Sparkle size={18} weight="fill" className="rpg-sparkle-icon" aria-hidden="true" />
+            </div>
           </div>
 
           <div className="rpg-continue-body">
@@ -542,38 +549,60 @@ export default function DashboardPage() {
               <div className="rpg-quiz-details">
                 <h2 className="rpg-quiz-title">{continueQuizTitle}</h2>
                 <p className="rpg-quiz-meta">
-                  {todoAnswered} / {todoTotal} câu · Chủ đề: {activeTodo?.topicName || 'HTML & CSS cơ bản'}
+                  <span className="rpg-quiz-meta-dot" aria-hidden="true" />
+                  <span>{todoAnswered} / {todoTotal} câu · Chủ đề: {activeTodo?.topicName || continueCourseName}</span>
                 </p>
-                <div
-                  className="rpg-quiz-progress-track"
-                  role="progressbar"
-                  aria-valuenow={todoPercent}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div className="rpg-quiz-progress-fill" style={{ width: `${todoPercent}%` }} />
+                <div className="rpg-quiz-progress-row">
+                  <div
+                    className="rpg-quiz-progress-track"
+                    role="progressbar"
+                    aria-valuenow={todoPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div className="rpg-quiz-progress-fill" style={{ width: `${todoPercent}%` }} />
+                  </div>
+                  <span className="rpg-quiz-percent-num">{todoPercent}%</span>
                 </div>
               </div>
             </div>
 
-            <Link href={continueTargetHref} className="rpg-btn-continue">
-              <span>Tiếp tục học</span>
-              <ArrowRight size={16} weight="bold" aria-hidden="true" />
-            </Link>
+            <div className="rpg-continue-actions">
+              <Link href={continueTargetHref} className="rpg-btn-continue">
+                <span>Tiếp tục học</span>
+                <ArrowRight size={16} weight="bold" aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+
+          {/* Right Adventure Character Artwork */}
+          <div className="rpg-continue-artwork" aria-hidden="true">
+            <div className="rpg-continue-art-glow" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/dashboard/hero-character-clean.png"
+              alt="Học tập"
+              className="rpg-continue-art-img"
+            />
           </div>
         </section>
 
         {/* C. Daily Quest */}
         <section className="rpg-quest-card" aria-label="Nhiệm vụ hôm nay">
           <div className="rpg-quest-head">
-            <h3 className="rpg-quest-heading">
-              <Trophy size={18} weight="fill" aria-hidden="true" />
-              <span>Nhiệm vụ hôm nay</span>
-            </h3>
-            <span className="rpg-quest-timer">
-              <ClockCountdown size={13} weight="bold" aria-hidden="true" />
-              <span>Còn 4h 32m</span>
-            </span>
+            <div className="rpg-quest-title-col">
+              <h3 className="rpg-quest-heading">
+                <Trophy size={17} weight="fill" aria-hidden="true" />
+                <span>Nhiệm vụ hôm nay</span>
+              </h3>
+              <span className="rpg-quest-timer">
+                <ClockCountdown size={11} weight="bold" aria-hidden="true" />
+                <span>Làm mới sau 4h 32m</span>
+              </span>
+            </div>
+            <Link href="/bounties" className="rpg-link-all" title="Xem tất cả nhiệm vụ tại trang Bounties">
+              <span>Xem tất cả →</span>
+            </Link>
           </div>
 
           <ul className="rpg-quest-list" role="list">
@@ -837,8 +866,8 @@ export default function DashboardPage() {
             src="/images/dashboard/mockup-trophy.png"
             alt="Cúp thành tựu vàng"
             className="rpg-achievement-trophy-img"
-            width={68}
-            height={60}
+            width={84}
+            height={44}
           />
         </div>
       </div>
