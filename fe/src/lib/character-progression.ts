@@ -25,7 +25,7 @@ export const CHARACTER_TIERS: CharacterTier[] = [
     tierTitle: 'Chiến Binh Code',
     tierBadge: 'Giai đoạn II · Chiến Binh',
     description: 'Học tập hôm nay, chinh phục đỉnh cao ngày mai ✨',
-    assetUrl: '/images/characters/character-level-3.png',
+    assetUrl: '/images/dashboard/hero-character-clean.png',
   },
   {
     tierId: 'tier-3-elite',

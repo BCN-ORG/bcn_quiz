@@ -141,12 +141,16 @@ body.quiz-playing .page-content {
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: 24px;
   align-items: start;
+  width: 100%;
+  max-width: 1140px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .quiz-question {
-  max-width: 900px;
-  margin: 0 auto;
   width: 100%;
+  max-width: 100%;
+  margin: 0;
 }
 
 /* Topbar riêng của bài làm: quay lại | tên chủ đề | thao tác */
@@ -10215,11 +10219,51 @@ body.boss-arena-mode {
 }
 
 /* --- 3. Topics & Gameplay Reading Container & Alignment --- */
-.topic-intro,
-.topic-result {
+.topic-intro {
   max-width: 1040px;
   margin-left: auto;
   margin-right: auto;
+  width: 100%;
+}
+
+.topic-result {
+  max-width: 1140px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+/* --- Topic Result Review Symmetrical Unified Layout --- */
+.topic-review-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 1140px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.topic-review-wrapper .topic-result {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+
+.topic-review-wrapper .quiz-layout {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+
+.topic-review-wrapper .quiz-question {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+
+.topic-review-wrapper .quiz-nav {
   width: 100%;
 }
 

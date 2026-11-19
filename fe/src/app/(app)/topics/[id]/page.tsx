@@ -261,7 +261,7 @@ function TopicQuizPage() {
   }
   if (!topic || !quizzes.length) return <><Empty title="Topic chưa có câu hỏi" description="Quay lại sau khi nội dung được cập nhật." /><Link className="button secondary" href={leaderboardHref}>Xem bảng xếp hạng</Link></>;
   if (result) return (
-    <>
+    <div className="topic-review-wrapper">
       <section className="topic-result" aria-labelledby="topic-result-title">
         <div className="topic-result-head">
           <CheckCircle size={44} weight="duotone" aria-hidden="true" />
@@ -287,7 +287,7 @@ function TopicQuizPage() {
           </>
         )}
       />
-    </>
+    </div>
   );
   if (!session) {
     const totalQuestions = topic.leaderboard?.totalQuestions ?? quizzes.length;

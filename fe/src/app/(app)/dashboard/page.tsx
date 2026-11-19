@@ -16,24 +16,27 @@ import {
   PaperPlaneTilt,
   ShieldStar,
   Sparkle,
+  Star,
   Sun,
   Sword,
   Trophy,
   User as UserIcon,
 } from '@phosphor-icons/react';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { CharacterVideoPlayer } from '@/components/character-video-player';
 import { NotificationCenter } from '@/components/notification-center';
 import { TransferModal } from '@/components/wallet/transfer-modal';
 import { walletApi, type WalletBalance } from '@/lib/wallet';
 import { leaderboardPoints, type LeaderboardRow } from '@/components/leaderboard-table';
-import { ErrorState, Loading } from '@/components/ui';
+import { ErrorState } from '@/components/ui';
 import { request, serverNow } from '@/lib/api';
 import { topicOpen } from '@/lib/format';
 import { xpApi, type XpMe } from '@/lib/xp';
 import { canReadQuestions, canReadResults } from '@/lib/permissions';
 import { bossApi, type BossOverview } from '@/lib/boss';
 import { getCharacterProgression } from '@/lib/character-progression';
+import type { CharacterVideoState } from '@/lib/character-video';
 import {
   towerApi,
   type TowerOverview,
@@ -130,6 +133,54 @@ export default function DashboardPage() {
   const [darkTheme, setDarkTheme] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Character Video dynamic state orchestration
+  const [hasWoken, setHasWoken] = useState(false);
+  const [isLevelUp, setIsLevelUp] = useState(false);
+  const initialLevelRef = useRef<number | null>(null);
+
+  const userLevel = xp?.level ?? 3;
+
+  // Level up detection & session storage tracking
+  useEffect(() => {
+    if (loading) return;
+
+    if (initialLevelRef.current === null) {
+      initialLevelRef.current = userLevel;
+      if (typeof window !== 'undefined') {
+        const storedStr = localStorage.getItem('bcn_arena_last_level');
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlLevelUp =
+          urlParams.get('levelup') === 'true' || urlParams.get('level_up') === 'true';
+
+        if (storedStr) {
+          const storedLevel = parseInt(storedStr, 10);
+          if (!Number.isNaN(storedLevel) && userLevel > storedLevel) {
+            setIsLevelUp(true);
+          }
+        }
+        if (urlLevelUp) {
+          setIsLevelUp(true);
+        }
+        localStorage.setItem('bcn_arena_last_level', String(userLevel));
+      }
+    } else if (userLevel > initialLevelRef.current) {
+      initialLevelRef.current = userLevel;
+      setIsLevelUp(true);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('bcn_arena_last_level', String(userLevel));
+      }
+    }
+  }, [loading, userLevel]);
+
+  const handleVideoStateComplete = useCallback((completedState: CharacterVideoState) => {
+    if (completedState === 'milestone_level_up') {
+      setIsLevelUp(false);
+      setHasWoken(true);
+    } else if (completedState === 'waking') {
+      setHasWoken(true);
+    }
+  }, []);
 
   // Initialize theme from document
   useEffect(() => {
@@ -289,13 +340,13 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [cooldownRemaining]);
 
-  if (loading) return <Loading label="Đang tải trung tâm học tập BCN Arena..." />;
   if (error) return <ErrorState message={error} retry={() => void load()} />;
 
   // --- Calculations for RPG Game Lobby ---
   const currentFloor = towerOverview?.progress.currentFloor ?? 7;
   const highestCompletedFloor = towerOverview?.progress.highestCompletedFloor ?? 0;
   const isAllConquered = highestCompletedFloor >= 100;
+  const remainingFloors = Math.max(0, 100 - currentFloor);
 
   // Real coin balance
   const successTxCoins = transactions
@@ -343,7 +394,6 @@ export default function DashboardPage() {
   if (currentStreakDays === 0) currentStreakDays = 1;
 
   // Level & XP
-  const userLevel = xp?.level ?? 3;
   const currentLevelXp = xp?.xpInLevel ?? 560;
   const nextLevelXp = xp?.xpRequired ?? 700;
   const remainingLevelXp = Math.max(0, nextLevelXp - currentLevelXp);
@@ -383,6 +433,11 @@ export default function DashboardPage() {
 
   // Boss Info
   const bossName = bossOverview?.season.bossName || 'Đại Ma Vương';
+  const bossParticipants = bossOverview?.community.totalParticipants ?? 128;
+  const bossHpPercent =
+    bossOverview?.community.bossHpPercent != null
+      ? Math.min(100, Math.max(0, Math.round(bossOverview.community.bossHpPercent)))
+      : 68;
 
   // Leaderboard Top 3 & User Rank
   const leaderboardItems = weeklyBoard?.items || [];
@@ -409,6 +464,22 @@ export default function DashboardPage() {
 
   const displayName = user?.fullName || 'Trần Tuấn Hưng';
   const characterProgression = getCharacterProgression(userLevel);
+
+  // Real dynamic character video state resolution:
+  // - 'connecting': active while loading initial dashboard data (loading === true).
+  // - 'milestone_level_up': triggers when level up is detected.
+  // - 'waking': triggers on session start after loading completes (plays once, then transitions to 'idle').
+  // - 'idle': default state.
+  let activeVideoState: CharacterVideoState = 'idle';
+  if (loading) {
+    activeVideoState = 'connecting';
+  } else if (isLevelUp) {
+    activeVideoState = 'milestone_level_up';
+  } else if (!hasWoken) {
+    activeVideoState = 'waking';
+  } else {
+    activeVideoState = 'idle';
+  }
 
   return (
     <div className="rpg-dashboard" role="region" aria-label="BCN Arena RPG Game Lobby">
@@ -449,11 +520,12 @@ export default function DashboardPage() {
           {/* 1. Left: Character Artwork Showcase (Standing Illustration) */}
           <div className="rpg-hero-character-col" aria-label={`Nhân vật: ${characterProgression.tierTitle}`}>
             <div className="rpg-hero-character-glow" aria-hidden="true" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={characterProgression.assetUrl}
-              alt={characterProgression.tierTitle}
+            <CharacterVideoPlayer
+              level={userLevel}
+              state={activeVideoState}
+              onStateComplete={handleVideoStateComplete}
               className="rpg-hero-character-standing"
+              alt={characterProgression.tierTitle}
             />
           </div>
 
@@ -476,19 +548,21 @@ export default function DashboardPage() {
               <div className="rpg-hero-xp-box" aria-label={`Kinh nghiệm: ${currentLevelXp} trên ${nextLevelXp} XP`}>
                 <div className="rpg-xp-label-row">
                   <span className="rpg-xp-amount">
-                    <Sparkle size={13} weight="fill" />
+                    <Star size={14} weight="fill" color="#facc15" />
                     <strong>{currentLevelXp.toLocaleString('vi-VN')} / {nextLevelXp.toLocaleString('vi-VN')} XP</strong>
                   </span>
-                  <span className="rpg-xp-remaining">Còn {remainingLevelXp} XP để lên cấp</span>
                 </div>
-                <div
-                  className="rpg-xp-track"
-                  role="progressbar"
-                  aria-valuenow={xpProgressPercent}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div className="rpg-xp-fill" style={{ width: `${xpProgressPercent}%` }} />
+                <div className="rpg-xp-bar-row">
+                  <div
+                    className="rpg-xp-track"
+                    role="progressbar"
+                    aria-valuenow={xpProgressPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div className="rpg-xp-fill" style={{ width: `${xpProgressPercent}%` }} />
+                  </div>
+                  <span className="rpg-xp-remaining">Còn {remainingLevelXp} XP để lên cấp</span>
                 </div>
               </div>
             </div>
@@ -580,8 +654,8 @@ export default function DashboardPage() {
             <div className="rpg-continue-art-glow" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/images/dashboard/hero-character-clean.png"
-              alt="Học tập"
+              src="/images/characters/character-level-1.png"
+              alt="Hành trình học tập"
               className="rpg-continue-art-img"
             />
           </div>
@@ -668,49 +742,101 @@ export default function DashboardPage() {
           <div className="rpg-cards-subgrid">
             {/* Card 1: Leo Tháp Kiến Thức */}
             <div className="rpg-game-card rpg-tower-card">
+              <div className="rpg-card-art-bg rpg-art-tower" aria-hidden="true" />
+              <div className="rpg-card-gradient-overlay" aria-hidden="true" />
+
               <div className="rpg-card-top">
-                <span className="rpg-card-pill-tag">
-                  <ShieldStar size={13} weight="fill" aria-hidden="true" />
-                  <span>Leo Tháp Kiến Thức</span>
-                </span>
+                <div className="rpg-card-header-row">
+                  <span className="rpg-card-pill-tag rpg-tag-tower">
+                    <ShieldStar size={13} weight="fill" aria-hidden="true" />
+                    <span>Leo Tháp Kiến Thức</span>
+                  </span>
+                  <span className="rpg-card-badge-top rpg-badge-tower">
+                    Tầng {currentFloor} / 100
+                  </span>
+                </div>
                 <h3 className="rpg-card-title">Leo Tháp Kiến Thức</h3>
                 <p className="rpg-card-desc">Chinh phục 100 tầng và nhận thưởng hấp dẫn!</p>
               </div>
 
               <div className="rpg-card-bottom">
-                <div className="rpg-info-pill-glass">
-                  <span>Tầng hiện tại</span>
-                  <strong>{currentFloor} / 100</strong>
+                <div className="rpg-card-progress-wrap">
+                  <div className="rpg-card-progress-meta">
+                    <span className="rpg-card-note">Còn {remainingFloors} tầng để chinh phục</span>
+                    <span className="rpg-card-progress-val">{currentFloor}%</span>
+                  </div>
+                  <div
+                    className="rpg-card-progress-track rpg-tower-track"
+                    role="progressbar"
+                    aria-valuenow={currentFloor}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`Tiến độ leo tháp: tầng ${currentFloor} trên 100`}
+                  >
+                    <div
+                      className="rpg-card-progress-fill rpg-tower-fill"
+                      style={{ width: `${Math.min(100, Math.max(0, currentFloor))}%` }}
+                    />
+                  </div>
                 </div>
 
-                <Link href="/tower" className="rpg-btn-challenge">
-                  <span>Chinh phục</span>
-                  <ArrowRight size={14} weight="bold" aria-hidden="true" />
-                </Link>
+                <div className="rpg-card-action-row">
+                  <Link href="/tower" className="rpg-btn-challenge rpg-btn-tower">
+                    <span>Tiếp tục leo tháp</span>
+                    <ArrowRight size={14} weight="bold" aria-hidden="true" />
+                  </Link>
+                </div>
               </div>
             </div>
 
             {/* Card 2: Săn Boss */}
             <div className="rpg-game-card rpg-boss-card">
+              <div className="rpg-card-art-bg rpg-art-boss" aria-hidden="true" />
+              <div className="rpg-card-gradient-overlay" aria-hidden="true" />
+
               <div className="rpg-card-top">
-                <span className="rpg-card-pill-tag">
-                  <Crown size={13} weight="fill" aria-hidden="true" />
-                  <span>Săn Boss</span>
-                </span>
-                <h3 className="rpg-card-title">Săn Boss</h3>
-                <p className="rpg-card-desc">Đánh bại Boss để nhận nhiều Coin!</p>
+                <div className="rpg-card-header-row">
+                  <span className="rpg-card-pill-tag rpg-tag-boss">
+                    <Crown size={13} weight="fill" aria-hidden="true" />
+                    <span>Săn Boss</span>
+                  </span>
+                  <span className="rpg-card-badge-top rpg-badge-boss">
+                    Hạng #{myRankNum} của bạn
+                  </span>
+                </div>
+                <h3 className="rpg-card-title">
+                  Săn Boss: <span className="rpg-boss-name-highlight">{bossName}</span>
+                </h3>
+                <p className="rpg-card-desc">Đánh bại Boss tuần để nhận nhiều Coin!</p>
               </div>
 
               <div className="rpg-card-bottom">
-                <div className="rpg-info-pill-glass">
-                  <span>Boss tuần này:</span>
-                  <strong>{bossName}</strong>
+                <div className="rpg-card-progress-wrap">
+                  <div className="rpg-card-progress-meta">
+                    <span className="rpg-card-note">{bossParticipants} người tham chiến</span>
+                    <span className="rpg-card-progress-val">HP {bossHpPercent}%</span>
+                  </div>
+                  <div
+                    className="rpg-card-progress-track rpg-boss-track"
+                    role="progressbar"
+                    aria-valuenow={bossHpPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`Máu boss còn lại: ${bossHpPercent}%`}
+                  >
+                    <div
+                      className="rpg-card-progress-fill rpg-boss-fill"
+                      style={{ width: `${bossHpPercent}%` }}
+                    />
+                  </div>
                 </div>
 
-                <Link href="/boss" className="rpg-btn-challenge">
-                  <span>Tham chiến</span>
-                  <ArrowRight size={14} weight="bold" aria-hidden="true" />
-                </Link>
+                <div className="rpg-card-action-row">
+                  <Link href="/boss" className="rpg-btn-challenge rpg-btn-boss">
+                    <span>Tham chiến</span>
+                    <ArrowRight size={14} weight="bold" aria-hidden="true" />
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
