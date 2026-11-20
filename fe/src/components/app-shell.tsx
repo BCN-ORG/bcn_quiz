@@ -47,7 +47,12 @@ import { CertStatus } from './certificate-status';
 import { Empty, Loading } from './ui';
 import { NotificationCenter } from './notification-center';
 import { useDashboardSummary } from '@/lib/dashboard-queries';
-import { getEquippedTransmogTier, TRANSMOG_EVENT } from '@/lib/character-progression';
+import {
+  getCharacterProgression,
+  getCharacterTierById,
+  getEquippedTransmogTier,
+  TRANSMOG_EVENT,
+} from '@/lib/character-progression';
 
 type NavItem = {
   href: string;
@@ -175,6 +180,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [userLevel]);
   const activeTierId =
     localTransmog !== undefined ? localTransmog : serverEquippedTierId;
+  const activeTier =
+    getCharacterTierById(activeTierId) ?? getCharacterProgression(userLevel);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -400,27 +407,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
           {profileOpen ? (
-            <div className="profile-card" role="dialog" aria-label="Hồ sơ của bạn">
-              <div className="profile-card-head">
-                <AvatarFrame
-                  name={user.fullName || user.email}
-                  avatarUrl={user.avatarUrl}
-                  level={userLevel}
-                  tierIdOverride={activeTierId}
-                  size="lg"
-                  showLevelBadge
-                />
-                <div>
+            <div className="profile-card profile-card--discord" role="dialog" aria-label="Hồ sơ của bạn">
+              <div
+                className="profile-card-banner"
+                style={{ backgroundImage: `url('${activeTier.bannerBgUrl}')` }}
+                data-tier={activeTier.tierId}
+              >
+                <span className="profile-card-banner-scrim" aria-hidden="true" />
+                <span className="profile-card-banner-tier">
+                  {activeTier.tierBadge} {activeTier.tierTitle}
+                </span>
+              </div>
+              <div className="profile-card-body">
+                <div className="profile-card-avatar-row">
+                  <div className="profile-card-avatar-cutout">
+                    <AvatarFrame
+                      name={user.fullName || user.email}
+                      avatarUrl={user.avatarUrl}
+                      level={userLevel}
+                      tierIdOverride={activeTierId}
+                      size="lg"
+                      showLevelBadge
+                    />
+                  </div>
+                </div>
+                <div className="profile-card-identity">
                   <Nameplate
                     name={user.fullName || 'Thành viên BCN'}
                     level={userLevel}
                     tierIdOverride={activeTierId}
-                    showTitleBadge
+                    showTitleBadge={false}
                     compact
                   />
                   <small>{user.email}</small>
                 </div>
-              </div>
               <div className="profile-card-section">
                 <p className="profile-card-label">Vai trò</p>
                 <div className="role-pills" aria-label="Vai trò Quiz">
@@ -467,6 +487,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Link className="roles-link" href="/certificates" onClick={() => setProfileOpen(false)}>Xem tất cả chứng nhận</Link>
               </div>
               <button type="button" className="button danger profile-logout" onClick={() => void logout()}><SignOut /> Đăng xuất</button>
+              </div>
             </div>
           ) : null}
         </div>

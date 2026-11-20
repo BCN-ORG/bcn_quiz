@@ -151,7 +151,7 @@ export function LeaderboardPlayer({ row, current = false, large = false, namesUn
       name={nameless ? label : name}
       level={playerLevel}
       tierIdOverride={effectiveTierId}
-      showTitleBadge={!nameless}
+      showTitleBadge={false}
       compact
       className={large ? 'rpg-nameplate--podium' : ''}
     >

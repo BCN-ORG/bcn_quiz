@@ -36,8 +36,10 @@ export function Nameplate({
     <span
       className={`rpg-nameplate ${compact ? 'rpg-nameplate--compact' : ''} ${className}`.trim()}
       data-tier={tier.tierId}
+      style={{ backgroundImage: `url('${tier.bannerBgUrl}')` }}
       title={`${name} · ${tier.tierTitle} (${tier.nameplateName})`}
     >
+      <span className="rpg-nameplate-scrim" aria-hidden="true" />
       <span className="rpg-nameplate-glint" aria-hidden="true" />
       <span className="rpg-nameplate-content">
         {children ?? <span className="rpg-nameplate-text">{name}</span>}

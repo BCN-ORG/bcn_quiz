@@ -939,7 +939,7 @@ export default function DashboardPage() {
                     tierIdOverride={
                       user?.id && top2.user?.id === user.id
                         ? characterProgression.tierId
-                        : undefined
+                        : (top2.equippedTierId ?? undefined)
                     }
                     size="md"
                     showLevelBadge
@@ -952,7 +952,7 @@ export default function DashboardPage() {
                   tierIdOverride={
                     user?.id && top2.user?.id === user.id
                       ? characterProgression.tierId
-                      : undefined
+                      : (top2.equippedTierId ?? undefined)
                   }
                   compact
                   className="rpg-podium-nameplate"
@@ -974,7 +974,7 @@ export default function DashboardPage() {
                     tierIdOverride={
                       user?.id && top1.user?.id === user.id
                         ? characterProgression.tierId
-                        : undefined
+                        : (top1.equippedTierId ?? undefined)
                     }
                     size="lg"
                     showLevelBadge
@@ -987,7 +987,7 @@ export default function DashboardPage() {
                   tierIdOverride={
                     user?.id && top1.user?.id === user.id
                       ? characterProgression.tierId
-                      : undefined
+                      : (top1.equippedTierId ?? undefined)
                   }
                   compact
                   className="rpg-podium-nameplate"
@@ -1008,7 +1008,7 @@ export default function DashboardPage() {
                     tierIdOverride={
                       user?.id && top3.user?.id === user.id
                         ? characterProgression.tierId
-                        : undefined
+                        : (top3.equippedTierId ?? undefined)
                     }
                     size="md"
                     showLevelBadge
@@ -1021,7 +1021,7 @@ export default function DashboardPage() {
                   tierIdOverride={
                     user?.id && top3.user?.id === user.id
                       ? characterProgression.tierId
-                      : undefined
+                      : (top3.equippedTierId ?? undefined)
                   }
                   compact
                   className="rpg-podium-nameplate"

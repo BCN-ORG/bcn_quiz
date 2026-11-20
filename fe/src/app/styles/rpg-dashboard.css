@@ -1452,16 +1452,17 @@
   align-items: flex-end;
   justify-content: center;
   gap: 8px;
-  padding: 12px 0 4px;
+  padding: 20px 0 4px;
 }
 
 .rpg-podium-col {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 4px;
   flex: 1;
   min-width: 0;
-  max-width: 114px;
+  max-width: 128px;
   text-align: center;
 }
 
@@ -2215,16 +2216,16 @@
   border-radius: 9999px;
 }
 
-.rpg-avatar-frame--sm { width: 42px; height: 42px; }
-.rpg-avatar-frame--md { width: 56px; height: 56px; }
+.rpg-avatar-frame--sm { width: 40px; height: 40px; }
+.rpg-avatar-frame--md { width: 54px; height: 54px; }
 .rpg-avatar-frame--lg { width: 68px; height: 68px; }
 .rpg-avatar-frame--xl { width: 88px; height: 88px; }
 
 .rpg-avatar-frame-inner {
   position: relative;
   z-index: 2;
-  width: 76%;
-  height: 76%;
+  width: 74%;
+  height: 74%;
   border-radius: 9999px;
   overflow: hidden;
   display: inline-flex;
@@ -2233,13 +2234,16 @@
   background: linear-gradient(135deg, #1e293b, #334155);
   color: #ffffff;
   font-weight: 800;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .rpg-avatar-frame--lg .rpg-avatar-frame-inner { font-size: 18px; }
 .rpg-avatar-frame--xl .rpg-avatar-frame-inner { font-size: 24px; }
 
-.rpg-avatar-frame-img {
+.rpg-avatar-frame-img,
+.leaderboard-player .rpg-avatar-frame-img,
+.leaderboard-player-lg .rpg-avatar-frame-img {
+  flex: none;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -2900,22 +2904,39 @@
   padding: 5px 12px;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(241, 245, 249, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background-color: #0f172a;
+  background-size: cover;
+  background-position: center;
+  color: #ffffff;
+  min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
 }
 
+.rpg-nameplate-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(10, 15, 30, 0.84) 0%,
+    rgba(10, 15, 30, 0.58) 55%,
+    rgba(10, 15, 30, 0.36) 100%
+  );
+}
+
 .rpg-nameplate--compact {
-  padding: 3px 9px;
-  border-radius: 8px;
+  padding: 4px 10px;
+  border-radius: 9px;
 }
 
 .rpg-podium-nameplate {
   width: 100%;
   max-width: 100%;
   justify-content: center;
-  padding: 3px 6px;
+  padding: 4px 8px;
   margin-top: 2px;
 }
 
@@ -2934,20 +2955,22 @@
 }
 
 .rpg-nameplate--podium {
+  width: 100%;
   max-width: 100%;
   justify-content: center;
-  padding: 6px 10px;
+  padding: 5px 10px;
 }
 
 .rpg-nameplate--podium .rpg-nameplate-content {
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+  width: 100%;
+  justify-content: center;
   text-align: center;
 }
 
 .rpg-nameplate--podium .leaderboard-player-name {
   align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 .rpg-nameplate-glint {
@@ -2956,8 +2979,8 @@
   background: linear-gradient(
     110deg,
     transparent 20%,
-    rgba(255, 255, 255, 0.28) 48%,
-    rgba(255, 255, 255, 0.06) 62%,
+    rgba(255, 255, 255, 0.24) 48%,
+    rgba(255, 255, 255, 0.05) 62%,
     transparent 80%
   );
   transform: translateX(-120%);
@@ -2980,6 +3003,17 @@
   font-weight: 800;
   font-size: 13.5px;
   line-height: 1.25;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.78);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.rpg-nameplate .leaderboard-player-name strong {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.78);
 }
 
 .rpg-nameplate-tier-tag {
@@ -2988,8 +3022,10 @@
   padding: 2px 7px;
   border-radius: 9999px;
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
   letter-spacing: 0.01em;
 }
 
@@ -3000,71 +3036,136 @@
 
 /* Tier 1: Forest Novice */
 .rpg-nameplate[data-tier='tier-1-beginner'] {
-  background: linear-gradient(135deg, rgba(132, 204, 22, 0.14), rgba(22, 163, 74, 0.12));
-  border-color: rgba(132, 204, 22, 0.35);
-  color: #1e293b;
-}
-.rpg-nameplate[data-tier='tier-1-beginner'] .rpg-nameplate-tier-tag {
-  background: rgba(132, 204, 22, 0.2);
-  color: #3f6212;
-  border-color: rgba(132, 204, 22, 0.4);
+  border-color: rgba(132, 204, 22, 0.55);
+  box-shadow: 0 2px 8px rgba(101, 163, 13, 0.18);
 }
 
 /* Tier 2: Emerald Rune */
 .rpg-nameplate[data-tier='tier-2-skilled'] {
-  background: linear-gradient(135deg, rgba(6, 78, 59, 0.88), rgba(16, 185, 129, 0.72));
-  border-color: rgba(52, 211, 153, 0.55);
-  color: #ecfdf5;
-  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.22);
+  border-color: rgba(52, 211, 153, 0.6);
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.24);
 }
 
 /* Tier 3: Astral Sapphire */
 .rpg-nameplate[data-tier='tier-3-elite'] {
-  background: linear-gradient(135deg, rgba(12, 74, 110, 0.92), rgba(37, 99, 235, 0.78));
-  border-color: rgba(125, 211, 252, 0.6);
-  color: #f0f9ff;
-  box-shadow: 0 2px 12px rgba(56, 189, 248, 0.28);
+  border-color: rgba(125, 211, 252, 0.65);
+  box-shadow: 0 2px 12px rgba(56, 189, 248, 0.3);
 }
 
 /* Tier 4: Imperial Dragon Gold */
 .rpg-nameplate[data-tier='tier-4-legendary'] {
-  background: linear-gradient(135deg, rgba(120, 53, 15, 0.94), rgba(107, 33, 168, 0.85));
-  border-color: rgba(250, 204, 21, 0.72);
-  color: #fef9c3;
-  box-shadow: 0 3px 14px rgba(234, 179, 8, 0.32);
+  border-color: rgba(250, 204, 21, 0.78);
+  box-shadow: 0 3px 14px rgba(234, 179, 8, 0.34);
 }
 
 /* Tier 5: Astral Nebula */
 .rpg-nameplate[data-tier='tier-5-astral'] {
-  background: linear-gradient(135deg, rgba(59, 7, 100, 0.94), rgba(14, 116, 144, 0.86));
-  border-color: rgba(192, 132, 252, 0.75);
-  color: #f3e8ff;
-  box-shadow: 0 3px 16px rgba(168, 85, 247, 0.36);
+  border-color: rgba(192, 132, 252, 0.78);
+  box-shadow: 0 3px 16px rgba(168, 85, 247, 0.38);
 }
 
 /* Tier 6: Void Archon Crimson & Electric Cyan */
 .rpg-nameplate[data-tier='tier-6-void'] {
-  background: linear-gradient(135deg, rgba(136, 19, 55, 0.95), rgba(15, 23, 42, 0.94), rgba(8, 145, 178, 0.82));
-  border-color: rgba(251, 113, 133, 0.78);
-  color: #fff1f2;
+  border-color: rgba(251, 113, 133, 0.8);
   box-shadow: 0 3px 18px rgba(244, 63, 94, 0.4), 0 0 8px rgba(34, 211, 238, 0.32);
 }
 .rpg-nameplate[data-tier='tier-6-void'] .rpg-nameplate-tier-tag {
-  background: rgba(34, 211, 238, 0.18);
+  background: rgba(15, 23, 42, 0.72);
   border-color: rgba(34, 211, 238, 0.55);
   color: #a5f3fc;
 }
 
 /* Tier 7: Celestial Seraph */
 .rpg-nameplate[data-tier='tier-7-seraph'] {
-  background: linear-gradient(135deg, rgba(180, 83, 9, 0.94), rgba(14, 165, 233, 0.82), rgba(234, 179, 8, 0.9));
   border-color: rgba(254, 240, 138, 0.9);
-  color: #ffffff;
   box-shadow: 0 4px 20px rgba(250, 204, 21, 0.48), 0 0 10px rgba(125, 211, 252, 0.45);
 }
 
-:root[data-theme='dark'] .rpg-nameplate[data-tier='tier-1-beginner'] {
-  color: #ecfccb;
+/* ==========================================================================
+   DISCORD-STYLE SIDEBAR PROFILE CARD BANNER
+   ========================================================================== */
+.profile-trigger {
+  padding: 8px 8px 10px;
+}
+
+.profile-card--discord {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+}
+
+.profile-card-banner {
+  position: relative;
+  height: 84px;
+  background-color: #0f172a;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 10px 12px;
+}
+
+.profile-card-banner-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.22) 0%,
+    rgba(15, 23, 42, 0.62) 100%
+  );
+  pointer-events: none;
+}
+
+.profile-card-banner-tier {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  backdrop-filter: blur(6px);
+}
+
+.profile-card-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.profile-card-avatar-row {
+  margin-top: -36px;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+}
+
+.profile-card-avatar-cutout {
+  padding: 4px;
+  border-radius: 9999px;
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  display: inline-flex;
+}
+
+.profile-card-identity {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.profile-card-identity small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rpg-quest-chest-btn {

@@ -68,35 +68,62 @@ export function AvatarFrame({
         {/* Tier 4+: Top Crown / Gem Crest */}
         {visualLevel >= 10 ? (
           <g className="rpg-frame-crest">
-            <polygon points="50,1 55,9 50,14 45,9" className="rpg-frame-gem" />
-            <polygon points="36,4 40,10 35,12" className="rpg-frame-wing" />
-            <polygon points="64,4 60,10 65,12" className="rpg-frame-wing" />
+            <path
+              d="M50 0.5 L55.5 7.5 L50 13.5 L44.5 7.5 Z"
+              className="rpg-frame-gem"
+            />
+            <path
+              d="M34 5.5 C37 4, 41 6.5, 42 10.5 C38 11, 35 8.5, 34 5.5 Z"
+              className="rpg-frame-wing"
+            />
+            <path
+              d="M66 5.5 C63 4, 59 6.5, 58 10.5 C62 11, 65 8.5, 66 5.5 Z"
+              className="rpg-frame-wing"
+            />
           </g>
         ) : null}
 
         {/* Tier 5+: Orbiting Astral Star Nodes */}
         {visualLevel >= 20 ? (
           <g className="rpg-frame-orbit">
-            <circle cx="8" cy="50" r="3.2" className="rpg-frame-node" />
-            <circle cx="92" cy="50" r="3.2" className="rpg-frame-node" />
+            <circle cx="6.5" cy="50" r="3" className="rpg-frame-node" />
+            <circle cx="93.5" cy="50" r="3" className="rpg-frame-node" />
           </g>
         ) : null}
 
-        {/* Tier 6+: Void Archon Side Blades */}
+        {/* Tier 6+: Void Archon Side Fins */}
         {visualLevel >= 40 ? (
           <g className="rpg-frame-blades">
-            <polygon points="2,34 11,40 8,47 2,42" className="rpg-frame-blade" />
-            <polygon points="98,34 89,40 92,47 98,42" className="rpg-frame-blade" />
-            <polygon points="4,66 12,60 10,53 3,58" className="rpg-frame-blade" />
-            <polygon points="96,66 88,60 90,53 97,58" className="rpg-frame-blade" />
+            <path
+              d="M2.5 34 C7 36, 10 40, 9 46 C5.5 44, 3 40, 2.5 34 Z"
+              className="rpg-frame-blade"
+            />
+            <path
+              d="M97.5 34 C93 36, 90 40, 91 46 C94.5 44, 97 40, 97.5 34 Z"
+              className="rpg-frame-blade"
+            />
+            <path
+              d="M3.5 66 C7.5 64, 10.5 60, 9.5 54 C6 56, 4 60, 3.5 66 Z"
+              className="rpg-frame-blade"
+            />
+            <path
+              d="M96.5 66 C92.5 64, 89.5 60, 90.5 54 C94 56, 96 60, 96.5 66 Z"
+              className="rpg-frame-blade"
+            />
           </g>
         ) : null}
 
         {/* Tier 7+: Celestial Seraphic Wings */}
         {visualLevel >= 70 ? (
           <g className="rpg-frame-seraph-wings">
-            <path d="M4,28 Q16,22 20,38 Q12,35 4,28 Z" className="rpg-frame-seraph-wing" />
-            <path d="M96,28 Q84,22 80,38 Q88,35 96,28 Z" className="rpg-frame-seraph-wing" />
+            <path
+              d="M3 29 C11 20, 19 25, 21 37 C14 35, 8 33, 3 29 Z"
+              className="rpg-frame-seraph-wing"
+            />
+            <path
+              d="M97 29 C89 20, 81 25, 79 37 C86 35, 92 33, 97 29 Z"
+              className="rpg-frame-seraph-wing"
+            />
           </g>
         ) : null}
       </svg>
