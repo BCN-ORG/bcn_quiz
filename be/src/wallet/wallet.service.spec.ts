@@ -445,7 +445,11 @@ describe('MockCoinWalletService', () => {
     });
 
     it('skips duplicate reward with same idempotencyKey', async () => {
-      const existingTx = { id: 'tx-rw-1', type: MockWalletTxType.REWARD, amount: 5 };
+      const existingTx = {
+        id: 'tx-rw-1',
+        type: MockWalletTxType.REWARD,
+        amount: 5,
+      };
       prismaMock.mockWalletTransaction.findUnique.mockResolvedValue(existingTx);
 
       const res = await service.creditReward({

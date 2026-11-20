@@ -434,7 +434,12 @@ export class MockCoinWalletService implements CoinWalletService {
   }): Promise<{ credited: boolean; transaction?: MockWalletTransaction }> {
     const { userId, amount, idempotencyKey, source, description, createdAt } =
       params;
-    if (!userId || !idempotencyKey || !Number.isInteger(amount) || amount <= 0) {
+    if (
+      !userId ||
+      !idempotencyKey ||
+      !Number.isInteger(amount) ||
+      amount <= 0
+    ) {
       return { credited: false };
     }
 
