@@ -933,4 +933,12 @@ model MockWalletTransaction {
   @@map("mock_wallet_transactions")
 }
 
+model UserCosmeticPreference {
+  userId         String   @id
+  equippedTierId String?
+  updatedAt      DateTime @updatedAt
+
+  @@map("user_cosmetic_preferences")
+}
+
 

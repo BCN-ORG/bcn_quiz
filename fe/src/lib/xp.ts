@@ -14,6 +14,8 @@ export interface XpMe {
   xpPercent: number;
   rankTitle: string;
   nextRankTitle: string | null;
+  equippedTierId?: string | null;
+  dailyChestClaimed?: boolean;
   breakdown: Record<XpSourceType, { count: number; xp: number }>;
   recent: Array<{
     id: string;
@@ -26,4 +28,14 @@ export interface XpMe {
 
 export const xpApi = {
   getMe: () => request.get<XpMe>('/xp/me'),
+  updateCosmetics: (equippedTierId: string | null) =>
+    request.put<{ equippedTierId: string | null }>('/xp/me/cosmetics', {
+      equippedTierId,
+    }),
+  claimDailyChest: () =>
+    request.post<{
+      claimed: boolean;
+      alreadyClaimed: boolean;
+      rewardCoins: number;
+    }>('/xp/daily-chest/claim'),
 };

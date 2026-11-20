@@ -10,6 +10,7 @@ import {
   ClockCountdown,
   Crown,
   Fire,
+  Gift,
   MagnifyingGlass,
   Medal,
   Moon,
@@ -20,19 +21,29 @@ import {
   Sun,
   Sword,
   Trophy,
-  User as UserIcon,
 } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { AvatarFrame } from '@/components/avatar-frame';
 import { CharacterVideoPlayer } from '@/components/character-video-player';
+import { EvolutionModal } from '@/components/evolution-modal';
+import { LevelUpModal } from '@/components/level-up-modal';
+import { Nameplate } from '@/components/nameplate';
 import { NotificationCenter } from '@/components/notification-center';
 import { TransferModal } from '@/components/wallet/transfer-modal';
 import type { WalletBalance } from '@/lib/wallet';
+import { xpApi } from '@/lib/xp';
 import { leaderboardPoints } from '@/components/leaderboard-table';
 import { ErrorState } from '@/components/ui';
 import { serverNow } from '@/lib/api';
-import { getCharacterProgression } from '@/lib/character-progression';
+import {
+  getCharacterProgression,
+  getCharacterTierById,
+  getNextCharacterTier,
+  setEquippedTransmogTier,
+  TRANSMOG_STORAGE_KEY,
+} from '@/lib/character-progression';
 import type { CharacterVideoState } from '@/lib/character-video';
 import {
   dashboardQueryKeys,
@@ -85,9 +96,15 @@ export default function DashboardPage() {
         : '';
 
   const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [isEvolutionOpen, setIsEvolutionOpen] = useState(false);
+  const [showLevelUpModal, setShowLevelUpModal] = useState(false);
+  const [equippedTierId, setEquippedTierId] = useState<string | null>(null);
+  const [dailyChestClaimedLocal, setDailyChestClaimedLocal] = useState(false);
+  const [claimingChest, setClaimingChest] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [darkTheme, setDarkTheme] = useState(false);
+  const heroRef = useRef<HTMLElement | null>(null);
 
   // Character Video dynamic state orchestration
   const [hasWoken, setHasWoken] = useState(sessionHasWoken);
@@ -95,6 +112,72 @@ export default function DashboardPage() {
   const initialLevelRef = useRef<number | null>(null);
 
   const userLevel = xp?.level ?? 3;
+
+  useEffect(() => {
+    if (xp?.equippedTierId !== undefined) {
+      setEquippedTierId(xp.equippedTierId ?? null);
+      setEquippedTransmogTier(xp.equippedTierId ?? null);
+    } else if (typeof window !== 'undefined') {
+      const savedTransmog = localStorage.getItem(TRANSMOG_STORAGE_KEY);
+      if (savedTransmog) setEquippedTierId(savedTransmog);
+    }
+  }, [xp?.equippedTierId]);
+
+  const handleSelectTransmog = useCallback(
+    (tierId: string | null) => {
+      setEquippedTierId(tierId);
+      setEquippedTransmogTier(tierId);
+      if (user?.id) {
+        void xpApi
+          .updateCosmetics(tierId)
+          .then(() => {
+            void queryClient.invalidateQueries({
+              queryKey: dashboardQueryKeys.summary(user.id),
+            });
+          })
+          .catch(() => undefined);
+      }
+    },
+    [queryClient, user?.id],
+  );
+
+  const handleClaimDailyChest = useCallback(async () => {
+    if (claimingChest) return;
+    setClaimingChest(true);
+    try {
+      const res = await xpApi.claimDailyChest();
+      setDailyChestClaimedLocal(true);
+      if (user?.id && (res.claimed || res.alreadyClaimed)) {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: dashboardQueryKeys.wallet(user.id),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: dashboardQueryKeys.summary(user.id),
+          }),
+        ]);
+      }
+    } finally {
+      setClaimingChest(false);
+    }
+  }, [claimingChest, queryClient, user?.id]);
+
+  const handleHeroMouseMove = useCallback((e: MouseEvent<HTMLElement>) => {
+    const el = heroRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const nx = (e.clientX - rect.left) / rect.width - 0.5;
+    const ny = (e.clientY - rect.top) / rect.height - 0.5;
+    el.style.setProperty('--px', `${(nx * 12).toFixed(2)}px`);
+    el.style.setProperty('--py', `${(ny * 8).toFixed(2)}px`);
+  }, []);
+
+  const handleHeroMouseLeave = useCallback(() => {
+    const el = heroRef.current;
+    if (!el) return;
+    el.style.setProperty('--px', '0px');
+    el.style.setProperty('--py', '0px');
+  }, []);
 
   // Level up detection & session storage tracking
   useEffect(() => {
@@ -112,16 +195,19 @@ export default function DashboardPage() {
           const storedLevel = parseInt(storedStr, 10);
           if (!Number.isNaN(storedLevel) && userLevel > storedLevel) {
             setIsLevelUp(true);
+            setShowLevelUpModal(true);
           }
         }
         if (urlLevelUp) {
           setIsLevelUp(true);
+          setShowLevelUpModal(true);
         }
         localStorage.setItem('bcn_arena_last_level', String(userLevel));
       }
     } else if (userLevel > initialLevelRef.current) {
       initialLevelRef.current = userLevel;
       setIsLevelUp(true);
+      setShowLevelUpModal(true);
       if (typeof window !== 'undefined') {
         localStorage.setItem('bcn_arena_last_level', String(userLevel));
       }
@@ -322,7 +408,64 @@ export default function DashboardPage() {
     : 2100;
 
   const displayName = user?.fullName || 'Trần Tuấn Hưng';
-  const characterProgression = getCharacterProgression(userLevel);
+  const naturalProgression = getCharacterProgression(userLevel);
+  const transmogCandidate = getCharacterTierById(equippedTierId);
+  const characterProgression =
+    transmogCandidate && userLevel >= transmogCandidate.minLevel
+      ? transmogCandidate
+      : naturalProgression;
+  const displayLevelForVisuals = characterProgression.minLevel;
+  const nextTier = getNextCharacterTier(userLevel);
+  const completedQuestsCount = [isQuest1Done, isQuest2Done, isQuest3Done].filter(Boolean).length;
+  const questProgressPercent = Math.round((completedQuestsCount / 3) * 100);
+  const isDailyChestClaimed = dailyChestClaimedLocal || Boolean(xp?.dailyChestClaimed);
+
+  const submittedCount = sessions.filter((s) => s.status === 'SUBMITTED').length;
+  const dynamicAchievements = [
+    {
+      id: 'ach-level-10',
+      unlocked: userLevel >= 10,
+      title: 'Huyền Thoại Đấu Trường',
+      desc: 'Đạt cấp độ 10 trở lên tại BCN Arena',
+      pill: 'Lv.10+',
+    },
+    {
+      id: 'ach-tower-10',
+      unlocked: highestCompletedFloor >= 10,
+      title: 'Kẻ Chinh Phục Tháp',
+      desc: `Đã vượt qua Tầng ${Math.max(10, highestCompletedFloor)} Tháp Kiến Thức`,
+      pill: 'Tháp 10+',
+    },
+    {
+      id: 'ach-top-10',
+      unlocked: Boolean(weeklyBoard?.currentUserRank && weeklyBoard.currentUserRank <= 10),
+      title: 'Tinh Anh Bảng Vàng',
+      desc: 'Góp mặt trong Top 10 Bảng Xếp Hạng tuần',
+      pill: 'Top 10',
+    },
+    {
+      id: 'ach-streak-3',
+      unlocked: currentStreakDays >= 3,
+      title: 'Ngọn Lửa Bất Diệt',
+      desc: `Duy trì chuỗi học ${currentStreakDays} ngày liên tiếp`,
+      pill: `${currentStreakDays} ngày`,
+    },
+    {
+      id: 'ach-quiz-1',
+      unlocked: submittedCount >= 1 || certificates.length >= 1,
+      title: 'Học Giả Khởi Hành',
+      desc: `Đã hoàn thành ${Math.max(1, submittedCount)} bài luyện tập`,
+      pill: '+50 XP',
+    },
+  ];
+  const unlockedAchievements = dynamicAchievements.filter((a) => a.unlocked);
+  const featuredAchievement = unlockedAchievements[0] ?? {
+    id: 'ach-starter',
+    unlocked: false,
+    title: 'Học giả Kiên Trì',
+    desc: 'Hoàn thành quiz đầu tiên để mở huy hiệu',
+    pill: '+50 XP',
+  };
 
   // Real dynamic character video state resolution:
   // - 'connecting': active while loading initial dashboard data (loading === true).
@@ -346,11 +489,28 @@ export default function DashboardPage() {
           A. Grand Hero Banner with Integrated Topbar & Character Progression
           ------------------------------------------------------------------- */}
       <section
+        ref={heroRef}
         className="rpg-hero-grand"
         data-tier={characterProgression.tierId}
-        style={{ backgroundImage: `url('${characterProgression.bannerBgUrl}')` }}
+        onMouseMove={handleHeroMouseMove}
+        onMouseLeave={handleHeroMouseLeave}
         aria-label="Hồ sơ nhân vật BCN Arena"
       >
+        {/* Parallax Background Layer */}
+        <div
+          className="rpg-hero-parallax-bg"
+          style={{ backgroundImage: `url('${characterProgression.bannerBgUrl}')` }}
+          aria-hidden="true"
+        />
+        {/* Tier-specific Ambient Particles */}
+        <div className="rpg-hero-particles" aria-hidden="true">
+          <span className="rpg-particle p1" />
+          <span className="rpg-particle p2" />
+          <span className="rpg-particle p3" />
+          <span className="rpg-particle p4" />
+          <span className="rpg-particle p5" />
+          <span className="rpg-particle p6" />
+        </div>
         {/* Integrated Topbar */}
         <div className="rpg-hero-topbar">
           <form className="rpg-hero-search-box" onSubmit={handleSearch} role="search">
@@ -382,25 +542,38 @@ export default function DashboardPage() {
         {/* 3-Column Hero Main Stage */}
         <div className="rpg-hero-stage">
           {/* 1. Left: Character Artwork Showcase (Standing Illustration) */}
-          <div className="rpg-hero-character-col" aria-label={`Nhân vật: ${characterProgression.tierTitle}`}>
+          <button
+            type="button"
+            className="rpg-hero-character-col rpg-hero-character-trigger"
+            onClick={() => setIsEvolutionOpen(true)}
+            aria-label={`Nhân vật: ${characterProgression.tierTitle} — Bấm để mở Sổ tay Tiến hóa`}
+          >
             <div className="rpg-hero-character-glow" aria-hidden="true" />
             <CharacterVideoPlayer
-              level={userLevel}
+              level={displayLevelForVisuals}
               state={activeVideoState}
               onStateComplete={handleVideoStateComplete}
               className="rpg-hero-character-standing"
               alt={characterProgression.tierTitle}
             />
-          </div>
+            <span className="rpg-hero-evo-chip">
+              <Sparkle size={12} weight="fill" aria-hidden="true" /> Sổ tay tiến hóa ↗
+            </span>
+          </button>
 
           {/* 2. Center: Player Progression Card */}
           <div className="rpg-hero-center-col">
             <div className="rpg-hero-profile-card">
               <div className="rpg-level-badge-row">
-                <span className="rpg-level-badge">
+                <button
+                  type="button"
+                  className="rpg-level-badge rpg-level-badge-btn"
+                  onClick={() => setIsEvolutionOpen(true)}
+                  title="Xem lộ trình 7 giai đoạn & đổi ngoại hình"
+                >
                   <ShieldStar size={14} weight="fill" aria-hidden="true" />
-                  <span>Lv. {userLevel} · {characterProgression.tierTitle}</span>
-                </span>
+                  <span>Lv. {userLevel} · {naturalProgression.tierTitle}</span>
+                </button>
               </div>
 
               <h1 className="rpg-hero-title">
@@ -415,6 +588,13 @@ export default function DashboardPage() {
                     <Star size={14} weight="fill" color="#facc15" />
                     <strong>{currentLevelXp.toLocaleString('vi-VN')} / {nextLevelXp.toLocaleString('vi-VN')} XP</strong>
                   </span>
+                  {nextTier ? (
+                    <span className="rpg-xp-next-tier">
+                      Kế tiếp: <b>{nextTier.tierTitle}</b> (Lv.{nextTier.minLevel})
+                    </span>
+                  ) : (
+                    <span className="rpg-xp-next-tier">Đã đạt Đỉnh Cao Tối Thượng ✨</span>
+                  )}
                 </div>
                 <div className="rpg-xp-bar-row">
                   <div
@@ -541,6 +721,36 @@ export default function DashboardPage() {
             <Link href="/bounties" className="rpg-link-all" title="Xem tất cả nhiệm vụ tại trang Bounties">
               <span>Xem tất cả →</span>
             </Link>
+          </div>
+
+          {/* Daily Quest Progress Bar + Chest */}
+          <div className="rpg-quest-summary-bar" aria-label={`Hoàn thành ${completedQuestsCount} trên 3 nhiệm vụ`}>
+            <div className="rpg-quest-summary-meta">
+              <span>Tiến độ ngày: <strong>{completedQuestsCount}/3 nhiệm vụ</strong></span>
+              {completedQuestsCount === 3 && !isDailyChestClaimed ? (
+                <button
+                  type="button"
+                  className="rpg-quest-chest is-ready rpg-quest-chest-btn"
+                  onClick={() => void handleClaimDailyChest()}
+                  disabled={claimingChest}
+                  title="Bấm để nhận +15 Coin thưởng rương ngày"
+                >
+                  <Gift size={15} weight="fill" aria-hidden="true" />
+                  <span>{claimingChest ? 'Đang mở...' : 'Mở rương (+15 Coin)'}</span>
+                </button>
+              ) : (
+                <span
+                  className={`rpg-quest-chest ${isDailyChestClaimed ? 'is-claimed' : ''}`}
+                  title={isDailyChestClaimed ? 'Đã nhận thưởng rương ngày hôm nay' : 'Hoàn thành 3/3 nhiệm vụ để mở rương'}
+                >
+                  <Gift size={15} weight="fill" aria-hidden="true" />
+                  <span>{isDailyChestClaimed ? '✔ Đã nhận +15 Coin' : 'Rương (+15 Coin)'}</span>
+                </span>
+              )}
+            </div>
+            <div className="rpg-quest-summary-track">
+              <div className="rpg-quest-summary-fill" style={{ width: `${questProgressPercent}%` }} />
+            </div>
           </div>
 
           <ul className="rpg-quest-list" role="list">
@@ -722,14 +932,31 @@ export default function DashboardPage() {
               {/* Rank 2 (Left) */}
               <div className="rpg-podium-col rank-2">
                 <div className="rpg-podium-avatar-wrap">
-                  <div className="rpg-podium-avatar">
-                    {top2.user?.fullName ? top2.user.fullName[0].toUpperCase() : 'B'}
-                  </div>
+                  <AvatarFrame
+                    name={top2.user?.fullName || 'Trần Thị B'}
+                    avatarUrl={top2.user?.avatarUrl}
+                    level={top2.userLevel ?? 6}
+                    tierIdOverride={
+                      user?.id && top2.user?.id === user.id
+                        ? characterProgression.tierId
+                        : undefined
+                    }
+                    size="md"
+                    showLevelBadge
+                  />
                   <span className="rpg-podium-rank-tag">2</span>
                 </div>
-                <span className="rpg-podium-name" title={top2.user?.fullName || 'Trần Thị B'}>
-                  {top2.user?.fullName || 'Trần Thị B'}
-                </span>
+                <Nameplate
+                  name={top2.user?.fullName || 'Trần Thị B'}
+                  level={top2.userLevel ?? 6}
+                  tierIdOverride={
+                    user?.id && top2.user?.id === user.id
+                      ? characterProgression.tierId
+                      : undefined
+                  }
+                  compact
+                  className="rpg-podium-nameplate"
+                />
                 <span className="rpg-podium-score">
                   {(leaderboardPoints(top2) || 11800).toLocaleString('vi-VN')} XP
                 </span>
@@ -740,14 +967,31 @@ export default function DashboardPage() {
               <div className="rpg-podium-col rank-1">
                 <div className="rpg-podium-avatar-wrap">
                   <Crown size={18} weight="fill" className="rpg-crown-icon" aria-hidden="true" />
-                  <div className="rpg-podium-avatar">
-                    {top1.user?.fullName ? top1.user.fullName[0].toUpperCase() : 'A'}
-                  </div>
+                  <AvatarFrame
+                    name={top1.user?.fullName || 'Nguyễn Văn A'}
+                    avatarUrl={top1.user?.avatarUrl}
+                    level={top1.userLevel ?? 40}
+                    tierIdOverride={
+                      user?.id && top1.user?.id === user.id
+                        ? characterProgression.tierId
+                        : undefined
+                    }
+                    size="lg"
+                    showLevelBadge
+                  />
                   <span className="rpg-podium-rank-tag">1</span>
                 </div>
-                <span className="rpg-podium-name" title={top1.user?.fullName || 'Nguyễn Văn A'}>
-                  {top1.user?.fullName || 'Nguyễn Văn A'}
-                </span>
+                <Nameplate
+                  name={top1.user?.fullName || 'Nguyễn Văn A'}
+                  level={top1.userLevel ?? 40}
+                  tierIdOverride={
+                    user?.id && top1.user?.id === user.id
+                      ? characterProgression.tierId
+                      : undefined
+                  }
+                  compact
+                  className="rpg-podium-nameplate"
+                />
                 <span className="rpg-podium-score">
                   {(leaderboardPoints(top1) || 12500).toLocaleString('vi-VN')} XP
                 </span>
@@ -757,14 +1001,31 @@ export default function DashboardPage() {
               {/* Rank 3 (Right) */}
               <div className="rpg-podium-col rank-3">
                 <div className="rpg-podium-avatar-wrap">
-                  <div className="rpg-podium-avatar">
-                    {top3.user?.fullName ? top3.user.fullName[0].toUpperCase() : 'C'}
-                  </div>
+                  <AvatarFrame
+                    name={top3.user?.fullName || 'Lê Văn C'}
+                    avatarUrl={top3.user?.avatarUrl}
+                    level={top3.userLevel ?? 3}
+                    tierIdOverride={
+                      user?.id && top3.user?.id === user.id
+                        ? characterProgression.tierId
+                        : undefined
+                    }
+                    size="md"
+                    showLevelBadge
+                  />
                   <span className="rpg-podium-rank-tag">3</span>
                 </div>
-                <span className="rpg-podium-name" title={top3.user?.fullName || 'Lê Văn C'}>
-                  {top3.user?.fullName || 'Lê Văn C'}
-                </span>
+                <Nameplate
+                  name={top3.user?.fullName || 'Lê Văn C'}
+                  level={top3.userLevel ?? 3}
+                  tierIdOverride={
+                    user?.id && top3.user?.id === user.id
+                      ? characterProgression.tierId
+                      : undefined
+                  }
+                  compact
+                  className="rpg-podium-nameplate"
+                />
                 <span className="rpg-podium-score">
                   {(leaderboardPoints(top3) || 10900).toLocaleString('vi-VN')} XP
                 </span>
@@ -773,11 +1034,23 @@ export default function DashboardPage() {
             </div>
 
             {/* User's Current Rank Strip */}
-            <div className="rpg-my-rank-strip">
+            <div className="rpg-my-rank-strip" data-tier={characterProgression.tierId}>
               <div className="rpg-my-rank-left">
                 <span className="rpg-my-rank-num">{myRankNum}</span>
-                <UserIcon size={14} weight="bold" />
-                <span className="rpg-my-rank-name">{displayName}</span>
+                <AvatarFrame
+                  name={displayName}
+                  avatarUrl={user?.avatarUrl}
+                  level={userLevel}
+                  tierIdOverride={characterProgression.tierId}
+                  size="sm"
+                />
+                <Nameplate
+                  name={displayName}
+                  level={userLevel}
+                  tierIdOverride={characterProgression.tierId}
+                  showTitleBadge
+                  compact
+                />
               </div>
               <span className="rpg-my-rank-xp">{(myRankScore || 2100).toLocaleString('vi-VN')} XP</span>
             </div>
@@ -826,7 +1099,9 @@ export default function DashboardPage() {
         <div className="rpg-achievement-card">
           <div className="rpg-achievement-main">
             <div className="rpg-achievement-head">
-              <h3 className="rpg-achievement-label">Thành tựu nổi bật</h3>
+              <h3 className="rpg-achievement-label">
+                Thành tựu nổi bật ({unlockedAchievements.length}/{dynamicAchievements.length})
+              </h3>
               <Link href="/certificates" className="rpg-link-all">
                 Xem tất cả →
               </Link>
@@ -843,11 +1118,11 @@ export default function DashboardPage() {
               </div>
 
               <div className="rpg-achievement-text">
-                <span className="rpg-achievement-title">Học giả Kiên Trì</span>
-                <span className="rpg-achievement-desc">Hoàn thành 10 quiz liên tiếp</span>
+                <span className="rpg-achievement-title">{featuredAchievement.title}</span>
+                <span className="rpg-achievement-desc">{featuredAchievement.desc}</span>
               </div>
 
-              <span className="rpg-achievement-reward-pill">+50 XP</span>
+              <span className="rpg-achievement-reward-pill">{featuredAchievement.pill}</span>
             </div>
           </div>
 
@@ -891,6 +1166,24 @@ export default function DashboardPage() {
           }}
         />
       ) : null}
+
+      <EvolutionModal
+        open={isEvolutionOpen}
+        onClose={() => setIsEvolutionOpen(false)}
+        userLevel={userLevel}
+        userName={displayName}
+        userAvatarUrl={user?.avatarUrl}
+        equippedTierId={equippedTierId}
+        onSelectTransmog={handleSelectTransmog}
+      />
+
+      <LevelUpModal
+        open={showLevelUpModal}
+        onClose={() => setShowLevelUpModal(false)}
+        level={userLevel}
+        userName={displayName}
+        userAvatarUrl={user?.avatarUrl}
+      />
     </div>
   );
 }

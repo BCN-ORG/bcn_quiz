@@ -447,6 +447,8 @@ export class MockCoinWalletService implements CoinWalletService {
       BOSS: 'Phần thưởng Săn Boss',
       TOWER: 'Phần thưởng Leo Tháp',
       BOUNTY: 'Phần thưởng Nhiệm vụ',
+      LEVEL_UP: 'Phần thưởng Thăng Cấp',
+      DAILY_QUEST: 'Rương Nhiệm vụ ngày',
     };
     const counterpartName = counterpartMap[source] ?? 'Phần thưởng BCN Arena';
     const reference = `RW-${crypto

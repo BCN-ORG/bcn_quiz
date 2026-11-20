@@ -40,10 +40,14 @@ import {
 import { request } from '@/lib/api';
 import type { MyCertificateRequest, User } from '@/lib/types';
 import { useAuth } from './auth-provider';
+import { AvatarFrame } from './avatar-frame';
+import { Nameplate } from './nameplate';
 import { RankBadge } from './leaderboard-table';
 import { CertStatus } from './certificate-status';
 import { Empty, Loading } from './ui';
 import { NotificationCenter } from './notification-center';
+import { useDashboardSummary } from '@/lib/dashboard-queries';
+import { getEquippedTransmogTier, TRANSMOG_EVENT } from '@/lib/character-progression';
 
 type NavItem = {
   href: string;
@@ -153,6 +157,24 @@ function roleLabel(role: string) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
+  const summaryQuery = useDashboardSummary(user, loading);
+  const userLevel = summaryQuery.data?.xp?.level ?? 1;
+  const serverEquippedTierId = summaryQuery.data?.xp?.equippedTierId ?? null;
+  const [localTransmog, setLocalTransmog] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    const sync = () => {
+      setLocalTransmog(getEquippedTransmogTier(userLevel)?.tierId ?? null);
+    };
+    sync();
+    window.addEventListener(TRANSMOG_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(TRANSMOG_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, [userLevel]);
+  const activeTierId =
+    localTransmog !== undefined ? localTransmog : serverEquippedTierId;
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -360,7 +382,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="sidebar-footer" ref={profileRef}>
           <div className="sidebar-footer-row">
             <button type="button" className="user-compact profile-trigger" onClick={() => setProfileOpen((v) => !v)} aria-expanded={profileOpen} aria-haspopup="dialog" aria-label="Mở hồ sơ của bạn">
-              <div className="avatar">{(user.fullName || user.email).slice(0, 1).toUpperCase()}</div>
+              <AvatarFrame
+                name={user.fullName || user.email}
+                avatarUrl={user.avatarUrl}
+                level={userLevel}
+                tierIdOverride={activeTierId}
+                size="sm"
+                showLevelBadge
+              />
               <div>
                 <strong>{user.fullName || 'Thành viên BCN'}</strong>
                 <small>{user.email}</small>
@@ -373,9 +402,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {profileOpen ? (
             <div className="profile-card" role="dialog" aria-label="Hồ sơ của bạn">
               <div className="profile-card-head">
-                <div className="avatar avatar-lg">{(user.fullName || user.email).slice(0, 1).toUpperCase()}</div>
+                <AvatarFrame
+                  name={user.fullName || user.email}
+                  avatarUrl={user.avatarUrl}
+                  level={userLevel}
+                  tierIdOverride={activeTierId}
+                  size="lg"
+                  showLevelBadge
+                />
                 <div>
-                  <strong>{user.fullName || 'Thành viên BCN'}</strong>
+                  <Nameplate
+                    name={user.fullName || 'Thành viên BCN'}
+                    level={userLevel}
+                    tierIdOverride={activeTierId}
+                    showTitleBadge
+                    compact
+                  />
                   <small>{user.email}</small>
                 </div>
               </div>

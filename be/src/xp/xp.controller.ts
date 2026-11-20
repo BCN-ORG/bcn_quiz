@@ -1,4 +1,14 @@
-import { Controller, ForbiddenException, Get, Request } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Put,
+  Request,
+} from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CONTENT_READ } from '../auth/quiz-permissions';
@@ -16,6 +26,25 @@ export class XpController {
     return email
       ? this.xpService.getSummary(userId, email)
       : this.xpService.getSummary(userId);
+  }
+
+  @Permissions(...CONTENT_READ)
+  @Put('me/cosmetics')
+  async updateCosmetics(
+    @Request() req: ExpressRequest,
+    @Body() body: { equippedTierId?: string | null },
+  ) {
+    return this.xpService.updateCosmetics(
+      this.extractUserId(req),
+      body?.equippedTierId ?? null,
+    );
+  }
+
+  @Permissions(...CONTENT_READ)
+  @Post('daily-chest/claim')
+  @HttpCode(HttpStatus.OK)
+  async claimDailyChest(@Request() req: ExpressRequest) {
+    return this.xpService.claimDailyChest(this.extractUserId(req));
   }
 
   private extractUserEmail(req: ExpressRequest): string | undefined {

@@ -20,28 +20,48 @@ describe('computeBossComboXp', () => {
 });
 
 describe('levelFromXp', () => {
-  it('computes level and progress', () => {
+  it('computes level and progress under tiered RPG curve', () => {
     expect(levelFromXp(0)).toMatchObject({
       level: 1,
       xpInLevel: 0,
+      xpRequired: 150,
       xpPercent: 0,
       rankTitle: 'Tân Binh BCN',
       nextRankTitle: 'Chiến Binh Code',
     });
     expect(levelFromXp(250)).toMatchObject({
       level: 2,
-      xpInLevel: 50,
-      xpPercent: 25,
+      xpInLevel: 100,
+      xpRequired: 150,
+      xpPercent: 67,
       rankTitle: 'Tân Binh BCN',
     });
   });
-  it('maps rank boundaries', () => {
-    expect(levelFromXp(400).rankTitle).toBe('Chiến Binh Code');
-    expect(levelFromXp(1000).rankTitle).toBe('Hiệp Sĩ Tri Thức');
-    const top = levelFromXp(1800);
-    expect(top.level).toBe(10);
-    expect(top.rankTitle).toBe('Bậc Thầy Tháp Học Thuật');
-    expect(top.nextRankTitle).toBeNull();
+  it('maps rank boundaries and higher tier curves accurately', () => {
+    expect(levelFromXp(300)).toMatchObject({
+      level: 3,
+      rankTitle: 'Chiến Binh Code',
+    });
+    expect(levelFromXp(750)).toMatchObject({
+      level: 6,
+      xpRequired: 250,
+      rankTitle: 'Hiệp Sĩ Tri Thức',
+    });
+    const lv10 = levelFromXp(1750);
+    expect(lv10.level).toBe(10);
+    expect(lv10.rankTitle).toBe('Bậc Thầy Tháp Học Thuật');
+    expect(lv10.nextRankTitle).toBeNull();
+
+    expect(levelFromXp(12250)).toMatchObject({
+      level: 40,
+      xpInLevel: 0,
+      xpRequired: 600,
+    });
+    expect(levelFromXp(57250)).toMatchObject({
+      level: 100,
+      xpInLevel: 0,
+      xpRequired: 900,
+    });
   });
 });
 
@@ -131,9 +151,9 @@ describe('XpService', () => {
     prisma.userXpEvent.findMany.mockResolvedValue([]);
     const s = await new XpService(prisma as never).getSummary('u');
     expect(s.totalXp).toBe(350);
-    expect(s.level).toBe(2);
-    expect(s.xpInLevel).toBe(150);
-    expect(s.xpPercent).toBe(75);
+    expect(s.level).toBe(3);
+    expect(s.xpInLevel).toBe(50);
+    expect(s.xpPercent).toBe(33);
     expect(s.breakdown.TOWER_FLOOR).toEqual({ count: 0, xp: 0 });
     expect(s.breakdown.TOPIC_FIRST_SUBMIT).toEqual({ count: 3, xp: 150 });
   });

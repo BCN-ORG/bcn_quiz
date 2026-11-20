@@ -12,6 +12,24 @@ export const XP_AMOUNTS: Record<XpSourceType, number> = {
 
 export const XP_PER_LEVEL = 200;
 
+export function xpRequiredForLevel(level: number): number {
+  const safe = Math.max(1, Math.floor(level));
+  if (safe <= 5) return 150;
+  if (safe <= 19) return 250;
+  if (safe <= 39) return 400;
+  if (safe <= 69) return 600;
+  return 900;
+}
+
+export function totalXpForLevel(targetLevel: number): number {
+  const safeTarget = Math.max(1, Math.floor(targetLevel));
+  let total = 0;
+  for (let lv = 1; lv < safeTarget; lv += 1) {
+    total += xpRequiredForLevel(lv);
+  }
+  return total;
+}
+
 /** Ascending by minLevel. */
 export const XP_RANKS = [
   { minLevel: 1, title: 'Tân Binh BCN' },
@@ -30,3 +48,29 @@ export const BOSS_XP_MAX_SESSIONS_PER_DAY = 3;
 export const BOSS_REWARD_MIN_PERSONAL_SCORE = 5;
 /** Max points one user adds to the community boss HP per week (stops one account clearing the boss alone). */
 export const BOSS_COMMUNITY_CONTRIB_CAP = 100;
+
+export const LEVEL_MILESTONE_COIN_REWARDS: ReadonlyArray<{
+  level: number;
+  coins: number;
+  title: string;
+}> = [
+  { level: 3, coins: 5, title: 'Chiến Binh Code' },
+  { level: 6, coins: 10, title: 'Hiệp Sĩ Tinh Anh' },
+  { level: 10, coins: 15, title: 'Đại Sư Huyền Thoại' },
+  { level: 20, coins: 25, title: 'Thống Soái Tinh Vân' },
+  { level: 40, coins: 40, title: 'Hiền Triết Hư Không' },
+  { level: 70, coins: 70, title: 'Thần Sứ Thiên Giới' },
+  { level: 100, coins: 100, title: 'Đỉnh Cao Lv.100' },
+];
+
+export const TIER_MIN_LEVELS: Readonly<Record<string, number>> = {
+  'tier-1-beginner': 1,
+  'tier-2-skilled': 3,
+  'tier-3-elite': 6,
+  'tier-4-legendary': 10,
+  'tier-5-astral': 20,
+  'tier-6-void': 40,
+  'tier-7-seraph': 70,
+};
+
+export const DAILY_CHEST_REWARD_COINS = 15;

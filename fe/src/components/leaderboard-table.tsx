@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Coins, Trophy } from '@phosphor-icons/react';
+import { AvatarFrame } from '@/components/avatar-frame';
+import { Nameplate } from '@/components/nameplate';
+import {
+  getEquippedTransmogTier,
+  TRANSMOG_EVENT,
+} from '@/lib/character-progression';
 
 export type LeaderboardRow = {
   rank: number;
   user: { id: string; fullName: string; avatarUrl: string | null };
+  userLevel?: number;
+  equippedTierId?: string | null;
   score?: number;
   weeklyScore?: number;
   correctCount?: number;
@@ -91,8 +99,6 @@ export function LeaderboardPlayer({ row, current = false, large = false, namesUn
   // "Cannot load" (lookup failed) and "has no name" are different problems; neither is a privacy choice.
   const label = namesUnavailable ? 'Chưa tải được tên' : 'Chưa đặt tên';
   const hint = namesUnavailable ? 'Chưa lấy được tên từ BCN Profiles lúc này' : 'Thành viên này chưa đặt họ tên trên BCN Profiles';
-  // Array.from keeps an emoji (a surrogate pair) in one piece; part[0] would cut it in half.
-  const initials = name.split(/\s+/).slice(-2).map((part) => Array.from(part)[0]).join('').toUpperCase();
   // Marquee (08/11/2026, mobile podium): long names scroll horizontally to reveal the full name.
   // Measure only when the name is actually cut off (full text wider than the visible clip); short names stay still.
   // NOTE: the name is an inline <strong>, so scrollWidth/clientWidth are 0 — use offsetWidth instead.
@@ -111,16 +117,51 @@ export function LeaderboardPlayer({ row, current = false, large = false, namesUn
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+  const playerLevel = row.userLevel ?? 1;
+  const [localEquippedTierId, setLocalEquippedTierId] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!current) {
+      setLocalEquippedTierId(undefined);
+      return;
+    }
+    const sync = () => {
+      setLocalEquippedTierId(getEquippedTransmogTier(playerLevel)?.tierId ?? null);
+    };
+    sync();
+    window.addEventListener(TRANSMOG_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(TRANSMOG_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, [current, playerLevel]);
+  const effectiveTierId = current
+    ? (localEquippedTierId !== undefined ? localEquippedTierId : (row.equippedTierId ?? null))
+    : (row.equippedTierId ?? null);
   return <span className={`leaderboard-player${large ? ' leaderboard-player-lg' : ''}`}>
-    {/* Profiles avatar URLs are external and not configured for Next image optimization. */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    {row.user.avatarUrl ? <img src={row.user.avatarUrl} alt="" width={large ? 56 : 36} height={large ? 56 : 36} /> : <span className="leaderboard-initials" aria-hidden="true">{nameless ? '?' : initials}</span>}
-    <span className="leaderboard-player-name">
-      <span ref={clipRef} className="leaderboard-name-clip">
-        <strong ref={nameRef} title={nameless ? hint : name} className={`${nameless ? 'leaderboard-hidden-name' : ''}${marqueeDist > 0 ? ' name-marquee' : ''}`.trim() || undefined} style={marqueeDist > 0 ? { '--marquee-dist': `${marqueeDist}px` } as React.CSSProperties : undefined}>{nameless ? label : name}</strong>
+    <AvatarFrame
+      name={nameless ? '?' : name}
+      avatarUrl={row.user.avatarUrl}
+      level={playerLevel}
+      tierIdOverride={effectiveTierId}
+      size={large ? 'md' : 'sm'}
+      showLevelBadge
+    />
+    <Nameplate
+      name={nameless ? label : name}
+      level={playerLevel}
+      tierIdOverride={effectiveTierId}
+      showTitleBadge={!nameless}
+      compact
+      className={large ? 'rpg-nameplate--podium' : ''}
+    >
+      <span className="leaderboard-player-name">
+        <span ref={clipRef} className="leaderboard-name-clip">
+          <strong ref={nameRef} title={nameless ? hint : name} className={`${nameless ? 'leaderboard-hidden-name' : ''}${marqueeDist > 0 ? ' name-marquee' : ''}`.trim() || undefined} style={marqueeDist > 0 ? { '--marquee-dist': `${marqueeDist}px` } as React.CSSProperties : undefined}>{nameless ? label : name}</strong>
+        </span>
+        {current ? <small className="leaderboard-you">Bạn</small> : null}
       </span>
-      {current ? <small className="leaderboard-you">Bạn</small> : null}
-    </span>
+    </Nameplate>
   </span>;
 }
 

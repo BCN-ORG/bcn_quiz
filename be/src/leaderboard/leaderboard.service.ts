@@ -13,6 +13,8 @@ import {
   type ProfilesUserSummary,
 } from '../profiles/profiles.service';
 import { TowerService } from '../tower/tower.service';
+import { TIER_MIN_LEVELS } from '../xp/xp.constants';
+import { levelFromXp } from '../xp/xp.service';
 import { BossService } from '../boss/boss.service';
 import {
   businessDate,
@@ -471,9 +473,47 @@ export class LeaderboardService {
     admin: boolean,
     mode: 'daily' | 'weekly' | 'tower' | 'boss' | 'bounty' = 'daily',
   ) {
-    const { profiles, failed } = await this.resolveProfiles(
-      rows.map((row) => row.userId),
-    );
+    const userIds = [...new Set(rows.map((row) => row.userId))];
+    const [{ profiles, failed }, xpGroups, cosmeticPrefs] = await Promise.all([
+      this.resolveProfiles(userIds),
+      userIds.length > 0 &&
+      typeof this.prisma.userXpEvent?.groupBy === 'function'
+        ? this.prisma.userXpEvent
+            .groupBy({
+              by: ['userId'],
+              where: { userId: { in: userIds } },
+              _sum: { amount: true },
+            })
+            .catch(() => [])
+        : Promise.resolve([]),
+      userIds.length > 0 &&
+      typeof this.prisma.userCosmeticPreference?.findMany === 'function'
+        ? this.prisma.userCosmeticPreference
+            .findMany({
+              where: { userId: { in: userIds } },
+              select: { userId: true, equippedTierId: true },
+            })
+            .catch(() => [])
+        : Promise.resolve([]),
+    ]);
+    const levelByUser = new Map<string, number>();
+    for (const g of xpGroups) {
+      const totalXp = Math.max(0, g._sum?.amount ?? 0);
+      levelByUser.set(g.userId, levelFromXp(totalXp).level);
+    }
+    const equippedTierByUser = new Map<string, string | null>();
+    for (const pref of cosmeticPrefs) {
+      const userLv = levelByUser.get(pref.userId) ?? 1;
+      const minReq = pref.equippedTierId
+        ? TIER_MIN_LEVELS[pref.equippedTierId]
+        : undefined;
+      equippedTierByUser.set(
+        pref.userId,
+        pref.equippedTierId && minReq !== undefined && userLv >= minReq
+          ? pref.equippedTierId
+          : null,
+      );
+    }
     const mapped = rows.map((row) => {
       const profile = profiles.get(row.userId);
       const user = {
@@ -481,11 +521,15 @@ export class LeaderboardService {
         fullName: profile?.fullName?.trim() || 'Người dùng',
         avatarUrl: profile?.avatarUrl ?? null,
       };
+      const userLevel = levelByUser.get(row.userId) ?? 1;
+      const equippedTierId = equippedTierByUser.get(row.userId) ?? null;
 
       if (mode === 'bounty') {
         return {
           rank: row.rank,
           user,
+          userLevel,
+          equippedTierId,
           ...(admin ? { email: profile?.email ?? null } : {}),
           score: row.completedBountiesCount ?? row.score ?? 0,
           completedBountiesCount: row.completedBountiesCount ?? row.score ?? 0,
@@ -499,6 +543,8 @@ export class LeaderboardService {
         return {
           rank: row.rank,
           user,
+          userLevel,
+          equippedTierId,
           ...(admin ? { email: profile?.email ?? null } : {}),
           score: row.highestCompletedFloor ?? row.score ?? 0,
           highestCompletedFloor: row.highestCompletedFloor ?? row.score ?? 0,
@@ -511,6 +557,8 @@ export class LeaderboardService {
         return {
           rank: row.rank,
           user,
+          userLevel,
+          equippedTierId,
           ...(admin ? { email: profile?.email ?? null } : {}),
           score: row.highestScore ?? row.score ?? 0,
           highestScore: row.highestScore ?? row.score ?? 0,
@@ -525,6 +573,8 @@ export class LeaderboardService {
         ? {
             rank: row.rank,
             user,
+            userLevel,
+            equippedTierId,
             ...(admin ? { email: profile?.email ?? null } : {}),
             score: row.score,
             correctCount: row.correctCount,
@@ -538,6 +588,8 @@ export class LeaderboardService {
         : {
             rank: row.rank,
             user,
+            userLevel,
+            equippedTierId,
             ...(admin ? { email: profile?.email ?? null } : {}),
             weeklyScore: row.score,
             topicsCompleted: row.topicsCompleted,

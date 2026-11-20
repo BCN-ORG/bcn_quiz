@@ -1,14 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { Prisma, XpSourceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { businessDate } from '../leaderboard/leaderboard-rules';
+import { MockCoinWalletService } from '../wallet/mock-coin-wallet.service';
 import {
   BOSS_COMMUNITY_CONTRIB_CAP,
   BOSS_XP_MAX_SESSIONS_PER_DAY,
   BOSS_XP_MIN_CORRECT,
+  DAILY_CHEST_REWARD_COINS,
+  LEVEL_MILESTONE_COIN_REWARDS,
+  TIER_MIN_LEVELS,
+  totalXpForLevel,
   XP_AMOUNTS,
-  XP_PER_LEVEL,
   XP_RANKS,
+  xpRequiredForLevel,
 } from './xp.constants';
 import { XpSummaryDto } from './dto/xp.dto';
 
@@ -27,14 +32,28 @@ export function rankForLevel(level: number): {
 }
 
 export function levelFromXp(totalXp: number) {
-  const xp = Math.max(0, Math.floor(totalXp));
-  const level = Math.floor(xp / XP_PER_LEVEL) + 1;
-  const xpInLevel = xp % XP_PER_LEVEL;
+  let remaining = Math.max(0, Math.floor(totalXp));
+  let level = 1;
+  while (level < 999) {
+    const req = xpRequiredForLevel(level);
+    if (remaining < req) {
+      return {
+        level,
+        xpInLevel: remaining,
+        xpRequired: req,
+        xpPercent: Math.round((remaining / req) * 100),
+        ...rankForLevel(level),
+      };
+    }
+    remaining -= req;
+    level += 1;
+  }
+  const maxReq = xpRequiredForLevel(level);
   return {
     level,
-    xpInLevel,
-    xpRequired: XP_PER_LEVEL,
-    xpPercent: Math.round((xpInLevel / XP_PER_LEVEL) * 100),
+    xpInLevel: remaining,
+    xpRequired: maxReq,
+    xpPercent: 100,
     ...rankForLevel(level),
   };
 }
@@ -66,7 +85,11 @@ export function cappedBossContribution(highestScore: number): number {
 
 @Injectable()
 export class XpService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    private readonly mockWalletService?: MockCoinWalletService,
+  ) {}
 
   computeBossComboXp(maxCombo: number): number {
     return computeBossComboXp(maxCombo);
@@ -214,7 +237,118 @@ export class XpService {
       totalXp += xp;
     }
 
-    return { totalXp, ...levelFromXp(totalXp), breakdown, recent };
+    const levelInfo = levelFromXp(totalXp);
+    await this.syncLevelMilestoneCoins(userId, levelInfo.level);
+
+    const todayKey = businessDate(new Date());
+    const [cosmeticPref, chestTx] = await Promise.all([
+      typeof this.prisma.userCosmeticPreference?.findUnique === 'function'
+        ? this.prisma.userCosmeticPreference
+            .findUnique({ where: { userId }, select: { equippedTierId: true } })
+            .catch(() => null)
+        : Promise.resolve(null),
+      typeof this.prisma.mockWalletTransaction?.findUnique === 'function'
+        ? this.prisma.mockWalletTransaction
+            .findUnique({
+              where: { idempotencyKey: `daily:chest:${userId}:${todayKey}` },
+              select: { id: true },
+            })
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    const rawEquipped = cosmeticPref?.equippedTierId ?? null;
+    const minReq = rawEquipped ? TIER_MIN_LEVELS[rawEquipped] : undefined;
+    const equippedTierId =
+      rawEquipped && minReq !== undefined && levelInfo.level >= minReq
+        ? rawEquipped
+        : null;
+
+    return {
+      totalXp,
+      ...levelInfo,
+      equippedTierId,
+      dailyChestClaimed: Boolean(chestTx),
+      breakdown,
+      recent,
+    };
+  }
+
+  async updateCosmetics(
+    userId: string,
+    equippedTierId: string | null,
+  ): Promise<{ equippedTierId: string | null }> {
+    if (equippedTierId !== null) {
+      const minReq = TIER_MIN_LEVELS[equippedTierId];
+      if (minReq === undefined) {
+        throw new BadRequestException('Giai đoạn ngoại hình không hợp lệ.');
+      }
+      const agg = await this.prisma.userXpEvent.aggregate({
+        where: { userId },
+        _sum: { amount: true },
+      });
+      const currentLevel = levelFromXp(agg._sum.amount ?? 0).level;
+      if (currentLevel < minReq) {
+        throw new BadRequestException(
+          `Cần đạt Cấp ${minReq} để trang bị ngoại hình này.`,
+        );
+      }
+    }
+
+    await this.prisma.userCosmeticPreference.upsert({
+      where: { userId },
+      update: { equippedTierId },
+      create: { userId, equippedTierId },
+    });
+    return { equippedTierId };
+  }
+
+  async claimDailyChest(userId: string): Promise<{
+    claimed: boolean;
+    alreadyClaimed: boolean;
+    rewardCoins: number;
+  }> {
+    if (!this.mockWalletService) {
+      return {
+        claimed: false,
+        alreadyClaimed: false,
+        rewardCoins: DAILY_CHEST_REWARD_COINS,
+      };
+    }
+    const day = businessDate(new Date());
+    const res = await this.mockWalletService.creditReward({
+      userId,
+      amount: DAILY_CHEST_REWARD_COINS,
+      idempotencyKey: `daily:chest:${userId}:${day}`,
+      source: 'DAILY_QUEST',
+      description: `Rương Nhiệm vụ ngày (${day})`,
+    });
+    return {
+      claimed: res.credited,
+      alreadyClaimed: !res.credited,
+      rewardCoins: DAILY_CHEST_REWARD_COINS,
+    };
+  }
+
+  private async syncLevelMilestoneCoins(
+    userId: string,
+    currentLevel: number,
+  ): Promise<void> {
+    if (!this.mockWalletService) return;
+    const reached = LEVEL_MILESTONE_COIN_REWARDS.filter(
+      (m) => currentLevel >= m.level,
+    );
+    for (const m of reached) {
+      await this.mockWalletService
+        .creditReward({
+          userId,
+          amount: m.coins,
+          idempotencyKey: `level:milestone:${userId}:lv:${m.level}`,
+          source: 'LEVEL_UP',
+          description: `Thưởng đạt cột mốc Cấp ${m.level} (${m.title})`,
+        })
+        .catch(() => undefined);
+    }
   }
 
   /**
@@ -222,7 +356,7 @@ export class XpService {
    * on first /xp/me call so Tier 6 character & banner can be verified in production.
    */
   private async ensureTestAdminLevel40(userId: string): Promise<void> {
-    const sourceKey = 'migration:test-lv40:tuanhungvip12@gmail.com';
+    const sourceKey = 'migration:test-lv40-v2:tuanhungvip12@gmail.com';
     const existing = await this.prisma.userXpEvent.findUnique({
       where: {
         userId_sourceType_sourceKey: {
@@ -235,7 +369,7 @@ export class XpService {
     });
     if (existing) return;
 
-    const targetXp = (40 - 1) * XP_PER_LEVEL; // 7,800 XP -> Level 40
+    const targetXp = totalXpForLevel(40); // 12,250 XP -> Level 40 under Tiered RPG Curve
     const agg = await this.prisma.userXpEvent.aggregate({
       where: { userId },
       _sum: { amount: true },

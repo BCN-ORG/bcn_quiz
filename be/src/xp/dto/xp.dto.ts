@@ -16,6 +16,8 @@ export interface XpSummaryDto {
   xpPercent: number;
   rankTitle: string;
   nextRankTitle: string | null;
+  equippedTierId?: string | null;
+  dailyChestClaimed?: boolean;
   breakdown: Record<XpSourceType, { count: number; xp: number }>;
   recent: XpEventDto[];
 }
