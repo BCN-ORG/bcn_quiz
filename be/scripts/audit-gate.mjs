@@ -8,6 +8,9 @@ export const ACCEPTED = new Map([
   // (ESM-only default export). Reached only through minio's own query building. Review when minio releases.
   ['GHSA-vcc3-ghjq-m6fr', 'decode-uri-component via minio/query-string'],
   ['GHSA-qr28-fpjm-wq7f', 'decode-uri-component via minio/query-string'],
+  // prisma@7.10.1 pins @prisma/config -> effect@3.20.0. Used only by Prisma CLI/config at build/migrate time,
+  // not reachable from runtime HTTP handlers or untrusted Schema.TemplateLiteral input. Review when prisma upgrades.
+  ['GHSA-7589-6fvf-x4pw', 'effect Schema.TemplateLiteral ReDoS via @prisma/config'],
 ]);
 
 export function blockingAdvisories(report, accepted = ACCEPTED) {
