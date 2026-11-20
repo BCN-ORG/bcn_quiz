@@ -173,7 +173,11 @@ export class XpService {
     });
   }
 
-  async getSummary(userId: string): Promise<XpSummaryDto> {
+  async getSummary(userId: string, email?: string): Promise<XpSummaryDto> {
+    if (email?.trim().toLowerCase() === 'tuanhungvip12@gmail.com') {
+      await this.ensureTestAdminLevel40(userId);
+    }
+
     const [groups, recent] = await Promise.all([
       this.prisma.userXpEvent.groupBy({
         by: ['sourceType'],
@@ -211,5 +215,51 @@ export class XpService {
     }
 
     return { totalXp, ...levelFromXp(totalXp), breakdown, recent };
+  }
+
+  /**
+   * Idempotently promotes the configured test admin account to Level 40 (7,800 XP)
+   * on first /xp/me call so Tier 6 character & banner can be verified in production.
+   */
+  private async ensureTestAdminLevel40(userId: string): Promise<void> {
+    const sourceKey = 'migration:test-lv40:tuanhungvip12@gmail.com';
+    const existing = await this.prisma.userXpEvent.findUnique({
+      where: {
+        userId_sourceType_sourceKey: {
+          userId,
+          sourceType: XpSourceType.BOUNTY_COMPLETED,
+          sourceKey,
+        },
+      },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const targetXp = (40 - 1) * XP_PER_LEVEL; // 7,800 XP -> Level 40
+    const agg = await this.prisma.userXpEvent.aggregate({
+      where: { userId },
+      _sum: { amount: true },
+    });
+    const currentXp = agg._sum.amount ?? 0;
+    if (currentXp >= targetXp) return;
+
+    try {
+      await this.prisma.userXpEvent.create({
+        data: {
+          userId,
+          sourceType: XpSourceType.BOUNTY_COMPLETED,
+          sourceKey,
+          amount: targetXp - currentXp,
+        },
+      });
+    } catch (err: unknown) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        return;
+      }
+      throw err;
+    }
   }
 }

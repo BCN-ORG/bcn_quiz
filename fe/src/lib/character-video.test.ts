@@ -116,10 +116,10 @@ describe('Character Video Architecture & State Resolver', () => {
     assert.equal(isLoopingState('waking'), false);
   });
 
-  it('builds registry matching all 4 level tiers', () => {
-    assert.equal(CHARACTER_TIER_VIDEO_SETS.length, 4);
+  it('builds registry matching all 7 level tiers up to Lv 100+', () => {
+    assert.equal(CHARACTER_TIER_VIDEO_SETS.length, 7);
 
-    const [t1, t2, t3, t4] = CHARACTER_TIER_VIDEO_SETS;
+    const [t1, t2, t3, t4, t5, t6, t7] = CHARACTER_TIER_VIDEO_SETS;
 
     // Tier 1 (Lv 1-2): Beginner Adventurer ('/videos/characters/level-1/')
     assert.equal(t1.levelMin, 1);
@@ -133,7 +133,7 @@ describe('Character Video Architecture & State Resolver', () => {
     assert.equal(t2.levelMax, 5);
     assert.equal(t2.tierName, 'Code Warrior');
     assert.equal(t2.videos.idle.videoUrl, '/videos/characters/level-3/idle.mp4');
-    assert.equal(t2.posterUrl, '/images/dashboard/hero-character-clean.png');
+    assert.equal(t2.posterUrl, '/images/characters/character-level-3.png');
 
     // Tier 3 (Lv 6-9): Elite Knight Mage ('/videos/characters/level-6/')
     assert.equal(t3.levelMin, 6);
@@ -142,12 +142,20 @@ describe('Character Video Architecture & State Resolver', () => {
     assert.equal(t3.videos.idle.videoUrl, '/videos/characters/level-6/idle.mp4');
     assert.equal(t3.posterUrl, '/images/characters/character-level-6.png');
 
-    // Tier 4 (Lv 10+): Legendary Grandmaster ('/videos/characters/level-10/')
+    // Tier 4 (Lv 10-19): Legendary Grandmaster ('/videos/characters/level-10/')
     assert.equal(t4.levelMin, 10);
-    assert.ok(t4.levelMax >= 10);
+    assert.equal(t4.levelMax, 19);
     assert.equal(t4.tierName, 'Legendary Grandmaster');
     assert.equal(t4.videos.idle.videoUrl, '/videos/characters/level-10/idle.mp4');
     assert.equal(t4.posterUrl, '/images/characters/character-level-10.png');
+
+    // Tier 5..7 (Lv 20 to 100+)
+    assert.equal(t5.levelMin, 20);
+    assert.equal(t5.tierName, 'Astral Sovereign');
+    assert.equal(t6.levelMin, 40);
+    assert.equal(t6.tierName, 'Void Archon');
+    assert.equal(t7.levelMin, 70);
+    assert.equal(t7.tierName, 'Celestial Seraph');
   });
 
   it('maps levels correctly via getCharacterTierVideoSet', () => {
@@ -163,9 +171,18 @@ describe('Character Video Architecture & State Resolver', () => {
     assert.equal(getCharacterTierVideoSet(6).tierName, 'Elite Knight Mage');
     assert.equal(getCharacterTierVideoSet(9).tierName, 'Elite Knight Mage');
 
-    // Level 10, 15, 100 -> Tier 4
+    // Level 10..19 -> Tier 4
     assert.equal(getCharacterTierVideoSet(10).tierName, 'Legendary Grandmaster');
-    assert.equal(getCharacterTierVideoSet(50).tierName, 'Legendary Grandmaster');
+    assert.equal(getCharacterTierVideoSet(19).tierName, 'Legendary Grandmaster');
+
+    // Level 20..69 -> Tiers 5-6
+    assert.equal(getCharacterTierVideoSet(25).tierName, 'Astral Sovereign');
+    assert.equal(getCharacterTierVideoSet(50).tierName, 'Void Archon');
+
+    // Level 70..100+ -> Tier 7
+    assert.equal(getCharacterTierVideoSet(70).tierName, 'Celestial Seraph');
+    assert.equal(getCharacterTierVideoSet(100).tierName, 'Celestial Seraph');
+    assert.equal(getCharacterTierVideoSet(150).tierName, 'Celestial Seraph');
 
     // Edge cases: 0 or negative -> clamps to Level 1
     assert.equal(getCharacterTierVideoSet(0).tierName, 'Beginner Adventurer');

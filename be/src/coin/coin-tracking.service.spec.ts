@@ -334,4 +334,58 @@ describe('CoinTrackingService', () => {
       expect(mockPrisma.coinTransaction.create).toHaveBeenCalledTimes(3);
     });
   });
+
+  describe('backfillSuccessRewardsToWallet', () => {
+    it('syncs unsynced SUCCESS rewards into MockCoinWalletService', async () => {
+      const mockWalletService = {
+        creditReward: jest.fn().mockResolvedValue({ credited: true }),
+      };
+      const serviceWithWallet = new CoinTrackingService(
+        mockPrisma as any,
+        mockModuleRef as any,
+        mockWalletService as any,
+      );
+
+      mockPrisma.coinTransaction.findMany = jest.fn().mockResolvedValue([
+        {
+          id: 'ct-1',
+          userId: 'u1',
+          amount: 5,
+          source: CoinRewardSource.BOSS,
+          reason: 'Đạt mốc 1 Boss Chiến',
+          idempotencyKey: 'boss:1',
+          status: CoinTransactionStatus.SUCCESS,
+          createdAt: new Date(),
+          processedAt: new Date(),
+        },
+        {
+          id: 'ct-2',
+          userId: 'u2',
+          amount: 1,
+          source: CoinRewardSource.TOWER,
+          reason: 'Vượt tầng 5',
+          idempotencyKey: 'tower:5',
+          status: CoinTransactionStatus.SUCCESS,
+          createdAt: new Date(),
+          processedAt: new Date(),
+        },
+      ]);
+      mockPrisma.mockWalletTransaction = {
+        findMany: jest.fn().mockResolvedValue([{ idempotencyKey: 'tower:5' }]),
+      };
+
+      const synced = await serviceWithWallet.backfillSuccessRewardsToWallet();
+
+      expect(synced).toBe(1);
+      expect(mockWalletService.creditReward).toHaveBeenCalledTimes(1);
+      expect(mockWalletService.creditReward).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u1',
+          amount: 5,
+          idempotencyKey: 'boss:1',
+          source: CoinRewardSource.BOSS,
+        }),
+      );
+    });
+  });
 });

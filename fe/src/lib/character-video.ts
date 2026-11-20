@@ -175,11 +175,11 @@ export const CHARACTER_TIER_VIDEO_SETS: readonly CharacterTierVideoSet[] = [
     levelMax: 5,
     tierKey: 'tier-2-warrior',
     tierName: 'Code Warrior',
-    bannerBgUrl: '/images/dashboard/hero-bg.jpg',
-    posterUrl: '/images/dashboard/hero-character-clean.png',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-2.jpg',
+    posterUrl: '/images/characters/character-level-3.png',
     videos: buildTierVideoRecord(
       '/videos/characters/level-3/',
-      '/images/dashboard/hero-character-clean.png',
+      '/images/characters/character-level-3.png',
     ),
   },
   {
@@ -187,7 +187,7 @@ export const CHARACTER_TIER_VIDEO_SETS: readonly CharacterTierVideoSet[] = [
     levelMax: 9,
     tierKey: 'tier-3-knight-mage',
     tierName: 'Elite Knight Mage',
-    bannerBgUrl: '/images/dashboard/hero-bg.jpg',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-3.jpg',
     posterUrl: '/images/characters/character-level-6.png',
     videos: buildTierVideoRecord(
       '/videos/characters/level-6/',
@@ -196,14 +196,50 @@ export const CHARACTER_TIER_VIDEO_SETS: readonly CharacterTierVideoSet[] = [
   },
   {
     levelMin: 10,
-    levelMax: 999,
+    levelMax: 19,
     tierKey: 'tier-4-grandmaster',
     tierName: 'Legendary Grandmaster',
-    bannerBgUrl: '/images/dashboard/hero-bg.jpg',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-4.jpg',
     posterUrl: '/images/characters/character-level-10.png',
     videos: buildTierVideoRecord(
       '/videos/characters/level-10/',
       '/images/characters/character-level-10.png',
+    ),
+  },
+  {
+    levelMin: 20,
+    levelMax: 39,
+    tierKey: 'tier-5-astral',
+    tierName: 'Astral Sovereign',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-5.jpg',
+    posterUrl: '/images/characters/character-level-20.png',
+    videos: buildTierVideoRecord(
+      '/videos/characters/level-20/',
+      '/images/characters/character-level-20.png',
+    ),
+  },
+  {
+    levelMin: 40,
+    levelMax: 69,
+    tierKey: 'tier-6-void',
+    tierName: 'Void Archon',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-6.jpg',
+    posterUrl: '/images/characters/character-level-40.png',
+    videos: buildTierVideoRecord(
+      '/videos/characters/level-40/',
+      '/images/characters/character-level-40.png',
+    ),
+  },
+  {
+    levelMin: 70,
+    levelMax: 999,
+    tierKey: 'tier-7-seraph',
+    tierName: 'Celestial Seraph',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-7.jpg',
+    posterUrl: '/images/characters/character-level-65.png',
+    videos: buildTierVideoRecord(
+      '/videos/characters/level-65/',
+      '/images/characters/character-level-65.png',
     ),
   },
 ] as const;

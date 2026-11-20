@@ -345,7 +345,12 @@ export default function DashboardPage() {
       {/* -------------------------------------------------------------------
           A. Grand Hero Banner with Integrated Topbar & Character Progression
           ------------------------------------------------------------------- */}
-      <section className="rpg-hero-grand" aria-label="Hồ sơ nhân vật BCN Arena">
+      <section
+        className="rpg-hero-grand"
+        data-tier={characterProgression.tierId}
+        style={{ backgroundImage: `url('${characterProgression.bannerBgUrl}')` }}
+        aria-label="Hồ sơ nhân vật BCN Arena"
+      >
         {/* Integrated Topbar */}
         <div className="rpg-hero-topbar">
           <form className="rpg-hero-search-box" onSubmit={handleSearch} role="search">

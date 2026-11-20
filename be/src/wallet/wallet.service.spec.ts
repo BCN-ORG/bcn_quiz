@@ -396,4 +396,69 @@ describe('MockCoinWalletService', () => {
       ]);
     });
   });
+
+  describe('creditReward', () => {
+    it('credits reward idempotently and records REWARD transaction', async () => {
+      prismaMock.mockWalletTransaction.findUnique.mockResolvedValue(null);
+      prismaMock.mockWallet.upsert.mockResolvedValue({
+        id: 'w-1',
+        userId: 'user-1',
+        balance: 105,
+      });
+      const createdTx = {
+        id: 'tx-rw-1',
+        type: MockWalletTxType.REWARD,
+        amount: 5,
+        status: MockWalletTxStatus.SUCCESS,
+      };
+      prismaMock.mockWalletTransaction.create.mockResolvedValue(createdTx);
+
+      const res = await service.creditReward({
+        userId: 'user-1',
+        amount: 5,
+        idempotencyKey: 'boss:reward:week:2026-W47:user:user-1:m:1',
+        source: 'BOSS',
+        description: 'Đạt mốc 1 Boss Chiến (300 điểm)',
+      });
+
+      expect(res.credited).toBe(true);
+      expect(res.transaction).toBe(createdTx);
+      expect(prismaMock.mockWallet.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1' },
+          update: expect.objectContaining({ balance: { increment: 5 } }),
+          create: expect.objectContaining({ userId: 'user-1', balance: 105 }),
+        }),
+      );
+      expect(prismaMock.mockWalletTransaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'user-1',
+            type: MockWalletTxType.REWARD,
+            amount: 5,
+            status: MockWalletTxStatus.SUCCESS,
+            counterpartName: 'Phần thưởng Săn Boss',
+            idempotencyKey: 'boss:reward:week:2026-W47:user:user-1:m:1',
+          }),
+        }),
+      );
+    });
+
+    it('skips duplicate reward with same idempotencyKey', async () => {
+      const existingTx = { id: 'tx-rw-1', type: MockWalletTxType.REWARD, amount: 5 };
+      prismaMock.mockWalletTransaction.findUnique.mockResolvedValue(existingTx);
+
+      const res = await service.creditReward({
+        userId: 'user-1',
+        amount: 5,
+        idempotencyKey: 'boss:reward:week:2026-W47:user:user-1:m:1',
+        source: 'BOSS',
+        description: 'Đạt mốc 1 Boss Chiến',
+      });
+
+      expect(res.credited).toBe(false);
+      expect(res.transaction).toBe(existingTx);
+      expect(prismaMock.mockWallet.upsert).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import {
   BadRequestException,
   Injectable,
@@ -417,5 +418,90 @@ export class MockCoinWalletService implements CoinWalletService {
     }
 
     return { recipientFound: false, recipientDisplayName: recipientId };
+  }
+
+  /**
+   * Idempotently credits a game reward (Boss, Tower, Bounty) into the user's MockWallet
+   * and records a REWARD transaction so it appears in /wallet balance & history.
+   */
+  async creditReward(params: {
+    userId: string;
+    amount: number;
+    idempotencyKey: string;
+    source: string;
+    description: string;
+    createdAt?: Date;
+  }): Promise<{ credited: boolean; transaction?: MockWalletTransaction }> {
+    const { userId, amount, idempotencyKey, source, description, createdAt } =
+      params;
+    if (!userId || !idempotencyKey || !Number.isInteger(amount) || amount <= 0) {
+      return { credited: false };
+    }
+
+    const counterpartMap: Record<string, string> = {
+      BOSS: 'Phần thưởng Săn Boss',
+      TOWER: 'Phần thưởng Leo Tháp',
+      BOUNTY: 'Phần thưởng Nhiệm vụ',
+    };
+    const counterpartName = counterpartMap[source] ?? 'Phần thưởng BCN Arena';
+    const reference = `RW-${crypto
+      .createHash('sha1')
+      .update(idempotencyKey)
+      .digest('hex')
+      .slice(0, 12)
+      .toUpperCase()}`;
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.mockWalletTransaction.findUnique({
+          where: { idempotencyKey },
+        });
+        if (existing) {
+          return { credited: false, transaction: existing };
+        }
+
+        const now = new Date();
+        const wallet = await tx.mockWallet.upsert({
+          where: { userId },
+          update: {
+            balance: { increment: amount },
+            lastSyncedAt: now,
+            syncStatus: 'SYNCED',
+          },
+          create: {
+            userId,
+            balance: 100 + amount,
+            lastSyncedAt: now,
+            syncStatus: 'SYNCED',
+          },
+        });
+
+        const transaction = await tx.mockWalletTransaction.create({
+          data: {
+            reference,
+            walletId: wallet.id,
+            userId,
+            type: MockWalletTxType.REWARD,
+            amount,
+            status: MockWalletTxStatus.SUCCESS,
+            counterpartUserId: `SYSTEM_${source}`,
+            counterpartName,
+            description: description || counterpartName,
+            idempotencyKey,
+            createdAt: createdAt ?? now,
+          },
+        });
+
+        return { credited: true, transaction };
+      });
+    } catch (err: unknown) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        return { credited: false };
+      }
+      throw err;
+    }
   }
 }

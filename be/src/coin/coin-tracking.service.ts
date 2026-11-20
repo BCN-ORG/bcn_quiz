@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import {
@@ -12,6 +13,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MockCoinWalletService } from '../wallet/mock-coin-wallet.service';
 import { COIN_SERVICE_PROVIDER } from '../tower/coin/coin-provider.interface';
 import { BOSS_COIN_SERVICE_PROVIDER } from '../boss/coin/coin-provider.interface';
 import { BOUNTY_COIN_SERVICE_PROVIDER } from '../bounty/coin/coin-provider.interface';
@@ -42,6 +44,8 @@ export class CoinTrackingService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly moduleRef: ModuleRef,
+    @Optional()
+    private readonly mockWalletService?: MockCoinWalletService,
   ) {}
 
   onModuleInit(): void {
@@ -53,6 +57,12 @@ export class CoinTrackingService implements OnModuleInit {
           this.logger.log(
             `[CoinTrackingService] Startup backfill completed: ${stats.tower} tower, ${stats.boss} boss, ${stats.bounty} bounty`,
           );
+          const walletSynced = await this.backfillSuccessRewardsToWallet();
+          if (walletSynced > 0) {
+            this.logger.log(
+              `[CoinTrackingService] Wallet reward sync completed: ${walletSynced} transactions`,
+            );
+          }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           this.logger.warn(
@@ -313,7 +323,7 @@ export class CoinTrackingService implements OnModuleInit {
     responsePayload?: any,
   ): Promise<CoinTransaction | null> {
     try {
-      return await this.prisma.coinTransaction.update({
+      const updated = await this.prisma.coinTransaction.update({
         where: { idempotencyKey },
         data: {
           status: CoinTransactionStatus.SUCCESS,
@@ -325,6 +335,8 @@ export class CoinTrackingService implements OnModuleInit {
           processedAt: new Date(),
         },
       });
+      await this.syncRewardToWallet(updated);
+      return updated;
     } catch (err: unknown) {
       this.logger.warn(
         `[CoinTrackingService] Failed to record SUCCESS for ${idempotencyKey}: ${
@@ -473,6 +485,7 @@ export class CoinTrackingService implements OnModuleInit {
             CoinTransactionStatus.SUCCESS,
             check.externalTxId,
           );
+          await this.syncRewardToWallet(updated);
 
           return {
             success: true,
@@ -551,6 +564,7 @@ export class CoinTrackingService implements OnModuleInit {
               CoinTransactionStatus.SUCCESS,
               creditRes.externalTxId,
             );
+            await this.syncRewardToWallet(updated);
             return {
               success: true,
               message:
@@ -710,5 +724,66 @@ export class CoinTrackingService implements OnModuleInit {
         }`,
       );
     }
+  }
+
+  private async syncRewardToWallet(tx: CoinTransaction): Promise<boolean> {
+    if (
+      !this.mockWalletService ||
+      tx.status !== CoinTransactionStatus.SUCCESS ||
+      tx.amount <= 0
+    ) {
+      return false;
+    }
+
+    try {
+      const res = await this.mockWalletService.creditReward({
+        userId: tx.userId,
+        amount: tx.amount,
+        idempotencyKey: tx.idempotencyKey,
+        source: tx.source,
+        description: tx.reason || `Phần thưởng ${tx.source}`,
+        createdAt: tx.processedAt ?? tx.createdAt,
+      });
+      return res.credited;
+    } catch (err: unknown) {
+      this.logger.warn(
+        `[CoinTrackingService] Failed to sync reward to wallet for ${tx.idempotencyKey}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return false;
+    }
+  }
+
+  async backfillSuccessRewardsToWallet(): Promise<number> {
+    if (!this.mockWalletService) return 0;
+
+    const successTxs = await this.prisma.coinTransaction.findMany({
+      where: {
+        status: CoinTransactionStatus.SUCCESS,
+        amount: { gt: 0 },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (successTxs.length === 0) return 0;
+
+    const existingWalletTxs = await this.prisma.mockWalletTransaction.findMany({
+      where: {
+        idempotencyKey: { in: successTxs.map((t) => t.idempotencyKey) },
+      },
+      select: { idempotencyKey: true },
+    });
+    const existingKeys = new Set(
+      existingWalletTxs.map((t) => t.idempotencyKey).filter(Boolean),
+    );
+
+    let syncedCount = 0;
+    for (const tx of successTxs) {
+      if (existingKeys.has(tx.idempotencyKey)) continue;
+      const credited = await this.syncRewardToWallet(tx);
+      if (credited) syncedCount++;
+    }
+    return syncedCount;
   }
 }

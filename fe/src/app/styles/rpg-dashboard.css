@@ -51,8 +51,85 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 18px 28px 20px;
-  background: #38bdf8 url('/images/dashboard/hero-bg.jpg') 65% center / cover no-repeat;
+  background-color: #0f172a;
+  background-image: url('/images/dashboard/hero-bg.jpg');
+  background-position: 65% center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transition: background-image 0.45s ease;
   box-shadow: 0 16px 40px rgba(6, 40, 32, 0.12), 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+/* Tier-specific atmospheric overlays & character aura progressions */
+.rpg-hero-grand[data-tier='tier-2-skilled'] .rpg-character-video-container,
+.rpg-hero-grand[data-tier='tier-2-skilled'] .character-video-player {
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 20px rgba(16, 185, 129, 0.42));
+}
+
+.rpg-hero-grand[data-tier='tier-3-elite'] .rpg-character-video-container,
+.rpg-hero-grand[data-tier='tier-3-elite'] .character-video-player {
+  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 24px rgba(56, 189, 248, 0.55));
+}
+
+.rpg-hero-grand[data-tier='tier-3-elite'] .rpg-level-badge {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.85), rgba(37, 99, 235, 0.85));
+  border-color: rgba(125, 211, 252, 0.65);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+.rpg-hero-grand[data-tier='tier-4-legendary'] .rpg-character-video-container,
+.rpg-hero-grand[data-tier='tier-4-legendary'] .character-video-player {
+  filter: drop-shadow(0 16px 32px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 28px rgba(250, 204, 21, 0.55)) drop-shadow(0 0 14px rgba(168, 85, 247, 0.45));
+}
+
+.rpg-hero-grand[data-tier='tier-4-legendary'] .rpg-level-badge {
+  background: linear-gradient(135deg, rgba(180, 83, 9, 0.9), rgba(126, 34, 206, 0.88));
+  border-color: rgba(253, 224, 71, 0.75);
+  box-shadow: 0 4px 16px rgba(234, 179, 8, 0.42);
+}
+
+.rpg-hero-grand[data-tier='tier-5-astral'] .rpg-character-video-container,
+.rpg-hero-grand[data-tier='tier-5-astral'] .character-video-player {
+  filter: drop-shadow(0 16px 32px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 26px rgba(192, 132, 252, 0.6)) drop-shadow(0 0 14px rgba(34, 211, 238, 0.45));
+}
+
+.rpg-hero-grand[data-tier='tier-5-astral'] .rpg-level-badge {
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.9), rgba(14, 116, 144, 0.88));
+  border-color: rgba(216, 180, 254, 0.78);
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.48);
+}
+
+.rpg-hero-grand[data-tier='tier-6-void'] .rpg-character-video-container,
+.rpg-hero-grand[data-tier='tier-6-void'] .character-video-player {
+  filter: drop-shadow(0 16px 34px rgba(0, 0, 0, 0.68)) drop-shadow(0 0 28px rgba(244, 63, 94, 0.6)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.45));
+}
+
+.rpg-hero-grand[data-tier='tier-6-void'] .rpg-level-badge {
+  background: linear-gradient(135deg, rgba(159, 18, 57, 0.92), rgba(30, 27, 75, 0.92));
+  border-color: rgba(251, 113, 133, 0.78);
+  box-shadow: 0 4px 18px rgba(225, 29, 72, 0.48);
+}
+
+.rpg-hero-grand[data-tier='tier-7-seraph'] .rpg-character-video-container,
+.rpg-hero-grand[data-tier='tier-7-seraph'] .character-video-player {
+  filter: drop-shadow(0 16px 34px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 30px rgba(253, 224, 71, 0.72)) drop-shadow(0 0 16px rgba(125, 211, 252, 0.6));
+}
+
+.rpg-hero-grand[data-tier='tier-7-seraph'] .rpg-level-badge {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.92), rgba(14, 165, 233, 0.88));
+  border-color: rgba(254, 240, 138, 0.9);
+  box-shadow: 0 4px 18px rgba(250, 204, 21, 0.52);
+}
+
+.rpg-hero-grand[data-tier='tier-8-eternal'] .rpg-character-video-container,
+.rpg-hero-grand[data-tier='tier-8-eternal'] .character-video-player {
+  filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 32px rgba(250, 204, 21, 0.8)) drop-shadow(0 0 18px rgba(232, 121, 249, 0.65));
+}
+
+.rpg-hero-grand[data-tier='tier-8-eternal'] .rpg-level-badge {
+  background: linear-gradient(135deg, rgba(202, 138, 4, 0.95), rgba(162, 28, 175, 0.92));
+  border-color: rgba(254, 249, 195, 0.95);
+  box-shadow: 0 0 22px rgba(250, 204, 21, 0.65);
 }
 
 /* Subtle daylight atmosphere overlay (NOT dark black/green) */

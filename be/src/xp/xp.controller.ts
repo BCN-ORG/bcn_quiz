@@ -11,7 +11,29 @@ export class XpController {
   @Permissions(...CONTENT_READ)
   @Get('me')
   async getMe(@Request() req: ExpressRequest) {
-    return this.xpService.getSummary(this.extractUserId(req));
+    const userId = this.extractUserId(req);
+    const email = this.extractUserEmail(req);
+    return email
+      ? this.xpService.getSummary(userId, email)
+      : this.xpService.getSummary(userId);
+  }
+
+  private extractUserEmail(req: ExpressRequest): string | undefined {
+    const user = (
+      req as ExpressRequest & {
+        user?: {
+          email?: unknown;
+          user?: { email?: unknown };
+          data?: { email?: unknown; user?: { email?: unknown } };
+        };
+      }
+    ).user;
+    return [
+      user?.email,
+      user?.user?.email,
+      user?.data?.email,
+      user?.data?.user?.email,
+    ].find((v): v is string => typeof v === 'string' && v.trim().length > 0);
   }
 
   private extractUserId(req: ExpressRequest): string {
