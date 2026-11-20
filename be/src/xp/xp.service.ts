@@ -316,14 +316,10 @@ export class XpService {
               .catch(() => ({ _max: { highestScore: 0, bestCombo: 0 } }))
           : Promise.resolve({ _max: { highestScore: 0, bestCombo: 0 } }),
         typeof this.prisma.quizAttempt?.count === 'function'
-          ? this.prisma.quizAttempt
-              .count({ where: { userId } })
-              .catch(() => 0)
+          ? this.prisma.quizAttempt.count({ where: { userId } }).catch(() => 0)
           : Promise.resolve(0),
         typeof this.prisma.certificate?.count === 'function'
-          ? this.prisma.certificate
-              .count({ where: { userId } })
-              .catch(() => 0)
+          ? this.prisma.certificate.count({ where: { userId } }).catch(() => 0)
           : Promise.resolve(0),
       ]);
 

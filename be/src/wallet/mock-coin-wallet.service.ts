@@ -555,7 +555,11 @@ export class MockCoinWalletService implements CoinWalletService {
     amount: number;
     idempotencyKey: string;
     description: string;
-  }): Promise<{ debited: boolean; balance: number; transaction?: MockWalletTransaction }> {
+  }): Promise<{
+    debited: boolean;
+    balance: number;
+    transaction?: MockWalletTransaction;
+  }> {
     const { userId, amount, idempotencyKey, description } = params;
     if (
       !userId ||
@@ -602,7 +606,11 @@ export class MockCoinWalletService implements CoinWalletService {
       }
 
       if (existing) {
-        return { debited: false, balance: wallet.balance, transaction: existing };
+        return {
+          debited: false,
+          balance: wallet.balance,
+          transaction: existing,
+        };
       }
 
       if (wallet.balance < amount) {
