@@ -511,4 +511,169 @@ export class MockCoinWalletService implements CoinWalletService {
       throw err;
     }
   }
+
+  private cachedTreasuryUserId: string | null | undefined = undefined;
+
+  private async resolveTreasuryAdminUserId(): Promise<string | null> {
+    const envUserId = process.env.COSMETIC_TREASURY_USER_ID?.trim();
+    if (envUserId) return envUserId;
+    if (this.cachedTreasuryUserId !== undefined) {
+      return this.cachedTreasuryUserId;
+    }
+    const targetEmail = (
+      process.env.COSMETIC_TREASURY_EMAIL || 'tuanhungvip12@gmail.com'
+    )
+      .trim()
+      .toLowerCase();
+    try {
+      const ids = await this.profilesService.searchUserIds(targetEmail);
+      if (ids.length > 0) {
+        const resolved = await this.profilesService.resolveUsers(ids);
+        for (const [id, profile] of resolved.entries()) {
+          if (profile.email?.trim().toLowerCase() === targetEmail) {
+            this.cachedTreasuryUserId = id;
+            return id;
+          }
+        }
+      }
+    } catch {
+      this.logger.warn(
+        `Could not resolve treasury admin (${targetEmail}) from Profiles; falling back to SYSTEM_COSMETIC_SHOP.`,
+      );
+      return null;
+    }
+    this.cachedTreasuryUserId = null;
+    return null;
+  }
+
+  /**
+   * Atomically debits Coins for an in-app cosmetic purchase and transfers them
+   * to the unified admin treasury account (tuanhungvip12@gmail.com) when resolved.
+   */
+  async debitPurchase(params: {
+    userId: string;
+    amount: number;
+    idempotencyKey: string;
+    description: string;
+  }): Promise<{ debited: boolean; balance: number; transaction?: MockWalletTransaction }> {
+    const { userId, amount, idempotencyKey, description } = params;
+    if (
+      !userId ||
+      !idempotencyKey ||
+      !Number.isInteger(amount) ||
+      amount <= 0
+    ) {
+      throw new BadRequestException('Thông tin giao dịch không hợp lệ.');
+    }
+
+    const treasuryUserId = await this.resolveTreasuryAdminUserId();
+    const transferToTreasury = Boolean(
+      treasuryUserId && treasuryUserId !== userId,
+    );
+    const counterpartUserId = transferToTreasury
+      ? treasuryUserId!
+      : 'SYSTEM_COSMETIC_SHOP';
+    const counterpartName = transferToTreasury
+      ? 'Quỹ Admin BCN (tuanhungvip12@gmail.com)'
+      : 'Cửa hàng Trang bị BCN';
+
+    const reference = `SP-${crypto
+      .createHash('sha1')
+      .update(idempotencyKey)
+      .digest('hex')
+      .slice(0, 12)
+      .toUpperCase()}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.mockWalletTransaction.findUnique({
+        where: { idempotencyKey },
+      });
+      const now = new Date();
+      let wallet = await tx.mockWallet.findUnique({ where: { userId } });
+      if (!wallet) {
+        wallet = await tx.mockWallet.create({
+          data: {
+            userId,
+            balance: 100,
+            lastSyncedAt: now,
+            syncStatus: 'SYNCED',
+          },
+        });
+      }
+
+      if (existing) {
+        return { debited: false, balance: wallet.balance, transaction: existing };
+      }
+
+      if (wallet.balance < amount) {
+        throw new BadRequestException(
+          `Số dư không đủ (cần ${amount.toLocaleString('vi-VN')} Coin, hiện có ${wallet.balance.toLocaleString('vi-VN')} Coin).`,
+        );
+      }
+
+      const updatedWallet = await tx.mockWallet.update({
+        where: { userId },
+        data: {
+          balance: { decrement: amount },
+          lastSyncedAt: now,
+          syncStatus: 'SYNCED',
+        },
+      });
+
+      const transaction = await tx.mockWalletTransaction.create({
+        data: {
+          reference,
+          walletId: updatedWallet.id,
+          userId,
+          type: MockWalletTxType.SENT,
+          amount,
+          status: MockWalletTxStatus.SUCCESS,
+          counterpartUserId,
+          counterpartName,
+          description,
+          idempotencyKey,
+          createdAt: now,
+        },
+      });
+
+      if (transferToTreasury) {
+        const treasuryWallet = await tx.mockWallet.upsert({
+          where: { userId: treasuryUserId! },
+          update: {
+            balance: { increment: amount },
+            lastSyncedAt: now,
+            syncStatus: 'SYNCED',
+          },
+          create: {
+            userId: treasuryUserId!,
+            balance: 100 + amount,
+            lastSyncedAt: now,
+            syncStatus: 'SYNCED',
+          },
+        });
+
+        await tx.mockWalletTransaction.create({
+          data: {
+            reference: `${reference}-RC`,
+            walletId: treasuryWallet.id,
+            userId: treasuryUserId!,
+            type: MockWalletTxType.RECEIVED,
+            amount,
+            status: MockWalletTxStatus.SUCCESS,
+            counterpartUserId: userId,
+            counterpartName: 'Cửa hàng Trang bị BCN',
+            description,
+            idempotencyKey: `${idempotencyKey}:rcpt`,
+            createdAt: now,
+          },
+        });
+      }
+
+      return {
+        debited: true,
+        balance: updatedWallet.balance,
+        transaction,
+      };
+    });
+  }
 }

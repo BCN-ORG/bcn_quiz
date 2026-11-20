@@ -31,9 +31,15 @@ import { EvolutionModal } from '@/components/evolution-modal';
 import { LevelUpModal } from '@/components/level-up-modal';
 import { Nameplate } from '@/components/nameplate';
 import { NotificationCenter } from '@/components/notification-center';
+import { PlayerProfileModal } from '@/components/player-profile-modal';
 import { TransferModal } from '@/components/wallet/transfer-modal';
 import type { WalletBalance } from '@/lib/wallet';
 import { xpApi } from '@/lib/xp';
+import {
+  playChestSfx,
+  playLevelUpSfx,
+  triggerCelebrationBurst,
+} from '@/lib/sound-effects';
 import { leaderboardPoints } from '@/components/leaderboard-table';
 import { ErrorState } from '@/components/ui';
 import { serverNow } from '@/lib/api';
@@ -98,6 +104,18 @@ export default function DashboardPage() {
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isEvolutionOpen, setIsEvolutionOpen] = useState(false);
   const [showLevelUpModal, setShowLevelUpModal] = useState(false);
+  useEffect(() => {
+    if (showLevelUpModal) playLevelUpSfx();
+  }, [showLevelUpModal]);
+  const [inspectPlayer, setInspectPlayer] = useState<{
+    userId: string;
+    name: string;
+    avatarUrl?: string | null;
+    level?: number;
+    equippedTierId?: string | null;
+    pinnedBadges?: string[];
+    rank?: number;
+  } | null>(null);
   const [equippedTierId, setEquippedTierId] = useState<string | null>(null);
   const [dailyChestClaimedLocal, setDailyChestClaimedLocal] = useState(false);
   const [claimingChest, setClaimingChest] = useState(false);
@@ -129,7 +147,7 @@ export default function DashboardPage() {
       setEquippedTransmogTier(tierId);
       if (user?.id) {
         void xpApi
-          .updateCosmetics(tierId)
+          .updateCosmetics({ equippedTierId: tierId })
           .then(() => {
             void queryClient.invalidateQueries({
               queryKey: dashboardQueryKeys.summary(user.id),
@@ -141,12 +159,47 @@ export default function DashboardPage() {
     [queryClient, user?.id],
   );
 
+  const handlePurchaseCosmetic = useCallback(
+    async (cosmeticId: string) => {
+      const res = await xpApi.purchaseCosmetic(cosmeticId);
+      setEquippedTierId(res.equippedTierId);
+      setEquippedTransmogTier(res.equippedTierId);
+      if (user?.id) {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: dashboardQueryKeys.wallet(user.id),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: dashboardQueryKeys.summary(user.id),
+          }),
+        ]);
+      }
+    },
+    [queryClient, user?.id],
+  );
+
+  const handleUpdatePinnedBadges = useCallback(
+    async (pinnedBadges: string[]) => {
+      await xpApi.updateCosmetics({ pinnedBadges });
+      if (user?.id) {
+        await queryClient.invalidateQueries({
+          queryKey: dashboardQueryKeys.summary(user.id),
+        });
+      }
+    },
+    [queryClient, user?.id],
+  );
+
   const handleClaimDailyChest = useCallback(async () => {
     if (claimingChest) return;
     setClaimingChest(true);
     try {
       const res = await xpApi.claimDailyChest();
       setDailyChestClaimedLocal(true);
+      if (res.claimed) {
+        playChestSfx();
+        triggerCelebrationBurst();
+      }
       if (user?.id && (res.claimed || res.alreadyClaimed)) {
         await Promise.all([
           queryClient.invalidateQueries({
@@ -410,8 +463,12 @@ export default function DashboardPage() {
   const displayName = user?.fullName || 'Trần Tuấn Hưng';
   const naturalProgression = getCharacterProgression(userLevel);
   const transmogCandidate = getCharacterTierById(equippedTierId);
+  const unlockedCosmetics = xp?.unlockedCosmetics ?? [];
   const characterProgression =
-    transmogCandidate && userLevel >= transmogCandidate.minLevel
+    transmogCandidate &&
+    (transmogCandidate.isShop
+      ? unlockedCosmetics.includes(transmogCandidate.tierId)
+      : userLevel >= transmogCandidate.minLevel)
       ? transmogCandidate
       : naturalProgression;
   const displayLevelForVisuals = characterProgression.minLevel;
@@ -1048,6 +1105,7 @@ export default function DashboardPage() {
                   name={displayName}
                   level={userLevel}
                   tierIdOverride={characterProgression.tierId}
+                  pinnedBadges={xp?.pinnedBadges}
                   showTitleBadge
                   compact
                 />
@@ -1174,7 +1232,13 @@ export default function DashboardPage() {
         userName={displayName}
         userAvatarUrl={user?.avatarUrl}
         equippedTierId={equippedTierId}
+        coinBalance={totalCoins}
+        unlockedCosmetics={xp?.unlockedCosmetics ?? []}
+        pinnedBadges={xp?.pinnedBadges ?? []}
+        earnedBadges={xp?.earnedBadges ?? []}
         onSelectTransmog={handleSelectTransmog}
+        onPurchaseCosmetic={handlePurchaseCosmetic}
+        onUpdatePinnedBadges={handleUpdatePinnedBadges}
       />
 
       <LevelUpModal
@@ -1183,6 +1247,12 @@ export default function DashboardPage() {
         level={userLevel}
         userName={displayName}
         userAvatarUrl={user?.avatarUrl}
+      />
+
+      <PlayerProfileModal
+        open={Boolean(inspectPlayer)}
+        onClose={() => setInspectPlayer(null)}
+        player={inspectPlayer}
       />
     </div>
   );

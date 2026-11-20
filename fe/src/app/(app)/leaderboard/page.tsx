@@ -22,6 +22,11 @@ import {
   type LeaderboardRow,
 } from '@/components/leaderboard-table';
 import { Empty, ErrorState, Loading, PaginationNav } from '@/components/ui';
+import { PlayerProfileModal } from '@/components/player-profile-modal';
+import {
+  getCharacterProgression,
+  getCharacterTierById,
+} from '@/lib/character-progression';
 import { request } from '@/lib/api';
 import { LEADERBOARD_LIMIT, clockLabel } from '@/lib/leaderboard-filters';
 
@@ -64,7 +69,28 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [online, setOnline] = useState(true);
+  const [inspectPlayer, setInspectPlayer] = useState<{
+    userId: string;
+    name: string;
+    avatarUrl?: string | null;
+    level?: number;
+    equippedTierId?: string | null;
+    pinnedBadges?: string[];
+    rank?: number;
+  } | null>(null);
   const requestNumber = useRef(0);
+
+  const handleInspectRow = useCallback((row: LeaderboardRow) => {
+    setInspectPlayer({
+      userId: row.user.id,
+      name: row.user.fullName || 'Người chơi',
+      avatarUrl: row.user.avatarUrl,
+      level: row.userLevel ?? 1,
+      equippedTierId: row.equippedTierId ?? null,
+      pinnedBadges: row.pinnedBadges ?? [],
+      rank: row.rank,
+    });
+  }, []);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const listRef = useRef<HTMLHeadingElement>(null);
 
@@ -321,16 +347,26 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
                 <ol className="leaderboard-podium" aria-label="Top 3">
                   {[1, 2, 3].map((rank) => {
                     const row = data.top3.find((item) => item.rank === rank);
+                    const rowTier = row
+                      ? (getCharacterTierById(row.equippedTierId) ??
+                        getCharacterProgression(row.userLevel ?? 1))
+                      : null;
                     return (
                       <li key={rank} className={`leaderboard-slot leaderboard-slot-${rank}`}>
-                        {row ? (
-                          <div className={`leaderboard-top leaderboard-top-${rank}`}>
+                        {row && rowTier ? (
+                          <div
+                            className={`leaderboard-top leaderboard-top-${rank} leaderboard-top--banner`}
+                            style={{ backgroundImage: `url('${rowTier.bannerBgUrl}')` }}
+                            data-tier={rowTier.tierId}
+                          >
+                            <span className="leaderboard-top-banner-scrim" aria-hidden="true" />
                             <PodiumCup rank={rank} />
                             <LeaderboardPlayer
                               row={row}
                               large
                               current={row.user.id === user?.id}
                               namesUnavailable={namesUnavailable}
+                              onInspectPlayer={handleInspectRow}
                             />
                             {tab === 'tower' ? (
                               <strong>Tầng {row.highestCompletedFloor ?? row.score ?? 0}</strong>
@@ -395,6 +431,7 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
                     currentUserId={user?.id}
                     caption="Các hạng quanh bạn"
                     namesUnavailable={namesUnavailable}
+                    onInspectPlayer={handleInspectRow}
                   />
                 </div>
               )}
@@ -414,6 +451,7 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
                     currentUserId={user?.id}
                     caption={`Bảng xếp hạng ${tab}, trang ${data.pagination.page} trên ${data.pagination.totalPages}`}
                     namesUnavailable={namesUnavailable}
+                    onInspectPlayer={handleInspectRow}
                   />
                 ) : (
                   <>
@@ -452,6 +490,11 @@ function ModuleLeaderboardView({ tab, page }: { tab: ModuleTab; page: number }) 
           )}
         </>
       )}
+      <PlayerProfileModal
+        open={Boolean(inspectPlayer)}
+        onClose={() => setInspectPlayer(null)}
+        player={inspectPlayer}
+      />
     </section>
   );
 }

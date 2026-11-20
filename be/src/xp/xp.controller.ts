@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Put,
   Request,
@@ -32,12 +33,35 @@ export class XpController {
   @Put('me/cosmetics')
   async updateCosmetics(
     @Request() req: ExpressRequest,
-    @Body() body: { equippedTierId?: string | null },
+    @Body() body: { equippedTierId?: string | null; pinnedBadges?: string[] },
   ) {
-    return this.xpService.updateCosmetics(
+    return this.xpService.updateCosmetics(this.extractUserId(req), {
+      ...(body && 'equippedTierId' in body
+        ? { equippedTierId: body.equippedTierId ?? null }
+        : {}),
+      ...(body && Array.isArray(body.pinnedBadges)
+        ? { pinnedBadges: body.pinnedBadges }
+        : {}),
+    });
+  }
+
+  @Permissions(...CONTENT_READ)
+  @Post('cosmetics/purchase')
+  @HttpCode(HttpStatus.OK)
+  async purchaseCosmetic(
+    @Request() req: ExpressRequest,
+    @Body() body: { cosmeticId?: string },
+  ) {
+    return this.xpService.purchaseCosmetic(
       this.extractUserId(req),
-      body?.equippedTierId ?? null,
+      body?.cosmeticId ?? '',
     );
+  }
+
+  @Permissions(...CONTENT_READ)
+  @Get('players/:userId/profile')
+  async getPlayerProfile(@Param('userId') targetUserId: string) {
+    return this.xpService.getPlayerProfile(targetUserId);
   }
 
   @Permissions(...CONTENT_READ)

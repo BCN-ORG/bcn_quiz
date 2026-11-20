@@ -17,6 +17,8 @@ import {
   ClockCounterClockwise,
   GraduationCap,
   SignOut,
+  SpeakerHigh,
+  SpeakerSlash,
   Stack,
   Sword,
   Trophy,
@@ -53,6 +55,7 @@ import {
   getEquippedTransmogTier,
   TRANSMOG_EVENT,
 } from '@/lib/character-progression';
+import { isSfxMuted, setSfxMuted, SFX_EVENT } from '@/lib/sound-effects';
 
 type NavItem = {
   href: string;
@@ -189,6 +192,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [menu, setMenu] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [dark, setDark] = useState(false);
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    const syncMute = () => setMuted(isSfxMuted());
+    syncMute();
+    window.addEventListener(SFX_EVENT, syncMute);
+    return () => window.removeEventListener(SFX_EVENT, syncMute);
+  }, []);
   const [profileOpen, setProfileOpen] = useState(false);
   const [certs, setCerts] = useState<MyCertificateRequest[] | null>(null);
   const [weeklyRank, setWeeklyRank] = useState<number | null>(null);
@@ -436,6 +446,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     name={user.fullName || 'Thành viên BCN'}
                     level={userLevel}
                     tierIdOverride={activeTierId}
+                    pinnedBadges={summaryQuery.data?.xp?.pinnedBadges}
                     showTitleBadge={false}
                     compact
                   />
@@ -501,6 +512,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {/* Nút tắt sang trang Quản trị, chỉ hiện với tài khoản quản trị (kịch bản Figma 05/11/2026) */}
             {canManageContent(user) ? <Link className="button" href="/admin"><Plus /> Tạo khóa học</Link> : null}
             <NotificationCenter />
+            <button
+              className="icon-button"
+              onClick={() => setSfxMuted(!muted)}
+              aria-label={muted ? 'Bật âm thanh hiệu ứng' : 'Tắt âm thanh hiệu ứng'}
+              title={muted ? 'Bật âm thanh (SFX)' : 'Tắt âm thanh (SFX)'}
+            >
+              {muted ? <SpeakerSlash /> : <SpeakerHigh />}
+            </button>
             <button className="icon-button" onClick={setTheme} aria-label={dark ? 'Dùng giao diện sáng' : 'Dùng giao diện tối'}>{dark ? <Sun /> : <Moon />}</button>
           </div>
         </header>

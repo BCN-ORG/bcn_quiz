@@ -30,7 +30,13 @@ export function AvatarFrame({
   const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
   const tier =
     getCharacterTierById(tierIdOverride) ?? getCharacterProgression(safeLevel);
-  const visualLevel = tier.minLevel;
+  const SHOP_VISUAL_LEVEL: Record<string, number> = {
+    'shop-blood-moon': 40,
+    'shop-cyber-neon': 20,
+    'shop-frost-ice': 6,
+    'shop-royal-gold': 70,
+  };
+  const visualLevel = SHOP_VISUAL_LEVEL[tier.tierId] ?? tier.minLevel;
   const initial = (name.trim().charAt(0) || 'B').toUpperCase();
 
   return (

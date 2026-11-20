@@ -8,11 +8,70 @@ export type CharacterTier = {
   nameplateName: string;
   lore: string;
   milestoneCoins: number;
+  priceCoins?: number;
+  isShop?: boolean;
   accentColor: string;
   description: string;
   assetUrl: string;
   bannerBgUrl: string;
 };
+
+export type PinBadgeMeta = {
+  id: string;
+  label: string;
+  icon: string;
+  color: string;
+  desc: string;
+};
+
+export const PIN_BADGES: PinBadgeMeta[] = [
+  {
+    id: 'arena-veteran',
+    label: 'Chiến Binh',
+    icon: '⚔️',
+    color: '#10b981',
+    desc: 'Đạt từ Cấp 3 trở lên tại BCN Arena',
+  },
+  {
+    id: 'tower-conqueror',
+    label: 'Chinh Phục Tháp',
+    icon: '🏰',
+    color: '#38bdf8',
+    desc: 'Vượt qua ít nhất Tầng 10 Tháp Kiến Thức',
+  },
+  {
+    id: 'boss-slayer',
+    label: 'Sát Thủ Boss',
+    icon: '🔥',
+    color: '#f43f5e',
+    desc: 'Đạt tối thiểu 5 sát thương trong 1 trận Boss',
+  },
+  {
+    id: 'streak-7',
+    label: 'Bất Diệt',
+    icon: '⚡',
+    color: '#f59e0b',
+    desc: 'Đạt Combo Boss x5+ hoặc Cấp 6+',
+  },
+  {
+    id: 'quiz-master',
+    label: 'Học Bá Quiz',
+    icon: '📘',
+    color: '#818cf8',
+    desc: 'Hoàn thành từ 10 lượt Quiz trở lên hoặc có Chứng nhận',
+  },
+  {
+    id: 'top-weekly',
+    label: 'Tinh Anh',
+    icon: '👑',
+    color: '#facc15',
+    desc: 'Đạt Cấp 10+ hoặc sở hữu Chứng nhận chính thức',
+  },
+];
+
+export function getPinBadgeById(id: string): PinBadgeMeta | null {
+  return PIN_BADGES.find((b) => b.id === id) ?? null;
+}
 
 export const CHARACTER_TIERS: CharacterTier[] = [
   {
@@ -122,6 +181,77 @@ export const CHARACTER_TIERS: CharacterTier[] = [
   },
 ];
 
+export const SHOP_COSMETICS: CharacterTier[] = [
+  {
+    tierId: 'shop-blood-moon',
+    minLevel: 1,
+    maxLevel: 999,
+    tierTitle: 'Huyết Nguyệt Ma Tôn',
+    tierBadge: 'Cửa Hàng · Độc Bản',
+    frameName: 'Vòng Huyết Nguyệt',
+    nameplateName: 'Bảng Tên Huyết Nguyệt',
+    lore: 'Ánh trăng đỏ thẫm nhuộm rực chiến bào, toát lên uy áp của kẻ thống trị màn đêm.',
+    milestoneCoins: 0,
+    priceCoins: 150,
+    isShop: true,
+    accentColor: '#e11d48',
+    description: 'Trang bị Huyết Nguyệt rực cháy — mở khóa bằng Coin 🩸',
+    assetUrl: '/images/characters/character-level-40.png',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-6.jpg',
+  },
+  {
+    tierId: 'shop-cyber-neon',
+    minLevel: 1,
+    maxLevel: 999,
+    tierTitle: 'Cyber Neon Đấu Sĩ',
+    tierBadge: 'Cửa Hàng · Độc Bản',
+    frameName: 'Khung Cyber Neon',
+    nameplateName: 'Bảng Tên Cyber Neon',
+    lore: 'Mạch năng lượng neon xanh tím chạy dọc không gian số, bứt tốc mọi giới hạn.',
+    milestoneCoins: 0,
+    priceCoins: 300,
+    isShop: true,
+    accentColor: '#06b6d4',
+    description: 'Trang bị Cyber Neon tương lai — mở khóa bằng Coin ⚡',
+    assetUrl: '/images/characters/character-level-20.png',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-5.jpg',
+  },
+  {
+    tierId: 'shop-frost-ice',
+    minLevel: 1,
+    maxLevel: 999,
+    tierTitle: 'Băng Giá Vĩnh Cửu',
+    tierBadge: 'Cửa Hàng · Độc Bản',
+    frameName: 'Khung Băng Tinh Thể',
+    nameplateName: 'Bảng Tên Băng Giá',
+    lore: 'Tinh thể băng lam bất diệt bao bọc hào quang lạnh lẽo mà sắc bén tuyệt đối.',
+    milestoneCoins: 0,
+    priceCoins: 500,
+    isShop: true,
+    accentColor: '#38bdf8',
+    description: 'Trang bị Băng Giá vĩnh cửu — mở khóa bằng Coin ❄️',
+    assetUrl: '/images/characters/character-level-6.png',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-3.jpg',
+  },
+  {
+    tierId: 'shop-royal-gold',
+    minLevel: 1,
+    maxLevel: 999,
+    tierTitle: 'Hoàng Kim Độc Quyền',
+    tierBadge: 'Cửa Hàng · Độc Bản',
+    frameName: 'Thánh Quang Hoàng Kim',
+    nameplateName: 'Bảng Tên Hoàng Kim',
+    lore: 'Phiên bản giáp hoàng kim tối thượng chỉ dành cho những nhà vô địch sở hữu kho báu Coin.',
+    milestoneCoins: 0,
+    priceCoins: 1000,
+    isShop: true,
+    accentColor: '#facc15',
+    description: 'Trang bị Hoàng Kim Độc Quyền — mở khóa bằng Coin 👑',
+    assetUrl: '/images/characters/character-level-65.png',
+    bannerBgUrl: '/images/dashboard/hero-banner-tier-7.jpg',
+  },
+];
+
 export function getCharacterProgression(level: number): CharacterTier {
   const safeLevel = Math.max(1, Number(level) || 1);
   const found = CHARACTER_TIERS.find(
@@ -139,7 +269,11 @@ export function getNextCharacterTier(level: number): CharacterTier | null {
 
 export function getCharacterTierById(tierId: string | null | undefined): CharacterTier | null {
   if (!tierId) return null;
-  return CHARACTER_TIERS.find((t) => t.tierId === tierId) ?? null;
+  return (
+    CHARACTER_TIERS.find((t) => t.tierId === tierId) ??
+    SHOP_COSMETICS.find((t) => t.tierId === tierId) ??
+    null
+  );
 }
 
 export const TRANSMOG_STORAGE_KEY = 'bcn_arena_transmog_tier';

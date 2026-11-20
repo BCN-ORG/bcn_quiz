@@ -4,12 +4,14 @@ import type { ReactNode } from 'react';
 import {
   getCharacterProgression,
   getCharacterTierById,
+  getPinBadgeById,
 } from '@/lib/character-progression';
 
 export interface NameplateProps {
   name: string;
   level?: number;
   tierIdOverride?: string | null;
+  pinnedBadges?: string[];
   showTitleBadge?: boolean;
   compact?: boolean;
   className?: string;
@@ -23,6 +25,7 @@ export function Nameplate({
   name,
   level = 1,
   tierIdOverride,
+  pinnedBadges,
   showTitleBadge = false,
   compact = false,
   className = '',
@@ -31,6 +34,10 @@ export function Nameplate({
   const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
   const tier =
     getCharacterTierById(tierIdOverride) ?? getCharacterProgression(safeLevel);
+  const visiblePins = (pinnedBadges ?? [])
+    .slice(0, 3)
+    .map((id) => getPinBadgeById(id))
+    .filter((b): b is NonNullable<typeof b> => b !== null);
 
   return (
     <span
@@ -43,6 +50,20 @@ export function Nameplate({
       <span className="rpg-nameplate-glint" aria-hidden="true" />
       <span className="rpg-nameplate-content">
         {children ?? <span className="rpg-nameplate-text">{name}</span>}
+        {visiblePins.length > 0 ? (
+          <span className="rpg-nameplate-pins" aria-label="Huy hiệu ghim">
+            {visiblePins.map((pin) => (
+              <span
+                key={pin.id}
+                className="rpg-nameplate-pin-dot"
+                title={pin.label}
+                aria-label={pin.label}
+              >
+                {pin.icon}
+              </span>
+            ))}
+          </span>
+        ) : null}
         {showTitleBadge ? (
           <span className="rpg-nameplate-tier-tag">{tier.tierTitle}</span>
         ) : null}

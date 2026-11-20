@@ -12,6 +12,7 @@ export type LeaderboardRow = {
   user: { id: string; fullName: string; avatarUrl: string | null };
   userLevel?: number;
   equippedTierId?: string | null;
+  pinnedBadges?: string[];
   score?: number;
   weeklyScore?: number;
   correctCount?: number;
@@ -92,7 +93,19 @@ export function PodiumCup({ rank, faded = false }: { rank: number; faded?: boole
 /** The server falls back to this name when Profiles has no usable name for the user, or could not be asked at all. */
 const FALLBACK_NAME = 'Người dùng';
 
-export function LeaderboardPlayer({ row, current = false, large = false, namesUnavailable = false }: { row: LeaderboardRow; current?: boolean; large?: boolean; namesUnavailable?: boolean }) {
+export function LeaderboardPlayer({
+  row,
+  current = false,
+  large = false,
+  namesUnavailable = false,
+  onInspectPlayer,
+}: {
+  row: LeaderboardRow;
+  current?: boolean;
+  large?: boolean;
+  namesUnavailable?: boolean;
+  onInspectPlayer?: (row: LeaderboardRow) => void;
+}) {
   // Zero-width characters survive trim() but show as an empty name.
   const name = row.user.fullName.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim() || FALLBACK_NAME;
   const nameless = name === FALLBACK_NAME;
@@ -138,7 +151,7 @@ export function LeaderboardPlayer({ row, current = false, large = false, namesUn
   const effectiveTierId = current
     ? (localEquippedTierId !== undefined ? localEquippedTierId : (row.equippedTierId ?? null))
     : (row.equippedTierId ?? null);
-  return <span className={`leaderboard-player${large ? ' leaderboard-player-lg' : ''}`}>
+  const content = <span className={`leaderboard-player${large ? ' leaderboard-player-lg' : ''}`}>
     <AvatarFrame
       name={nameless ? '?' : name}
       avatarUrl={row.user.avatarUrl}
@@ -151,6 +164,7 @@ export function LeaderboardPlayer({ row, current = false, large = false, namesUn
       name={nameless ? label : name}
       level={playerLevel}
       tierIdOverride={effectiveTierId}
+      pinnedBadges={row.pinnedBadges}
       showTitleBadge={false}
       compact
       className={large ? 'rpg-nameplate--podium' : ''}
@@ -163,9 +177,34 @@ export function LeaderboardPlayer({ row, current = false, large = false, namesUn
       </span>
     </Nameplate>
   </span>;
+  if (!onInspectPlayer) return content;
+  return (
+    <button
+      type="button"
+      className="leaderboard-player-trigger"
+      onClick={() => onInspectPlayer(row)}
+      title={`Xem hồ sơ của ${nameless ? label : name}`}
+    >
+      {content}
+    </button>
+  );
 }
 
-export function LeaderboardTable({ rows, mode, currentUserId, caption = 'Bảng xếp hạng', namesUnavailable = false }: { rows: LeaderboardRow[]; mode: 'daily' | 'weekly' | 'tower' | 'boss' | 'bounty'; currentUserId?: string; caption?: string; namesUnavailable?: boolean }) {
+export function LeaderboardTable({
+  rows,
+  mode,
+  currentUserId,
+  caption = 'Bảng xếp hạng',
+  namesUnavailable = false,
+  onInspectPlayer,
+}: {
+  rows: LeaderboardRow[];
+  mode: 'daily' | 'weekly' | 'tower' | 'boss' | 'bounty';
+  currentUserId?: string;
+  caption?: string;
+  namesUnavailable?: boolean;
+  onInspectPlayer?: (row: LeaderboardRow) => void;
+}) {
   const isTower = mode === 'tower';
   const isBoss = mode === 'boss';
   const isDaily = mode === 'daily';
@@ -195,7 +234,12 @@ export function LeaderboardTable({ rows, mode, currentUserId, caption = 'Bảng 
         <tr key={row.user.id} className={mine ? 'leaderboard-current' : undefined} aria-current={mine ? 'true' : undefined}>
         <td className="num leaderboard-rank-cell"><RankBadge rank={row.rank} /></td>
         <th scope="row">
-          <LeaderboardPlayer row={row} current={mine} namesUnavailable={namesUnavailable} />
+          <LeaderboardPlayer
+            row={row}
+            current={mine}
+            namesUnavailable={namesUnavailable}
+            onInspectPlayer={onInspectPlayer}
+          />
           <small className="leaderboard-mobile-detail">
             {isTower
               ? `Tầng ${row.highestCompletedFloor ?? 0}/100`

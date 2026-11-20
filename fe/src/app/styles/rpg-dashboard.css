@@ -3184,3 +3184,471 @@
   color: #059669;
   border: 1px solid rgba(16, 185, 129, 0.35);
 }
+
+/* ==========================================================================
+   SHOP COSMETIC SKINS (4 COIN PACKS)
+   ========================================================================== */
+.rpg-avatar-frame[data-tier='shop-blood-moon'] .rpg-frame-ring-outer { stroke: #e11d48; stroke-width: 4.5; }
+.rpg-avatar-frame[data-tier='shop-blood-moon'] .rpg-frame-ring-runes { stroke: #fda4af; stroke-width: 2; stroke-dasharray: 5 4; transform-origin: 50% 50%; animation: rpgSpinSlow 12s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-blood-moon'] .rpg-frame-gem { fill: #fb7185; stroke: #fef2f2; stroke-width: 1.4; }
+.rpg-avatar-frame[data-tier='shop-blood-moon'] .rpg-frame-wing,
+.rpg-avatar-frame[data-tier='shop-blood-moon'] .rpg-frame-blade { fill: #be123c; stroke: #fda4af; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-blood-moon'] .rpg-frame-node { fill: #fda4af; }
+.rpg-avatar-frame[data-tier='shop-blood-moon'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(225, 29, 72, 0.55); }
+.rpg-nameplate[data-tier='shop-blood-moon'] { border-color: rgba(251, 113, 133, 0.85); box-shadow: 0 3px 16px rgba(225, 29, 72, 0.45); }
+
+.rpg-avatar-frame[data-tier='shop-cyber-neon'] .rpg-frame-ring-outer { stroke: #06b6d4; stroke-width: 4.5; }
+.rpg-avatar-frame[data-tier='shop-cyber-neon'] .rpg-frame-ring-runes { stroke: #e879f9; stroke-width: 2; stroke-dasharray: 4 3; transform-origin: 50% 50%; animation: rpgSpinSlow 9s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-cyber-neon'] .rpg-frame-gem { fill: #22d3ee; stroke: #f0abfc; stroke-width: 1.4; }
+.rpg-avatar-frame[data-tier='shop-cyber-neon'] .rpg-frame-wing { fill: #d946ef; }
+.rpg-avatar-frame[data-tier='shop-cyber-neon'] .rpg-frame-node { fill: #67e8f9; stroke: #f0abfc; stroke-width: 1.2; }
+.rpg-avatar-frame[data-tier='shop-cyber-neon'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(6, 182, 212, 0.55), 0 0 8px rgba(217, 70, 239, 0.45); }
+.rpg-nameplate[data-tier='shop-cyber-neon'] { border-color: rgba(34, 211, 238, 0.85); box-shadow: 0 3px 16px rgba(6, 182, 212, 0.42), 0 0 10px rgba(217, 70, 239, 0.3); }
+
+.rpg-avatar-frame[data-tier='shop-frost-ice'] .rpg-frame-ring-outer { stroke: #38bdf8; stroke-width: 4; }
+.rpg-avatar-frame[data-tier='shop-frost-ice'] .rpg-frame-ring-runes { stroke: #e0f2fe; stroke-width: 2; stroke-dasharray: 6 4; transform-origin: 50% 50%; animation: rpgSpinSlow 16s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-frost-ice'] .rpg-avatar-frame-aura { box-shadow: 0 0 16px rgba(56, 189, 248, 0.5); }
+.rpg-nameplate[data-tier='shop-frost-ice'] { border-color: rgba(186, 230, 253, 0.85); box-shadow: 0 3px 14px rgba(56, 189, 248, 0.36); }
+
+.rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-frame-ring-outer { stroke: #facc15; stroke-width: 4.5; }
+.rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-frame-ring-runes { stroke: #fef08a; stroke-width: 2.2; stroke-dasharray: 6 3; transform-origin: 50% 50%; animation: rpgSpinSlow 14s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-frame-gem { fill: #fef08a; stroke: #f59e0b; stroke-width: 1.5; }
+.rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-frame-wing,
+.rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-frame-seraph-wing,
+.rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-frame-blade { fill: #fde047; stroke: #b45309; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-frame-node { fill: #fef9c3; }
+.rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-avatar-frame-aura { box-shadow: 0 0 22px rgba(250, 204, 21, 0.65); }
+.rpg-nameplate[data-tier='shop-royal-gold'] { border-color: rgba(254, 240, 138, 0.95); box-shadow: 0 4px 20px rgba(250, 204, 21, 0.5); }
+
+/* ==========================================================================
+   PINNED BADGES ON NAMEPLATE
+   ========================================================================== */
+.rpg-nameplate-pins {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.rpg-nameplate-pin-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 10.5px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ==========================================================================
+   EVOLUTION MODAL: SHOP & BADGE TABS
+   ========================================================================== */
+.rpg-evo-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rpg-evo-wallet-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 9999px;
+  background: rgba(234, 179, 8, 0.14);
+  border: 1px solid rgba(234, 179, 8, 0.38);
+  color: #facc15;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.rpg-evo-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 20px 12px;
+}
+
+.rpg-evo-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.35);
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rpg-evo-mode-tab:hover {
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #ffffff;
+}
+
+.rpg-evo-mode-tab.is-active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.32), rgba(14, 165, 233, 0.28));
+  border-color: rgba(56, 189, 248, 0.8);
+  color: #ffffff;
+}
+
+.rpg-evo-buy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(250, 204, 21, 0.7);
+  background: linear-gradient(135deg, #d97706, #eab308);
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 13.5px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(234, 179, 8, 0.35);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.rpg-evo-buy-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.rpg-evo-buy-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.rpg-evo-shop-error {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fda4af;
+}
+
+.rpg-badge-picker-panel {
+  padding: 8px 20px 22px;
+  display: grid;
+  gap: 14px;
+}
+
+.rpg-badge-preview-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.rpg-badge-helper {
+  margin: 0;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.rpg-badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.rpg-badge-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.42);
+  color: #f8fafc;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rpg-badge-card:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.65);
+  transform: translateY(-1px);
+}
+
+.rpg-badge-card.is-pinned {
+  border-color: rgba(250, 204, 21, 0.8);
+  background: rgba(234, 179, 8, 0.14);
+}
+
+.rpg-badge-card.is-locked {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.rpg-badge-card-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.rpg-badge-card-info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rpg-badge-card-info strong {
+  font-size: 13px;
+}
+
+.rpg-badge-card-info small {
+  font-size: 11.5px;
+  color: #94a3b8;
+  line-height: 1.3;
+}
+
+.rpg-badge-card-state {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.rpg-badge-card.is-pinned .rpg-badge-card-state {
+  color: #facc15;
+}
+
+/* ==========================================================================
+   DISCORD PLAYER PROFILE POPOUT MODAL
+   ========================================================================== */
+.rpg-player-popout {
+  width: min(420px, calc(100vw - 28px));
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+}
+
+.rpg-player-popout-banner {
+  position: relative;
+  height: 126px;
+  background-color: #0f172a;
+  background-size: cover;
+  background-position: center;
+  padding: 12px 14px;
+  overflow: hidden;
+}
+
+.rpg-player-popout-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.25) 0%, rgba(15, 23, 42, 0.72) 100%);
+}
+
+.rpg-player-popout-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rpg-player-popout-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.rpg-player-popout-char {
+  position: absolute;
+  right: 12px;
+  bottom: -6px;
+  height: 92px;
+  width: auto;
+  object-fit: contain;
+  z-index: 1;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+
+.rpg-player-popout-body {
+  padding: 0 18px 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.rpg-player-popout-avatar-row {
+  margin-top: -38px;
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.rpg-player-popout-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rpg-player-popout-identity {
+  display: grid;
+  gap: 5px;
+}
+
+.rpg-player-popout-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.rpg-player-popout-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rpg-popout-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  border: 1px solid;
+  background: var(--surface-2);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.rpg-player-popout-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rpg-popout-stat {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.rpg-popout-stat svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.rpg-popout-stat strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.rpg-popout-stat span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   LEADERBOARD CLICKABLE PLAYER & TIER BANNER PODIUM
+   ========================================================================== */
+.leaderboard-player-trigger {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.leaderboard-player-trigger:hover .rpg-nameplate {
+  filter: brightness(1.08);
+}
+
+.leaderboard-top--banner {
+  position: relative;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  color: #ffffff;
+}
+
+.leaderboard-top--banner > *:not(.leaderboard-top-banner-scrim) {
+  position: relative;
+  z-index: 1;
+}
+
+.leaderboard-top-banner-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.58) 0%,
+    rgba(15, 23, 42, 0.84) 100%
+  );
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   CELEBRATION CONFETTI BURST
+   ========================================================================== */
+.rpg-confetti-burst {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+.rpg-confetti-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  animation: rpgConfettiPop 0.72s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes rpgConfettiPop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.1);
+    opacity: 0;
+  }
+}

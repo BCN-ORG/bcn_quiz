@@ -491,7 +491,12 @@ export class LeaderboardService {
         ? this.prisma.userCosmeticPreference
             .findMany({
               where: { userId: { in: userIds } },
-              select: { userId: true, equippedTierId: true },
+              select: {
+                userId: true,
+                equippedTierId: true,
+                pinnedBadges: true,
+                unlockedCosmetics: true,
+              },
             })
             .catch(() => [])
         : Promise.resolve([]),
@@ -502,16 +507,25 @@ export class LeaderboardService {
       levelByUser.set(g.userId, levelFromXp(totalXp).level);
     }
     const equippedTierByUser = new Map<string, string | null>();
+    const pinnedBadgesByUser = new Map<string, string[]>();
     for (const pref of cosmeticPrefs) {
       const userLv = levelByUser.get(pref.userId) ?? 1;
       const minReq = pref.equippedTierId
         ? TIER_MIN_LEVELS[pref.equippedTierId]
         : undefined;
+      const isShopUnlocked =
+        Boolean(pref.equippedTierId) &&
+        (pref.unlockedCosmetics ?? []).includes(pref.equippedTierId!);
       equippedTierByUser.set(
         pref.userId,
-        pref.equippedTierId && minReq !== undefined && userLv >= minReq
+        pref.equippedTierId &&
+          ((minReq !== undefined && userLv >= minReq) || isShopUnlocked)
           ? pref.equippedTierId
           : null,
+      );
+      pinnedBadgesByUser.set(
+        pref.userId,
+        (pref.pinnedBadges ?? []).slice(0, 3),
       );
     }
     const mapped = rows.map((row) => {
@@ -523,6 +537,7 @@ export class LeaderboardService {
       };
       const userLevel = levelByUser.get(row.userId) ?? 1;
       const equippedTierId = equippedTierByUser.get(row.userId) ?? null;
+      const pinnedBadges = pinnedBadgesByUser.get(row.userId) ?? [];
 
       if (mode === 'bounty') {
         return {
@@ -530,6 +545,7 @@ export class LeaderboardService {
           user,
           userLevel,
           equippedTierId,
+          pinnedBadges,
           ...(admin ? { email: profile?.email ?? null } : {}),
           score: row.completedBountiesCount ?? row.score ?? 0,
           completedBountiesCount: row.completedBountiesCount ?? row.score ?? 0,
@@ -545,6 +561,7 @@ export class LeaderboardService {
           user,
           userLevel,
           equippedTierId,
+          pinnedBadges,
           ...(admin ? { email: profile?.email ?? null } : {}),
           score: row.highestCompletedFloor ?? row.score ?? 0,
           highestCompletedFloor: row.highestCompletedFloor ?? row.score ?? 0,
@@ -559,6 +576,7 @@ export class LeaderboardService {
           user,
           userLevel,
           equippedTierId,
+          pinnedBadges,
           ...(admin ? { email: profile?.email ?? null } : {}),
           score: row.highestScore ?? row.score ?? 0,
           highestScore: row.highestScore ?? row.score ?? 0,
@@ -575,6 +593,7 @@ export class LeaderboardService {
             user,
             userLevel,
             equippedTierId,
+            pinnedBadges,
             ...(admin ? { email: profile?.email ?? null } : {}),
             score: row.score,
             correctCount: row.correctCount,
@@ -590,6 +609,7 @@ export class LeaderboardService {
             user,
             userLevel,
             equippedTierId,
+            pinnedBadges,
             ...(admin ? { email: profile?.email ?? null } : {}),
             weeklyScore: row.score,
             topicsCompleted: row.topicsCompleted,

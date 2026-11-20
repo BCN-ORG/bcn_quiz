@@ -74,3 +74,23 @@ export const TIER_MIN_LEVELS: Readonly<Record<string, number>> = {
 };
 
 export const DAILY_CHEST_REWARD_COINS = 15;
+
+export const SHOP_COSMETIC_PRICES: Readonly<Record<string, number>> = {
+  'shop-blood-moon': 150,
+  'shop-cyber-neon': 300,
+  'shop-frost-ice': 500,
+  'shop-royal-gold': 1000,
+};
+
+export const VALID_BADGE_IDS = [
+  'tower-conqueror',
+  'boss-slayer',
+  'streak-7',
+  'top-weekly',
+  'quiz-master',
+  'arena-veteran',
+] as const;
+
+export type PinBadgeId = (typeof VALID_BADGE_IDS)[number];
+
+export const MAX_PINNED_BADGES = 3;

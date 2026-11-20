@@ -9,13 +9,16 @@ import {
   BOSS_XP_MIN_CORRECT,
   DAILY_CHEST_REWARD_COINS,
   LEVEL_MILESTONE_COIN_REWARDS,
+  MAX_PINNED_BADGES,
+  SHOP_COSMETIC_PRICES,
   TIER_MIN_LEVELS,
   totalXpForLevel,
+  VALID_BADGE_IDS,
   XP_AMOUNTS,
   XP_RANKS,
   xpRequiredForLevel,
 } from './xp.constants';
-import { XpSummaryDto } from './dto/xp.dto';
+import { PlayerProfileDto, XpSummaryDto } from './dto/xp.dto';
 
 export function rankForLevel(level: number): {
   rankTitle: string;
@@ -241,10 +244,17 @@ export class XpService {
     await this.syncLevelMilestoneCoins(userId, levelInfo.level);
 
     const todayKey = businessDate(new Date());
-    const [cosmeticPref, chestTx] = await Promise.all([
+    const [cosmeticPref, chestTx, statsAndBadges] = await Promise.all([
       typeof this.prisma.userCosmeticPreference?.findUnique === 'function'
         ? this.prisma.userCosmeticPreference
-            .findUnique({ where: { userId }, select: { equippedTierId: true } })
+            .findUnique({
+              where: { userId },
+              select: {
+                equippedTierId: true,
+                pinnedBadges: true,
+                unlockedCosmetics: true,
+              },
+            })
             .catch(() => null)
         : Promise.resolve(null),
       typeof this.prisma.mockWalletTransaction?.findUnique === 'function'
@@ -255,52 +265,298 @@ export class XpService {
             })
             .catch(() => null)
         : Promise.resolve(null),
+      this.computePlayerStatsAndBadges(userId, levelInfo.level),
     ]);
 
+    const unlockedCosmetics = cosmeticPref?.unlockedCosmetics ?? [];
     const rawEquipped = cosmeticPref?.equippedTierId ?? null;
     const minReq = rawEquipped ? TIER_MIN_LEVELS[rawEquipped] : undefined;
+    const isUnlockedShop =
+      Boolean(rawEquipped) && unlockedCosmetics.includes(rawEquipped!);
     const equippedTierId =
-      rawEquipped && minReq !== undefined && levelInfo.level >= minReq
+      rawEquipped &&
+      ((minReq !== undefined && levelInfo.level >= minReq) || isUnlockedShop)
         ? rawEquipped
         : null;
+    const pinnedBadges = (cosmeticPref?.pinnedBadges ?? []).slice(
+      0,
+      MAX_PINNED_BADGES,
+    );
 
     return {
       totalXp,
       ...levelInfo,
       equippedTierId,
+      pinnedBadges,
+      unlockedCosmetics,
+      earnedBadges: statsAndBadges.earnedBadges,
       dailyChestClaimed: Boolean(chestTx),
       breakdown,
       recent,
     };
   }
 
+  private async computePlayerStatsAndBadges(userId: string, level: number) {
+    const [towerAgg, bossAgg, totalQuizAttempts, certificatesCount] =
+      await Promise.all([
+        typeof this.prisma.towerUserProgress?.aggregate === 'function'
+          ? this.prisma.towerUserProgress
+              .aggregate({
+                where: { userId },
+                _max: { highestCompletedFloor: true },
+              })
+              .catch(() => ({ _max: { highestCompletedFloor: 0 } }))
+          : Promise.resolve({ _max: { highestCompletedFloor: 0 } }),
+        typeof this.prisma.bossUserWeeklyStat?.aggregate === 'function'
+          ? this.prisma.bossUserWeeklyStat
+              .aggregate({
+                where: { userId },
+                _max: { highestScore: true, bestCombo: true },
+              })
+              .catch(() => ({ _max: { highestScore: 0, bestCombo: 0 } }))
+          : Promise.resolve({ _max: { highestScore: 0, bestCombo: 0 } }),
+        typeof this.prisma.quizAttempt?.count === 'function'
+          ? this.prisma.quizAttempt
+              .count({ where: { userId } })
+              .catch(() => 0)
+          : Promise.resolve(0),
+        typeof this.prisma.certificate?.count === 'function'
+          ? this.prisma.certificate
+              .count({ where: { userId } })
+              .catch(() => 0)
+          : Promise.resolve(0),
+      ]);
+
+    const highestTowerFloor = towerAgg._max?.highestCompletedFloor ?? 0;
+    const bestBossDamage = bossAgg._max?.highestScore ?? 0;
+    const bestBossCombo = bossAgg._max?.bestCombo ?? 0;
+
+    const earnedBadges: string[] = [];
+    if (level >= 3) earnedBadges.push('arena-veteran');
+    if (highestTowerFloor >= 10) earnedBadges.push('tower-conqueror');
+    if (bestBossDamage >= 5) earnedBadges.push('boss-slayer');
+    if (bestBossCombo >= 5 || level >= 6) earnedBadges.push('streak-7');
+    if (totalQuizAttempts >= 10 || certificatesCount >= 1)
+      earnedBadges.push('quiz-master');
+    if (level >= 10 || certificatesCount >= 1) earnedBadges.push('top-weekly');
+
+    return {
+      stats: {
+        highestTowerFloor,
+        bestBossDamage,
+        totalQuizAttempts,
+        certificatesCount,
+      },
+      earnedBadges,
+    };
+  }
+
   async updateCosmetics(
     userId: string,
-    equippedTierId: string | null,
-  ): Promise<{ equippedTierId: string | null }> {
-    if (equippedTierId !== null) {
-      const minReq = TIER_MIN_LEVELS[equippedTierId];
-      if (minReq === undefined) {
+    payload: { equippedTierId?: string | null; pinnedBadges?: string[] },
+  ): Promise<{
+    equippedTierId: string | null;
+    pinnedBadges: string[];
+    unlockedCosmetics: string[];
+  }> {
+    const existing = await this.prisma.userCosmeticPreference
+      .findUnique({ where: { userId } })
+      .catch(() => null);
+    const unlockedCosmetics = existing?.unlockedCosmetics ?? [];
+
+    let nextEquippedTierId = existing?.equippedTierId ?? null;
+    if (payload.equippedTierId !== undefined) {
+      const requested = payload.equippedTierId;
+      if (requested === null) {
+        nextEquippedTierId = null;
+      } else if (TIER_MIN_LEVELS[requested] !== undefined) {
+        const minReq = TIER_MIN_LEVELS[requested];
+        const agg = await this.prisma.userXpEvent.aggregate({
+          where: { userId },
+          _sum: { amount: true },
+        });
+        const currentLevel = levelFromXp(agg._sum.amount ?? 0).level;
+        if (currentLevel < minReq) {
+          throw new BadRequestException(
+            `Cần đạt Cấp ${minReq} để trang bị ngoại hình này.`,
+          );
+        }
+        nextEquippedTierId = requested;
+      } else if (SHOP_COSMETIC_PRICES[requested] !== undefined) {
+        if (!unlockedCosmetics.includes(requested)) {
+          throw new BadRequestException(
+            'Bạn chưa mở khóa trang bị cửa hàng này.',
+          );
+        }
+        nextEquippedTierId = requested;
+      } else {
         throw new BadRequestException('Giai đoạn ngoại hình không hợp lệ.');
       }
-      const agg = await this.prisma.userXpEvent.aggregate({
-        where: { userId },
-        _sum: { amount: true },
-      });
-      const currentLevel = levelFromXp(agg._sum.amount ?? 0).level;
-      if (currentLevel < minReq) {
+    }
+
+    let nextPinnedBadges = existing?.pinnedBadges ?? [];
+    if (payload.pinnedBadges !== undefined) {
+      if (!Array.isArray(payload.pinnedBadges)) {
+        throw new BadRequestException('Danh sách huy hiệu không hợp lệ.');
+      }
+      const unique = Array.from(
+        new Set(
+          payload.pinnedBadges.filter(
+            (b): b is string =>
+              typeof b === 'string' &&
+              (VALID_BADGE_IDS as readonly string[]).includes(b),
+          ),
+        ),
+      );
+      if (unique.length > MAX_PINNED_BADGES) {
         throw new BadRequestException(
-          `Cần đạt Cấp ${minReq} để trang bị ngoại hình này.`,
+          `Chỉ được ghim tối đa ${MAX_PINNED_BADGES} huy hiệu.`,
         );
       }
+      nextPinnedBadges = unique;
     }
 
     await this.prisma.userCosmeticPreference.upsert({
       where: { userId },
-      update: { equippedTierId },
-      create: { userId, equippedTierId },
+      update: {
+        equippedTierId: nextEquippedTierId,
+        pinnedBadges: nextPinnedBadges,
+      },
+      create: {
+        userId,
+        equippedTierId: nextEquippedTierId,
+        pinnedBadges: nextPinnedBadges,
+        unlockedCosmetics,
+      },
     });
-    return { equippedTierId };
+    return {
+      equippedTierId: nextEquippedTierId,
+      pinnedBadges: nextPinnedBadges,
+      unlockedCosmetics,
+    };
+  }
+
+  async purchaseCosmetic(
+    userId: string,
+    cosmeticId: string,
+  ): Promise<{
+    purchased: boolean;
+    alreadyOwned: boolean;
+    cosmeticId: string;
+    equippedTierId: string | null;
+    unlockedCosmetics: string[];
+    newBalance?: number;
+  }> {
+    const price = SHOP_COSMETIC_PRICES[cosmeticId];
+    if (price === undefined) {
+      throw new BadRequestException('Gói trang bị không tồn tại.');
+    }
+
+    const existing = await this.prisma.userCosmeticPreference
+      .findUnique({ where: { userId } })
+      .catch(() => null);
+    const currentUnlocked = existing?.unlockedCosmetics ?? [];
+
+    if (currentUnlocked.includes(cosmeticId)) {
+      return {
+        purchased: false,
+        alreadyOwned: true,
+        cosmeticId,
+        equippedTierId: existing?.equippedTierId ?? null,
+        unlockedCosmetics: currentUnlocked,
+      };
+    }
+
+    if (!this.mockWalletService) {
+      throw new BadRequestException('Ví Coin hiện chưa sẵn sàng.');
+    }
+
+    const debit = await this.mockWalletService.debitPurchase({
+      userId,
+      amount: price,
+      idempotencyKey: `shop:cosmetic:${userId}:${cosmeticId}`,
+      description: `Mua trang bị BCN Arena (${cosmeticId})`,
+    });
+
+    const nextUnlocked = Array.from(new Set([...currentUnlocked, cosmeticId]));
+    await this.prisma.userCosmeticPreference.upsert({
+      where: { userId },
+      update: {
+        unlockedCosmetics: nextUnlocked,
+        equippedTierId: cosmeticId,
+      },
+      create: {
+        userId,
+        unlockedCosmetics: nextUnlocked,
+        equippedTierId: cosmeticId,
+        pinnedBadges: [],
+      },
+    });
+
+    return {
+      purchased: debit.debited,
+      alreadyOwned: false,
+      cosmeticId,
+      equippedTierId: cosmeticId,
+      unlockedCosmetics: nextUnlocked,
+      newBalance: debit.balance,
+    };
+  }
+
+  async getPlayerProfile(targetUserId: string): Promise<PlayerProfileDto> {
+    const cleanId = targetUserId?.trim();
+    if (!cleanId) {
+      throw new BadRequestException('Thiếu userId người chơi.');
+    }
+
+    const [agg, cosmeticPref] = await Promise.all([
+      this.prisma.userXpEvent.aggregate({
+        where: { userId: cleanId },
+        _sum: { amount: true },
+      }),
+      this.prisma.userCosmeticPreference
+        .findUnique({
+          where: { userId: cleanId },
+          select: {
+            equippedTierId: true,
+            pinnedBadges: true,
+            unlockedCosmetics: true,
+          },
+        })
+        .catch(() => null),
+    ]);
+
+    const totalXp = Math.max(0, agg._sum.amount ?? 0);
+    const levelInfo = levelFromXp(totalXp);
+    const { stats, earnedBadges } = await this.computePlayerStatsAndBadges(
+      cleanId,
+      levelInfo.level,
+    );
+
+    const unlockedCosmetics = cosmeticPref?.unlockedCosmetics ?? [];
+    const rawEquipped = cosmeticPref?.equippedTierId ?? null;
+    const minReq = rawEquipped ? TIER_MIN_LEVELS[rawEquipped] : undefined;
+    const isUnlockedShop =
+      Boolean(rawEquipped) && unlockedCosmetics.includes(rawEquipped!);
+    const equippedTierId =
+      rawEquipped &&
+      ((minReq !== undefined && levelInfo.level >= minReq) || isUnlockedShop)
+        ? rawEquipped
+        : null;
+
+    return {
+      userId: cleanId,
+      totalXp,
+      level: levelInfo.level,
+      rankTitle: levelInfo.rankTitle,
+      equippedTierId,
+      pinnedBadges: (cosmeticPref?.pinnedBadges ?? []).slice(
+        0,
+        MAX_PINNED_BADGES,
+      ),
+      earnedBadges,
+      stats,
+    };
   }
 
   async claimDailyChest(userId: string): Promise<{
