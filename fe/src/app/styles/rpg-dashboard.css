@@ -3652,3 +3652,106 @@
     opacity: 0;
   }
 }
+
+/* ==========================================================================
+   VISIBLE SHOP / LOCKER ENTRY BUTTONS ON DASHBOARD
+   ========================================================================== */
+.rpg-hero-shop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(250, 204, 21, 0.55);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.24), rgba(245, 158, 11, 0.16));
+  color: #fef08a;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.rpg-hero-shop-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.rpg-wallet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rpg-wallet-btn-shop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 10px;
+  border: 1px solid rgba(234, 179, 8, 0.55);
+  background: linear-gradient(135deg, #f59e0b, #eab308);
+  color: #0f172a;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(234, 179, 8, 0.25);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.rpg-wallet-btn-shop:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+/* ==========================================================================
+   SIDEBAR FOOTER COMPACT NAMEPLATE & BOUNTY HUD BANNER
+   ========================================================================== */
+.rpg-nameplate--sidebar {
+  padding: 2px 7px;
+  border-radius: 7px;
+  margin-bottom: 2px;
+  max-width: 100%;
+}
+
+.rpg-nameplate--sidebar .rpg-nameplate-text {
+  font-size: 12.5px;
+}
+
+.bounty-hud--banner {
+  position: relative;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+}
+
+.bounty-hud--banner > *:not(.bounty-hud-banner-scrim) {
+  position: relative;
+  z-index: 1;
+}
+
+.bounty-hud-banner-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.86) 0%,
+    rgba(15, 23, 42, 0.72) 55%,
+    rgba(15, 23, 42, 0.82) 100%
+  );
+  pointer-events: none;
+}
+
+.bounty-hud-name-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-bottom: 4px;
+}
+
+.bounty-hud--banner .bounty-hud-sub {
+  color: rgba(226, 232, 240, 0.9);
+}

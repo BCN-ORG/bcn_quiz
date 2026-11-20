@@ -16,6 +16,7 @@ import {
   Moon,
   PaperPlaneTilt,
   ShieldStar,
+  ShoppingBag,
   Sparkle,
   Star,
   Sun,
@@ -103,6 +104,11 @@ export default function DashboardPage() {
 
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isEvolutionOpen, setIsEvolutionOpen] = useState(false);
+  const [evolutionTab, setEvolutionTab] = useState<'tiers' | 'shop' | 'badges'>('tiers');
+  const openEvolution = useCallback((tab: 'tiers' | 'shop' | 'badges' = 'tiers') => {
+    setEvolutionTab(tab);
+    setIsEvolutionOpen(true);
+  }, []);
   const [showLevelUpModal, setShowLevelUpModal] = useState(false);
   useEffect(() => {
     if (showLevelUpModal) playLevelUpSfx();
@@ -625,11 +631,20 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   className="rpg-level-badge rpg-level-badge-btn"
-                  onClick={() => setIsEvolutionOpen(true)}
+                  onClick={() => openEvolution('tiers')}
                   title="Xem lộ trình 7 giai đoạn & đổi ngoại hình"
                 >
                   <ShieldStar size={14} weight="fill" aria-hidden="true" />
                   <span>Lv. {userLevel} · {naturalProgression.tierTitle}</span>
+                </button>
+                <button
+                  type="button"
+                  className="rpg-hero-shop-btn"
+                  onClick={() => openEvolution('shop')}
+                  title="Mở Cửa hàng Trang bị bằng Coin & Huy hiệu"
+                >
+                  <ShoppingBag size={14} weight="fill" aria-hidden="true" />
+                  <span>Cửa hàng & Tủ đồ</span>
                 </button>
               </div>
 
@@ -1142,14 +1157,24 @@ export default function DashboardPage() {
               <span>Khám phá thêm tại trang Ví Coin</span>
               <ArrowRight size={13} weight="bold" aria-hidden="true" />
             </Link>
-            <button
-              type="button"
-              className="rpg-wallet-btn-transfer"
-              onClick={() => setIsTransferOpen(true)}
-            >
-              <PaperPlaneTilt size={13} weight="fill" aria-hidden="true" />
-              <span>Chuyển Coin</span>
-            </button>
+            <div className="rpg-wallet-actions">
+              <button
+                type="button"
+                className="rpg-wallet-btn-shop"
+                onClick={() => openEvolution('shop')}
+              >
+                <ShoppingBag size={13} weight="fill" aria-hidden="true" />
+                <span>Cửa hàng Coin</span>
+              </button>
+              <button
+                type="button"
+                className="rpg-wallet-btn-transfer"
+                onClick={() => setIsTransferOpen(true)}
+              >
+                <PaperPlaneTilt size={13} weight="fill" aria-hidden="true" />
+                <span>Chuyển Coin</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1228,6 +1253,7 @@ export default function DashboardPage() {
       <EvolutionModal
         open={isEvolutionOpen}
         onClose={() => setIsEvolutionOpen(false)}
+        initialTab={evolutionTab}
         userLevel={userLevel}
         userName={displayName}
         userAvatarUrl={user?.avatarUrl}

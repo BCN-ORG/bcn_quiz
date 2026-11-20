@@ -408,7 +408,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 showLevelBadge
               />
               <div>
-                <strong>{user.fullName || 'Thành viên BCN'}</strong>
+                <Nameplate
+                  name={user.fullName || 'Thành viên BCN'}
+                  level={userLevel}
+                  tierIdOverride={activeTierId}
+                  showTitleBadge={false}
+                  compact
+                  className="rpg-nameplate--sidebar"
+                />
                 <small>{user.email}</small>
               </div>
             </button>

@@ -29,6 +29,7 @@ import {
 export interface EvolutionModalProps {
   open: boolean;
   onClose: () => void;
+  initialTab?: 'tiers' | 'shop' | 'badges';
   userLevel: number;
   userName: string;
   userAvatarUrl?: string | null;
@@ -45,6 +46,7 @@ export interface EvolutionModalProps {
 export function EvolutionModal({
   open,
   onClose,
+  initialTab,
   userLevel,
   userName,
   userAvatarUrl,
@@ -69,12 +71,17 @@ export function EvolutionModal({
     if (open) {
       const active =
         getCharacterTierById(equippedTierId) ?? naturalTier;
-      setSelectedTier(active);
-      setActiveTab(active.isShop ? 'shop' : 'tiers');
+      const targetTab = initialTab ?? (active.isShop ? 'shop' : 'tiers');
+      setActiveTab(targetTab);
+      setSelectedTier(
+        targetTab === 'shop'
+          ? (active.isShop ? active : SHOP_COSMETICS[0])
+          : active,
+      );
       setShopError(null);
       setLocalPins(pinnedBadges);
     }
-  }, [open, equippedTierId, naturalTier, pinnedBadges]);
+  }, [open, initialTab, equippedTierId, naturalTier, pinnedBadges]);
 
   useEffect(() => {
     if (!open) return;

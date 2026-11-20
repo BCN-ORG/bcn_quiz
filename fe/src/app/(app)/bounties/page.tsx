@@ -27,7 +27,13 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useAuth } from '@/components/auth-provider';
+import { AvatarFrame } from '@/components/avatar-frame';
+import { Nameplate } from '@/components/nameplate';
 import { request } from '@/lib/api';
+import {
+  getCharacterProgression,
+  getCharacterTierById,
+} from '@/lib/character-progression';
 import { xpApi, type XpMe } from '@/lib/xp';
 import type { Bounty, BountyAssignment, BountyCategory, BountyStats } from '@/lib/types';
 import { Loading, Empty, PaginationNav } from '@/components/ui';
@@ -351,25 +357,47 @@ export default function BountyBoardPage() {
       )}
 
       {/* 1. TOP HUD: Player Hunter Profile Bar */}
-      <div className="bounty-hud">
-        <div className="bounty-hud-user">
-          <div className="bounty-hud-avatar">
-            {user?.fullName?.charAt(0) || user?.email?.charAt(0) || 'H'}
-          </div>
-          <div className="bounty-hud-info">
-            <h3>
-              <span>{user?.fullName || user?.email || 'Học viên BCN'}</span>
-              <span className="bounty-hud-tag">
-                {userXp ? `LV. ${userXp.level} ${userXp.rankTitle}` : 'Thợ Săn BCN'}
-              </span>
-            </h3>
-            <p className="bounty-hud-sub">
-              <span>Chuyên viên Freelancer</span>
-              <span>•</span>
-              <span className="bounty-hud-status-ready">Sẵn sàng nhận nhiệm vụ</span>
-            </p>
-          </div>
-        </div>
+      {(() => {
+        const hunterLevel = userXp?.level ?? 1;
+        const hunterTierId = userXp?.equippedTierId ?? null;
+        const hunterTier =
+          getCharacterTierById(hunterTierId) ??
+          getCharacterProgression(hunterLevel);
+        const hunterName = user?.fullName || user?.email || 'Học viên BCN';
+        return (
+          <div
+            className="bounty-hud bounty-hud--banner"
+            style={{ backgroundImage: `url('${hunterTier.bannerBgUrl}')` }}
+            data-tier={hunterTier.tierId}
+          >
+            <span className="bounty-hud-banner-scrim" aria-hidden="true" />
+            <div className="bounty-hud-user">
+              <AvatarFrame
+                name={hunterName}
+                avatarUrl={user?.avatarUrl}
+                level={hunterLevel}
+                tierIdOverride={hunterTierId}
+                size="md"
+                showLevelBadge
+              />
+              <div className="bounty-hud-info">
+                <div className="bounty-hud-name-row">
+                  <Nameplate
+                    name={hunterName}
+                    level={hunterLevel}
+                    tierIdOverride={hunterTierId}
+                    pinnedBadges={userXp?.pinnedBadges}
+                    showTitleBadge
+                    compact
+                  />
+                </div>
+                <p className="bounty-hud-sub">
+                  <span>{hunterTier.tierTitle}</span>
+                  <span>•</span>
+                  <span className="bounty-hud-status-ready">Sẵn sàng nhận nhiệm vụ</span>
+                </p>
+              </div>
+            </div>
 
         {/* Coin & XP Wallet Indicators */}
         <div className="bounty-hud-wallets">
@@ -394,6 +422,8 @@ export default function BountyBoardPage() {
           </div>
         </div>
       </div>
+        );
+      })()}
 
       {/* Unclaimed Rewards Banner */}
       {unclaimedApprovedList.length > 0 && (
