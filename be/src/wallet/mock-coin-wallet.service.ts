@@ -45,6 +45,7 @@ export class MockCoinWalletService implements CoinWalletService {
 
     return {
       balance: wallet.balance,
+      discordLinked: true,
       lastSyncedAt: wallet.lastSyncedAt,
       syncStatus: wallet.syncStatus,
     };
@@ -68,6 +69,7 @@ export class MockCoinWalletService implements CoinWalletService {
 
     return {
       balance: wallet.balance,
+      discordLinked: true,
       lastSyncedAt: wallet.lastSyncedAt,
       syncStatus: wallet.syncStatus,
     };
@@ -85,8 +87,19 @@ export class MockCoinWalletService implements CoinWalletService {
       userId,
     };
 
-    if (query.type) {
-      where.type = query.type;
+    if (query.type && query.type !== 'ALL') {
+      if (query.type === 'TRANSFER_IN') {
+        where.type = MockWalletTxType.RECEIVED;
+      } else if (query.type === 'TRANSFER_OUT') {
+        where.type = MockWalletTxType.SENT;
+      } else if (
+        query.type === 'RECEIVED' ||
+        query.type === 'SENT' ||
+        query.type === 'REWARD' ||
+        query.type === 'SYNC_ADJUSTMENT'
+      ) {
+        where.type = query.type as MockWalletTxType;
+      }
     }
 
     if (query.status) {
@@ -179,6 +192,7 @@ export class MockCoinWalletService implements CoinWalletService {
               fullName: u.fullName,
               email: u.email,
               avatarUrl: u.avatarUrl,
+              discordLinked: true,
             });
           }
         }
@@ -209,7 +223,40 @@ export class MockCoinWalletService implements CoinWalletService {
       fullName: w.userId,
       email: `${w.userId}@example.com`,
       avatarUrl: null,
+      discordLinked: true,
     }));
+  }
+
+  async transferToDiscordId(
+    senderId: string,
+    senderName: string,
+    recipientDiscordId: string,
+    amount: number,
+    idempotencyKey: string,
+    description?: string,
+  ): Promise<TransferCoinResult> {
+    const res = await this.debitPurchase({
+      userId: senderId,
+      amount,
+      idempotencyKey,
+      description:
+        description ||
+        `Thanh toán từ ${senderName} tới Treasury (${recipientDiscordId})`,
+    });
+    return {
+      transaction: res.transaction ?? {
+        id: idempotencyKey,
+        userId: senderId,
+        type: MockWalletTxType.SENT,
+        amount,
+        status: MockWalletTxStatus.SUCCESS,
+        description: description ?? null,
+        idempotencyKey,
+        createdAt: new Date(),
+      },
+      senderBalance: res.balance,
+      message: 'Thanh toán thành công',
+    };
   }
 
   async transferCoin(

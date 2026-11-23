@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -8,7 +8,23 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { MockWalletTxStatus, MockWalletTxType } from '@prisma/client';
+
+export const WALLET_TX_TYPES = [
+  'ALL',
+  'REWARD',
+  'TRANSFER_IN',
+  'TRANSFER_OUT',
+  'SALARY',
+  'MINT',
+  'DEDUCT',
+  'RECEIVED',
+  'SENT',
+  'SYNC_ADJUSTMENT',
+] as const;
+
+export type WalletTxTypeFilter = (typeof WALLET_TX_TYPES)[number];
+
+export const WALLET_TX_STATUSES = ['SUCCESS', 'PENDING', 'FAILED'] as const;
 
 export class WalletHistoryQueryDto {
   @IsOptional()
@@ -25,12 +41,12 @@ export class WalletHistoryQueryDto {
   limit?: number = 20;
 
   @IsOptional()
-  @IsEnum(MockWalletTxType)
-  type?: MockWalletTxType;
+  @IsIn(WALLET_TX_TYPES)
+  type?: WalletTxTypeFilter;
 
   @IsOptional()
-  @IsEnum(MockWalletTxStatus)
-  status?: MockWalletTxStatus;
+  @IsIn(WALLET_TX_STATUSES)
+  status?: (typeof WALLET_TX_STATUSES)[number];
 
   @IsOptional()
   @IsString()

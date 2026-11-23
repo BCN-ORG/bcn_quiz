@@ -27,8 +27,38 @@ import {
 import { downloadFile, request } from '@/lib/api';
 import { Empty, ErrorState, Loading, PaginationNav } from '@/components/ui';
 
-export type CoinRewardSource = 'TOWER' | 'BOSS' | 'BOUNTY' | 'LEADERBOARD' | 'OTHER';
+export type CoinRewardSource =
+  | 'TOWER'
+  | 'BOSS'
+  | 'BOUNTY'
+  | 'LEADERBOARD'
+  | 'DAILY_QUEST'
+  | 'LEVEL_UP'
+  | 'OTHER';
 export type CoinTransactionStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'UNKNOWN';
+
+export interface BotWalletStatus {
+  providerMode: 'mock' | 'live';
+  botDiscordId: string | null;
+  balance: number | null;
+  lastSyncedAt?: string | null;
+  alertLevel: 'OK' | 'WARNING' | 'CRITICAL' | 'MOCK';
+  poolInsufficientCount: number;
+  warningThreshold: number;
+  criticalThreshold: number;
+  message: string;
+}
+
+export interface CoinSystemConfig {
+  providerMode: 'mock' | 'live';
+  maxRewardCap: number;
+  dailyChestCoins: number;
+  levelMilestoneCoins: Record<string, number>;
+  botWarningThreshold: number;
+  botCriticalThreshold: number;
+  rewardsEnabled: boolean;
+  transfersEnabled: boolean;
+}
 
 export interface CoinTransaction {
   id: string;
@@ -45,6 +75,7 @@ export interface CoinTransaction {
   requestPayload?: unknown;
   responsePayload?: unknown;
   retryCount: number;
+  errorCode?: string | null;
   errorMessage?: string | null;
   reconciliationHistory?: unknown;
   createdAt: string;
@@ -93,6 +124,8 @@ const SOURCE_CONFIG: Record<
   BOSS: { label: 'Săn Boss', icon: Sword, badgeClass: 'source-boss' },
   BOUNTY: { label: 'Nhiệm vụ', icon: Briefcase, badgeClass: 'source-bounty' },
   LEADERBOARD: { label: 'Xếp hạng', icon: Trophy, badgeClass: 'source-leaderboard' },
+  DAILY_QUEST: { label: 'Rương ngày', icon: Coins, badgeClass: 'source-other' },
+  LEVEL_UP: { label: 'Thăng cấp (→ Daily Quest)', icon: Trophy, badgeClass: 'source-leaderboard' },
   OTHER: { label: 'Khác', icon: Coins, badgeClass: 'source-other' },
 };
 
@@ -124,6 +157,9 @@ export function AdminCoins() {
   // KPI / Overview state
   const [overview, setOverview] = useState<CoinOverviewKpi | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
+  const [botWallet, setBotWallet] = useState<BotWalletStatus | null>(null);
+  const [coinConfig, setCoinConfig] = useState<CoinSystemConfig | null>(null);
+  const [savingConfig, setSavingConfig] = useState(false);
 
   // Transactions list state
   const [transactions, setTransactions] = useState<CoinTransaction[]>([]);
@@ -165,14 +201,44 @@ export function AdminCoins() {
   const loadOverview = useCallback(async () => {
     try {
       setOverviewLoading(true);
-      const data = await request.get<CoinOverviewKpi>('/admin/coins/overview');
-      setOverview(data);
+      const [ov, bot, cfg] = await Promise.all([
+        request.get<CoinOverviewKpi>('/admin/coins/overview'),
+        request.get<BotWalletStatus>('/admin/coins/bot-wallet').catch(() => null),
+        request.get<CoinSystemConfig>('/admin/coins/config').catch(() => null),
+      ]);
+      setOverview(ov);
+      if (bot) setBotWallet(bot);
+      if (cfg) setCoinConfig(cfg);
     } catch {
       // Fallback calculation from current transactions if overview endpoint hasn't responded yet
     } finally {
       setOverviewLoading(false);
     }
   }, []);
+
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!coinConfig || savingConfig) return;
+    setSavingConfig(true);
+    setError(null);
+    try {
+      const updated = await request.patch<CoinSystemConfig>('/admin/coins/config', {
+        maxRewardCap: coinConfig.maxRewardCap,
+        dailyChestCoins: coinConfig.dailyChestCoins,
+        botWarningThreshold: coinConfig.botWarningThreshold,
+        botCriticalThreshold: coinConfig.botCriticalThreshold,
+        rewardsEnabled: coinConfig.rewardsEnabled,
+        transfersEnabled: coinConfig.transfersEnabled,
+      });
+      setCoinConfig(updated);
+      setNotice('Đã lưu cấu hình Coin & trần chống lạm phát.');
+      void loadOverview();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể lưu cấu hình Coin.');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   // Load Transactions List
   const loadTransactions = useCallback(async () => {
@@ -505,6 +571,163 @@ export function AdminCoins() {
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {/* Bot Wallet Alert Banner */}
+      {botWallet && (
+        <div
+          className={`notice ${
+            botWallet.alertLevel === 'CRITICAL'
+              ? 'form-error'
+              : botWallet.alertLevel === 'WARNING'
+                ? 'form-warning'
+                : 'form-success'
+          }`}
+          role="status"
+          style={{
+            marginTop: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <WarningCircle size={20} weight="fill" />
+            <div>
+              <strong>
+                Ví Thưởng Bot ({botWallet.providerMode.toUpperCase()}):{' '}
+                {botWallet.balance !== null
+                  ? `${botWallet.balance.toLocaleString('vi-VN')} Coin`
+                  : 'Chế độ Mock / Chưa kết nối'}
+              </strong>
+              <div style={{ fontSize: 13 }}>{botWallet.message}</div>
+            </div>
+          </div>
+          {botWallet.poolInsufficientCount > 0 && (
+            <button
+              type="button"
+              className="button secondary sm"
+              onClick={() => {
+                setStatusFilter('FAILED');
+                setPage(1);
+              }}
+            >
+              Lọc {botWallet.poolInsufficientCount} GD thiếu quỹ
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Anti-Inflation & Operational Config */}
+      {coinConfig && (
+        <form
+          onSubmit={handleSaveConfig}
+          style={{
+            marginTop: 14,
+            padding: 16,
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            background: 'var(--surface)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 12,
+              flexWrap: 'wrap',
+              gap: 8,
+            }}
+          >
+            <strong>Cấu hình chống lạm phát & Vận hành Coin</strong>
+            <button type="submit" className="button primary sm" disabled={savingConfig}>
+              {savingConfig ? 'Đang lưu...' : 'Lưu cấu hình'}
+            </button>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: 12,
+            }}
+          >
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+              <span>Trần thưởng tối đa (1–9)</span>
+              <input
+                type="number"
+                min={1}
+                max={9}
+                value={coinConfig.maxRewardCap}
+                onChange={(e) =>
+                  setCoinConfig({ ...coinConfig, maxRewardCap: Number(e.target.value) || 1 })
+                }
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+              <span>Rương ngày (Coin)</span>
+              <input
+                type="number"
+                min={1}
+                max={coinConfig.maxRewardCap}
+                value={coinConfig.dailyChestCoins}
+                onChange={(e) =>
+                  setCoinConfig({ ...coinConfig, dailyChestCoins: Number(e.target.value) || 1 })
+                }
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+              <span>Cảnh báo ví bot (vàng)</span>
+              <input
+                type="number"
+                min={1}
+                value={coinConfig.botWarningThreshold}
+                onChange={(e) =>
+                  setCoinConfig({
+                    ...coinConfig,
+                    botWarningThreshold: Number(e.target.value) || 100,
+                  })
+                }
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+              <span>Cảnh báo ví bot (đỏ)</span>
+              <input
+                type="number"
+                min={0}
+                value={coinConfig.botCriticalThreshold}
+                onChange={(e) =>
+                  setCoinConfig({
+                    ...coinConfig,
+                    botCriticalThreshold: Number(e.target.value) || 0,
+                  })
+                }
+              />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={coinConfig.rewardsEnabled}
+                onChange={(e) =>
+                  setCoinConfig({ ...coinConfig, rewardsEnabled: e.target.checked })
+                }
+              />
+              <span>Bật trả thưởng gameplay</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={coinConfig.transfersEnabled}
+                onChange={(e) =>
+                  setCoinConfig({ ...coinConfig, transfersEnabled: e.target.checked })
+                }
+              />
+              <span>Bật chuyển Coin P2P</span>
+            </label>
+          </div>
+        </form>
       )}
 
       {/* Summary KPI Cards */}

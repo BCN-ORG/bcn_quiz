@@ -1,7 +1,12 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
-import { Prisma, XpSourceType } from '@prisma/client';
+import { CoinRewardSource, Prisma, XpSourceType } from '@prisma/client';
+import { CoinApiClient, getCoinProviderMode } from '../coin/coin-api.client';
+import { CoinConfigService } from '../coin/coin-config.service';
+import { CoinTrackingService } from '../coin/coin-tracking.service';
+import { LiveCoinRewardAdapter } from '../coin/live-coin-reward.adapter';
 import { PrismaService } from '../prisma/prisma.service';
 import { businessDate } from '../leaderboard/leaderboard-rules';
+import { CoinWalletService } from '../wallet/coin-wallet.interface';
 import { MockCoinWalletService } from '../wallet/mock-coin-wallet.service';
 import {
   BOSS_COMMUNITY_CONTRIB_CAP,
@@ -92,6 +97,16 @@ export class XpService {
     private readonly prisma: PrismaService,
     @Optional()
     private readonly mockWalletService?: MockCoinWalletService,
+    @Optional()
+    private readonly coinWalletService?: CoinWalletService,
+    @Optional()
+    private readonly coinTrackingService?: CoinTrackingService,
+    @Optional()
+    private readonly coinConfigService?: CoinConfigService,
+    @Optional()
+    private readonly liveRewardAdapter?: LiveCoinRewardAdapter,
+    @Optional()
+    private readonly coinApiClient?: CoinApiClient,
   ) {}
 
   computeBossComboXp(maxCombo: number): number {
@@ -257,14 +272,24 @@ export class XpService {
             })
             .catch(() => null)
         : Promise.resolve(null),
-      typeof this.prisma.mockWalletTransaction?.findUnique === 'function'
-        ? this.prisma.mockWalletTransaction
-            .findUnique({
-              where: { idempotencyKey: `daily:chest:${userId}:${todayKey}` },
-              select: { id: true },
-            })
-            .catch(() => null)
-        : Promise.resolve(null),
+      getCoinProviderMode() === 'live'
+        ? typeof this.prisma.coinTransaction?.findUnique === 'function'
+          ? this.prisma.coinTransaction
+              .findUnique({
+                where: { idempotencyKey: `daily:chest:${userId}:${todayKey}` },
+                select: { id: true, status: true },
+              })
+              .then((tx) => (tx && tx.status === 'SUCCESS' ? tx : null))
+              .catch(() => null)
+          : Promise.resolve(null)
+        : typeof this.prisma.mockWalletTransaction?.findUnique === 'function'
+          ? this.prisma.mockWalletTransaction
+              .findUnique({
+                where: { idempotencyKey: `daily:chest:${userId}:${todayKey}` },
+                select: { id: true },
+              })
+              .catch(() => null)
+          : Promise.resolve(null),
       this.computePlayerStatsAndBadges(userId, levelInfo.level),
     ]);
 
@@ -463,16 +488,43 @@ export class XpService {
       };
     }
 
-    if (!this.mockWalletService) {
-      throw new BadRequestException('Ví Coin hiện chưa sẵn sàng.');
-    }
+    const idempotencyKey = `shop:cosmetic:${userId}:${cosmeticId}`;
+    let debited = false;
+    let newBalance: number | undefined;
 
-    const debit = await this.mockWalletService.debitPurchase({
-      userId,
-      amount: price,
-      idempotencyKey: `shop:cosmetic:${userId}:${cosmeticId}`,
-      description: `Mua trang bị BCN Arena (${cosmeticId})`,
-    });
+    if (getCoinProviderMode() === 'live') {
+      if (!this.coinWalletService || !this.coinApiClient) {
+        throw new BadRequestException('Ví Coin hiện chưa sẵn sàng.');
+      }
+      const treasuryDiscordId = this.coinApiClient.getTreasuryDiscordId();
+      if (!treasuryDiscordId) {
+        throw new BadRequestException(
+          'Chưa cấu hình tài khoản Treasury nhận thanh toán Cosmetic.',
+        );
+      }
+      const transfer = await this.coinWalletService.transferToDiscordId(
+        userId,
+        userId,
+        treasuryDiscordId,
+        price,
+        idempotencyKey,
+        `Mua trang bị BCN Arena (${cosmeticId})`,
+      );
+      debited = true;
+      newBalance = transfer.senderBalance;
+    } else {
+      if (!this.mockWalletService) {
+        throw new BadRequestException('Ví Coin hiện chưa sẵn sàng.');
+      }
+      const debit = await this.mockWalletService.debitPurchase({
+        userId,
+        amount: price,
+        idempotencyKey,
+        description: `Mua trang bị BCN Arena (${cosmeticId})`,
+      });
+      debited = debit.debited;
+      newBalance = debit.balance;
+    }
 
     const nextUnlocked = Array.from(new Set([...currentUnlocked, cosmeticId]));
     await this.prisma.userCosmeticPreference.upsert({
@@ -490,12 +542,12 @@ export class XpService {
     });
 
     return {
-      purchased: debit.debited,
+      purchased: debited,
       alreadyOwned: false,
       cosmeticId,
       equippedTierId: cosmeticId,
       unlockedCosmetics: nextUnlocked,
-      newBalance: debit.balance,
+      newBalance,
     };
   }
 
@@ -560,25 +612,53 @@ export class XpService {
     alreadyClaimed: boolean;
     rewardCoins: number;
   }> {
+    const config = this.coinConfigService
+      ? await this.coinConfigService.getConfig().catch(() => null)
+      : null;
+    const rewardCoins = config
+      ? Math.min(config.dailyChestCoins, config.maxRewardCap)
+      : DAILY_CHEST_REWARD_COINS;
+    const day = businessDate(new Date());
+    const idempotencyKey = `daily:chest:${userId}:${day}`;
+
+    if (getCoinProviderMode() === 'live') {
+      if (!this.coinTrackingService || !this.liveRewardAdapter) {
+        return { claimed: false, alreadyClaimed: false, rewardCoins };
+      }
+      const res = await this.dispatchLiveXpReward({
+        userId,
+        amount: rewardCoins,
+        idempotencyKey,
+        source: CoinRewardSource.DAILY_QUEST,
+        reason: `Rương Nhiệm vụ ngày (${day})`,
+        referenceId: day,
+        metadata: { kind: 'DAILY_CHEST', day },
+      });
+      return {
+        claimed: res.credited,
+        alreadyClaimed: res.alreadyProcessed,
+        rewardCoins,
+      };
+    }
+
     if (!this.mockWalletService) {
       return {
         claimed: false,
         alreadyClaimed: false,
-        rewardCoins: DAILY_CHEST_REWARD_COINS,
+        rewardCoins,
       };
     }
-    const day = businessDate(new Date());
     const res = await this.mockWalletService.creditReward({
       userId,
-      amount: DAILY_CHEST_REWARD_COINS,
-      idempotencyKey: `daily:chest:${userId}:${day}`,
+      amount: rewardCoins,
+      idempotencyKey,
       source: 'DAILY_QUEST',
       description: `Rương Nhiệm vụ ngày (${day})`,
     });
     return {
       claimed: res.credited,
       alreadyClaimed: !res.credited,
-      rewardCoins: DAILY_CHEST_REWARD_COINS,
+      rewardCoins,
     };
   }
 
@@ -586,21 +666,119 @@ export class XpService {
     userId: string,
     currentLevel: number,
   ): Promise<void> {
-    if (!this.mockWalletService) return;
+    const config = this.coinConfigService
+      ? await this.coinConfigService.getConfig().catch(() => null)
+      : null;
     const reached = LEVEL_MILESTONE_COIN_REWARDS.filter(
       (m) => currentLevel >= m.level,
     );
+
     for (const m of reached) {
-      await this.mockWalletService
-        .creditReward({
+      const configuredCoins = config?.levelMilestoneCoins?.[String(m.level)];
+      const rawCoins =
+        typeof configuredCoins === 'number' ? configuredCoins : m.coins;
+      const amount = config
+        ? Math.min(Math.max(1, rawCoins), config.maxRewardCap)
+        : m.coins;
+      const idempotencyKey = `level:milestone:${userId}:lv:${m.level}`;
+      const description = `Thưởng đạt cột mốc Cấp ${m.level} (${m.title})`;
+
+      if (getCoinProviderMode() === 'live') {
+        await this.dispatchLiveXpReward({
           userId,
-          amount: m.coins,
-          idempotencyKey: `level:milestone:${userId}:lv:${m.level}`,
-          source: 'LEVEL_UP',
-          description: `Thưởng đạt cột mốc Cấp ${m.level} (${m.title})`,
-        })
-        .catch(() => undefined);
+          amount,
+          idempotencyKey,
+          source: CoinRewardSource.LEVEL_UP,
+          reason: description,
+          referenceId: String(m.level),
+          metadata: { level: m.level, title: m.title },
+        }).catch(() => undefined);
+      } else if (this.mockWalletService) {
+        await this.mockWalletService
+          .creditReward({
+            userId,
+            amount,
+            idempotencyKey,
+            source: 'LEVEL_UP',
+            description,
+          })
+          .catch(() => undefined);
+      }
     }
+  }
+
+  private async dispatchLiveXpReward(params: {
+    userId: string;
+    amount: number;
+    idempotencyKey: string;
+    source: CoinRewardSource;
+    reason: string;
+    referenceId: string;
+    metadata: Record<string, unknown>;
+  }): Promise<{ credited: boolean; alreadyProcessed: boolean }> {
+    if (!this.coinTrackingService || !this.liveRewardAdapter) {
+      return { credited: false, alreadyProcessed: false };
+    }
+
+    const prep = await this.liveRewardAdapter.preparePayload({
+      userId: params.userId,
+      amount: params.amount,
+      idempotencyKey: params.idempotencyKey,
+      source: params.source,
+      description: params.reason,
+      metadata: params.metadata,
+    });
+
+    if (!prep.ok || !prep.payload) {
+      if (prep.errorCode === 'DISCORD_NOT_LINKED') {
+        throw new BadRequestException({
+          errorCode: prep.errorCode,
+          message: prep.errorMessage,
+        });
+      }
+      return { credited: false, alreadyProcessed: false };
+    }
+
+    const tracked = await this.coinTrackingService.recordPending({
+      userId: params.userId,
+      amount: prep.payload.amount,
+      source: params.source,
+      reason: params.reason,
+      referenceId: params.referenceId,
+      idempotencyKey: params.idempotencyKey,
+      requestPayload: prep.payload,
+    });
+
+    if (tracked.status === 'SUCCESS') {
+      return { credited: false, alreadyProcessed: true };
+    }
+
+    const res = await this.liveRewardAdapter.dispatchPayload(prep.payload);
+    if (res.status === 'SUCCESS') {
+      await this.coinTrackingService.recordSuccess(
+        params.idempotencyKey,
+        res.externalTxId,
+        res.responsePayload,
+      );
+      return { credited: true, alreadyProcessed: false };
+    }
+
+    if (res.status === 'UNKNOWN' || res.status === 'PENDING') {
+      await this.coinTrackingService.recordUnknown(
+        params.idempotencyKey,
+        res.errorMessage,
+        res.responsePayload,
+        res.errorCode,
+      );
+    } else {
+      await this.coinTrackingService.recordFailed(
+        params.idempotencyKey,
+        res.errorMessage,
+        res.responsePayload,
+        res.errorCode,
+      );
+    }
+    return { credited: false, alreadyProcessed: false };
   }
 
   /**

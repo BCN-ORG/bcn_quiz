@@ -116,6 +116,10 @@ export function TransferModal({
       setError('Vui lòng chọn người nhận Coin.');
       return;
     }
+    if (selectedRecipient.discordLinked === false) {
+      setError('Người nhận chưa liên kết Discord nên chưa thể nhận Coin.');
+      return;
+    }
     if (selectedRecipient.id === currentUser.id || selectedRecipient.email === currentUser.email) {
       setError('Bạn không thể tự chuyển Coin cho chính mình.');
       return;
@@ -244,13 +248,21 @@ export function TransferModal({
 
                     {searchQuery.trim() && !isSearching && searchResults.length > 0 ? (
                       <ul className="wallet-user-search-dropdown" role="listbox" aria-label="Kết quả tìm kiếm người dùng">
-                        {searchResults.map((user) => (
+                        {searchResults.map((user) => {
+                          const unlinked = user.discordLinked === false;
+                          return (
                           <li
                             key={user.id}
-                            className="wallet-user-search-item"
+                            className={`wallet-user-search-item${unlinked ? ' is-disabled' : ''}`}
                             role="option"
                             aria-selected={false}
+                            aria-disabled={unlinked}
+                            style={unlinked ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
                             onClick={() => {
+                              if (unlinked) {
+                                setError('Người nhận chưa liên kết Discord nên chưa thể nhận Coin.');
+                                return;
+                              }
                               setSelectedRecipient(user);
                               setSearchQuery('');
                               setSearchResults([]);
@@ -261,12 +273,28 @@ export function TransferModal({
                               {(user.fullName || user.email || 'U').slice(0, 1).toUpperCase()}
                             </div>
                             <div className="wallet-user-search-info">
-                              <strong>{user.fullName || user.username || user.email}</strong>
+                              <strong>
+                                {user.fullName || user.username || user.email}{' '}
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    padding: '2px 6px',
+                                    borderRadius: 999,
+                                    marginLeft: 6,
+                                    background: unlinked ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
+                                    color: unlinked ? '#dc2626' : '#16a34a',
+                                  }}
+                                >
+                                  {unlinked ? 'Chưa liên kết Discord' : 'Đã liên kết Discord'}
+                                </span>
+                              </strong>
                               <small>{user.email}</small>
                             </div>
                             {user.username ? <span className="wallet-badge-pill">@{user.username}</span> : null}
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>
                     ) : searchQuery.trim() && !isSearching && searchResults.length === 0 ? (
                       <div className="wallet-search-empty-hint">

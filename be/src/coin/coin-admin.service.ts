@@ -7,6 +7,11 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
+import { CoinApiClient, getCoinProviderMode } from './coin-api.client';
+import {
+  CoinConfigService,
+  UpdateCoinSystemConfigInput,
+} from './coin-config.service';
 import { CoinTrackingService } from './coin-tracking.service';
 import {
   CoinExportQueryDto,
@@ -37,6 +42,8 @@ export class CoinAdminService {
     private readonly prisma: PrismaService,
     private readonly profilesService: ProfilesService,
     private readonly coinTrackingService: CoinTrackingService,
+    private readonly coinApiClient: CoinApiClient,
+    private readonly coinConfigService: CoinConfigService,
   ) {}
 
   /**
@@ -102,6 +109,8 @@ export class CoinAdminService {
       [CoinRewardSource.BOSS]: { count: 0, totalCoins: 0 },
       [CoinRewardSource.BOUNTY]: { count: 0, totalCoins: 0 },
       [CoinRewardSource.LEADERBOARD]: { count: 0, totalCoins: 0 },
+      [CoinRewardSource.DAILY_QUEST]: { count: 0, totalCoins: 0 },
+      [CoinRewardSource.LEVEL_UP]: { count: 0, totalCoins: 0 },
       [CoinRewardSource.OTHER]: { count: 0, totalCoins: 0 },
     };
 
@@ -123,6 +132,67 @@ export class CoinAdminService {
       statusBreakdown,
       sourceBreakdown,
       recentTransactions: enrichedRecent,
+    };
+  }
+
+  async getBotWalletStatus() {
+    const config = await this.coinConfigService.getConfig();
+    const providerMode = getCoinProviderMode();
+    const poolInsufficientCount = await this.prisma.coinTransaction.count({
+      where: {
+        providerMode,
+        status: CoinTransactionStatus.FAILED,
+        errorCode: 'REWARD_POOL_INSUFFICIENT',
+      },
+    });
+
+    if (providerMode !== 'live') {
+      return {
+        providerMode,
+        botDiscordId: null,
+        balance: null,
+        alertLevel: poolInsufficientCount > 0 ? 'CRITICAL' : 'MOCK',
+        poolInsufficientCount,
+        warningThreshold: config.botWarningThreshold,
+        criticalThreshold: config.botCriticalThreshold,
+        message: 'Hệ thống đang chạy ở chế độ mock.',
+      };
+    }
+
+    const alertLevel: 'OK' | 'CRITICAL' =
+      poolInsufficientCount > 0 ? 'CRITICAL' : 'OK';
+    const message =
+      poolInsufficientCount > 0
+        ? `Có ${poolInsufficientCount} giao dịch thất bại do ví bot thiếu Coin (REWARD_POOL_INSUFFICIENT). Vui lòng nạp ví bot qua Payroll API rồi bấm đối soát.`
+        : 'Hệ thống trả thưởng Coin (LIVE) hoạt động bình thường.';
+
+    return {
+      providerMode,
+      botDiscordId: null,
+      balance: null,
+      alertLevel,
+      poolInsufficientCount,
+      warningThreshold: config.botWarningThreshold,
+      criticalThreshold: config.botCriticalThreshold,
+      message,
+    };
+  }
+
+  async getConfig() {
+    return {
+      providerMode: getCoinProviderMode(),
+      ...(await this.coinConfigService.getConfig()),
+    };
+  }
+
+  async updateConfig(input: UpdateCoinSystemConfigInput, adminUserId: string) {
+    const updated = await this.coinConfigService.updateConfig(
+      input,
+      adminUserId,
+    );
+    return {
+      providerMode: getCoinProviderMode(),
+      ...updated,
     };
   }
 

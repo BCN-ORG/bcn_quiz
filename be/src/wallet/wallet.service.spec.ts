@@ -91,6 +91,7 @@ describe('MockCoinWalletService', () => {
       });
       expect(result).toEqual({
         balance: 100,
+        discordLinked: true,
         lastSyncedAt: mockWallet.lastSyncedAt,
         syncStatus: 'SYNCED',
       });
@@ -376,6 +377,7 @@ describe('MockCoinWalletService', () => {
           fullName: 'Bob',
           email: 'bob@test.com',
           avatarUrl: null,
+          discordLinked: true,
         },
       ]);
     });
@@ -392,6 +394,7 @@ describe('MockCoinWalletService', () => {
           fullName: 'user-3',
           email: 'user-3@example.com',
           avatarUrl: null,
+          discordLinked: true,
         },
       ]);
     });

@@ -9,6 +9,8 @@ export type User = {
   roles?: string[];
   /** QUIZ permissions from Profiles (quiz.question.create, …). */
   permissions?: string[];
+  /** Linked Discord User ID from Profiles (17-20 digits) or null. */
+  discordId?: string | null;
 };
 
 export type Pagination<T> = {

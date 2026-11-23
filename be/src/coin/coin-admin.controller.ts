@@ -1,7 +1,9 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Request,
@@ -29,6 +31,30 @@ export class CoinAdminController {
   @Get('overview')
   async getOverview() {
     return this.coinAdminService.getOverview();
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('bot-wallet')
+  async getBotWalletStatus() {
+    return this.coinAdminService.getBotWalletStatus();
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('config')
+  async getConfig() {
+    return this.coinAdminService.getConfig();
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Patch('config')
+  async updateConfig(
+    @Body() body: Record<string, unknown>,
+    @Request() req: ExpressRequest,
+  ) {
+    const adminUserId =
+      (req as ExpressRequest & { user?: { id?: string } }).user?.id ??
+      'ADMIN_MANUAL';
+    return this.coinAdminService.updateConfig(body as any, adminUserId);
   }
 
   @Permissions(...CONTENT_UPDATE)

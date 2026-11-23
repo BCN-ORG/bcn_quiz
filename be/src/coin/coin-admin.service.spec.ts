@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { CoinRewardSource, CoinTransactionStatus } from '@prisma/client';
+import { CoinApiClient } from './coin-api.client';
+import { CoinConfigService } from './coin-config.service';
 import { CoinAdminService } from './coin-admin.service';
 import { CoinTrackingService } from './coin-tracking.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -45,6 +47,31 @@ describe('CoinAdminService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProfilesService, useValue: mockProfilesService },
         { provide: CoinTrackingService, useValue: mockCoinTrackingService },
+        {
+          provide: CoinApiClient,
+          useValue: {
+            getBotDiscordId: jest.fn().mockReturnValue('111111111111111111'),
+            getBalance: jest.fn().mockResolvedValue({
+              balance: 500,
+              lastSyncedAt: new Date().toISOString(),
+            }),
+          },
+        },
+        {
+          provide: CoinConfigService,
+          useValue: {
+            getConfig: jest.fn().mockResolvedValue({
+              id: 'default',
+              maxRewardCap: 9,
+              dailyChestCoins: 5,
+              levelMilestoneCoins: {},
+              botWarningThreshold: 100,
+              botCriticalThreshold: 20,
+              rewardsEnabled: true,
+              transfersEnabled: true,
+            }),
+          },
+        },
       ],
     }).compile();
 

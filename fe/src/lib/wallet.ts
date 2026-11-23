@@ -1,20 +1,29 @@
 import { request } from './api';
 
-export type WalletSyncStatus = 'SYNCED' | 'SYNCING' | 'FAILED' | 'PENDING';
+export type WalletSyncStatus =
+  | 'SYNCED'
+  | 'SYNCING'
+  | 'FAILED'
+  | 'PENDING'
+  | 'UNLINKED';
 
 export interface WalletBalance {
   balance: number;
+  lockedBalance?: number;
+  currency?: string;
+  discordLinked?: boolean;
   lastSyncedAt: string | null;
   syncStatus: WalletSyncStatus;
-  isMock: boolean;
+  isMock?: boolean;
 }
 
 export interface WalletUser {
   id: string;
   username?: string | null;
-  email: string;
+  email?: string;
   fullName?: string | null;
   avatarUrl?: string | null;
+  discordLinked?: boolean;
 }
 
 export interface WalletTransferPayload {
@@ -32,14 +41,25 @@ export interface WalletTransferResult {
   message?: string;
 }
 
-export type WalletTransactionType = 'RECEIVED' | 'SENT' | 'REWARD' | 'REFUND';
+export type WalletTransactionType =
+  | 'RECEIVED'
+  | 'SENT'
+  | 'REWARD'
+  | 'REFUND'
+  | 'TRANSFER_IN'
+  | 'TRANSFER_OUT'
+  | 'SALARY'
+  | 'MINT'
+  | 'DEDUCT';
 export type WalletTransactionStatus = 'SUCCESS' | 'PENDING' | 'FAILED';
 
 export interface WalletTransaction {
-  id: string;
+  id: string | null;
   referenceCode: string;
   type: WalletTransactionType;
   amount: number;
+  balanceAfter?: number;
+  title?: string;
   status: WalletTransactionStatus;
   counterpartUserId?: string | null;
   counterpartUsername?: string | null;
@@ -50,12 +70,15 @@ export interface WalletTransaction {
 }
 
 export interface RawWalletTransaction {
-  id: string;
+  id: string | null;
   reference?: string;
   referenceCode?: string;
   type: WalletTransactionType;
   amount: number;
+  balanceAfter?: number;
+  title?: string;
   status: WalletTransactionStatus;
+  counterparty?: { id: string; fullName: string | null } | null;
   counterpartUserId?: string | null;
   counterpartName?: string | null;
   counterpartFullName?: string | null;
@@ -220,15 +243,18 @@ export const walletApi = {
           : [];
 
     const items: WalletTransaction[] = rawItems.map((tx: RawWalletTransaction) => ({
-      id: tx.id,
+      id: tx.id ?? null,
       referenceCode: tx.referenceCode || tx.reference || '',
       type: tx.type,
       amount: tx.amount,
+      balanceAfter: tx.balanceAfter,
+      title: tx.title,
       status: tx.status,
-      counterpartUserId: tx.counterpartUserId,
+      counterpartUserId: tx.counterparty?.id ?? tx.counterpartUserId,
       counterpartUsername: tx.counterpartUsername,
       counterpartEmail: tx.counterpartEmail,
-      counterpartFullName: tx.counterpartFullName || tx.counterpartName,
+      counterpartFullName:
+        tx.counterparty?.fullName || tx.counterpartFullName || tx.counterpartName,
       note: tx.note || tx.description,
       createdAt: tx.createdAt,
     }));

@@ -771,7 +771,7 @@ model Bounty {
   description     String         @db.Text
   category        BountyCategory
   difficulty      Int            @default(1)
-  rewardCoins     Int            @default(50)
+  rewardCoins     Int            @default(5)
   rewardXp        Int            @default(100)
   durationMinutes Int            @default(120)
   clientName      String
@@ -849,6 +849,8 @@ enum CoinRewardSource {
   BOSS
   BOUNTY
   LEADERBOARD
+  DAILY_QUEST
+  LEVEL_UP
   OTHER
 }
 
@@ -865,6 +867,7 @@ model CoinTransaction {
   username              String?
   amount                Int
   source                CoinRewardSource
+  providerMode          String                @default("mock")
   reason                String?
   referenceId           String?
   seasonId              String?
@@ -874,6 +877,7 @@ model CoinTransaction {
   requestPayload        Json?
   responsePayload       Json?
   retryCount            Int                   @default(0)
+  errorCode             String?
   errorMessage          String?
   reconciliationHistory Json?
   createdAt             DateTime              @default(now())
@@ -883,7 +887,23 @@ model CoinTransaction {
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([source, createdAt])
+  @@index([providerMode, createdAt])
   @@map("coin_transactions")
+}
+
+model CoinSystemConfig {
+  id                   String   @id @default("default")
+  maxRewardCap         Int      @default(9)
+  dailyChestCoins      Int      @default(5)
+  levelMilestoneCoins  Json     @default("{\"3\":3,\"6\":5,\"10\":6,\"20\":7,\"40\":8,\"70\":9,\"100\":9}")
+  botWarningThreshold  Int      @default(100)
+  botCriticalThreshold Int      @default(20)
+  rewardsEnabled       Boolean  @default(true)
+  transfersEnabled     Boolean  @default(true)
+  updatedBy            String?
+  updatedAt            DateTime @updatedAt
+
+  @@map("coin_system_configs")
 }
 
 enum MockWalletTxType {

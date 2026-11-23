@@ -323,6 +323,12 @@ export default function WalletPage() {
             <button
               type="button"
               className="button primary wallet-transfer-cta-btn"
+              disabled={balance?.discordLinked === false || balance?.syncStatus === 'UNLINKED'}
+              title={
+                balance?.discordLinked === false || balance?.syncStatus === 'UNLINKED'
+                  ? 'Vui lòng liên kết Discord trên Profiles để chuyển Coin'
+                  : 'Chuyển Coin P2P'
+              }
               onClick={() => setIsTransferOpen(true)}
             >
               <PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />
@@ -330,6 +336,14 @@ export default function WalletPage() {
             </button>
           </div>
         </div>
+        {(balance?.discordLinked === false || balance?.syncStatus === 'UNLINKED') && (
+          <div className="notice form-error" role="alert" style={{ marginTop: 12 }}>
+            <Warning size={18} weight="fill" style={{ marginRight: 8, verticalAlign: 'middle' }} />
+            <span>
+              Tài khoản của bạn chưa liên kết Discord. Vui lòng liên kết Discord trên hệ thống Profiles để nhận thưởng và chuyển Coin.
+            </span>
+          </div>
+        )}
       </section>
 
       {/* 3. Transaction History Section */}
@@ -385,9 +399,14 @@ export default function WalletPage() {
               }}
             >
               <option value="ALL">Tất cả loại GD</option>
-              <option value="RECEIVED">Đã nhận (+)</option>
-              <option value="SENT">Đã chuyển (-)</option>
               <option value="REWARD">Phần thưởng</option>
+              <option value="TRANSFER_IN">Nhận chuyển khoản (+)</option>
+              <option value="TRANSFER_OUT">Chuyển đi (-)</option>
+              <option value="SALARY">Lương Discord</option>
+              <option value="MINT">Admin cộng Coin</option>
+              <option value="DEDUCT">Phạt / Trừ Coin</option>
+              <option value="RECEIVED">Đã nhận (Mock)</option>
+              <option value="SENT">Đã chuyển (Mock)</option>
             </select>
           </div>
 

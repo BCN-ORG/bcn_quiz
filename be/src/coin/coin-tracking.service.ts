@@ -17,6 +17,8 @@ import { MockCoinWalletService } from '../wallet/mock-coin-wallet.service';
 import { COIN_SERVICE_PROVIDER } from '../tower/coin/coin-provider.interface';
 import { BOSS_COIN_SERVICE_PROVIDER } from '../boss/coin/coin-provider.interface';
 import { BOUNTY_COIN_SERVICE_PROVIDER } from '../bounty/coin/coin-provider.interface';
+import { getCoinProviderMode } from './coin-api.client';
+import { LiveCoinRewardAdapter } from './live-coin-reward.adapter';
 
 export interface RecordPendingParams {
   userId: string;
@@ -40,12 +42,15 @@ export interface ReconcileResult {
 @Injectable()
 export class CoinTrackingService implements OnModuleInit {
   private readonly logger = new Logger(CoinTrackingService.name);
+  private readonly reconcilingIds = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly moduleRef: ModuleRef,
     @Optional()
     private readonly mockWalletService?: MockCoinWalletService,
+    @Optional()
+    private readonly liveRewardAdapter?: LiveCoinRewardAdapter,
   ) {}
 
   onModuleInit(): void {
@@ -286,6 +291,7 @@ export class CoinTrackingService implements OnModuleInit {
           username,
           amount,
           source,
+          providerMode: getCoinProviderMode(),
           reason,
           referenceId,
           seasonId,
@@ -354,12 +360,14 @@ export class CoinTrackingService implements OnModuleInit {
     idempotencyKey: string,
     errorMessage?: string,
     responsePayload?: any,
+    errorCode?: string,
   ): Promise<CoinTransaction | null> {
     try {
       return await this.prisma.coinTransaction.update({
         where: { idempotencyKey },
         data: {
           status: CoinTransactionStatus.UNKNOWN,
+          errorCode: errorCode ?? undefined,
           errorMessage: errorMessage ?? undefined,
           responsePayload: responsePayload
             ? (responsePayload as Prisma.InputJsonValue)
@@ -384,12 +392,14 @@ export class CoinTrackingService implements OnModuleInit {
     idempotencyKey: string,
     errorMessage?: string,
     responsePayload?: any,
+    errorCode?: string,
   ): Promise<CoinTransaction | null> {
     try {
       return await this.prisma.coinTransaction.update({
         where: { idempotencyKey },
         data: {
           status: CoinTransactionStatus.FAILED,
+          errorCode: errorCode ?? undefined,
           errorMessage: errorMessage ?? undefined,
           responsePayload: responsePayload
             ? (responsePayload as Prisma.InputJsonValue)
@@ -414,6 +424,35 @@ export class CoinTrackingService implements OnModuleInit {
     id: string,
     triggeredBy = 'ADMIN_MANUAL',
   ): Promise<ReconcileResult> {
+    if (this.reconcilingIds.has(id)) {
+      const current = await this.prisma.coinTransaction.findUnique({
+        where: { id },
+      });
+      if (!current) {
+        throw new NotFoundException(
+          `Giao dịch Coin với ID ${id} không tồn tại.`,
+        );
+      }
+      return {
+        success: false,
+        message: 'Giao dịch đang được đối soát bởi một yêu cầu khác.',
+        transaction: current,
+        reconciled: false,
+      };
+    }
+
+    this.reconcilingIds.add(id);
+    try {
+      return await this.executeReconcile(id, triggeredBy);
+    } finally {
+      this.reconcilingIds.delete(id);
+    }
+  }
+
+  private async executeReconcile(
+    id: string,
+    triggeredBy: string,
+  ): Promise<ReconcileResult> {
     const tx = await this.prisma.coinTransaction.findUnique({
       where: { id },
     });
@@ -435,28 +474,40 @@ export class CoinTrackingService implements OnModuleInit {
       ? (tx.reconciliationHistory as any[])
       : [];
 
+    const useLiveAdapter =
+      getCoinProviderMode() === 'live' && Boolean(this.liveRewardAdapter);
+
     let provider: any = null;
-    try {
-      if (tx.source === CoinRewardSource.TOWER) {
-        provider = this.moduleRef.get(COIN_SERVICE_PROVIDER, { strict: false });
-      } else if (tx.source === CoinRewardSource.BOSS) {
-        provider = this.moduleRef.get(BOSS_COIN_SERVICE_PROVIDER, {
-          strict: false,
-        });
-      } else if (tx.source === CoinRewardSource.BOUNTY) {
-        provider = this.moduleRef.get(BOUNTY_COIN_SERVICE_PROVIDER, {
-          strict: false,
-        });
+    if (!useLiveAdapter) {
+      try {
+        if (tx.source === CoinRewardSource.TOWER) {
+          provider = this.moduleRef.get(COIN_SERVICE_PROVIDER, {
+            strict: false,
+          });
+        } else if (tx.source === CoinRewardSource.BOSS) {
+          provider = this.moduleRef.get(BOSS_COIN_SERVICE_PROVIDER, {
+            strict: false,
+          });
+        } else if (tx.source === CoinRewardSource.BOUNTY) {
+          provider = this.moduleRef.get(BOUNTY_COIN_SERVICE_PROVIDER, {
+            strict: false,
+          });
+        }
+      } catch (e) {
+        this.logger.debug(
+          `[CoinTrackingService] Provider token not found in DI: ${e}`,
+        );
       }
-    } catch (e) {
-      this.logger.debug(
-        `[CoinTrackingService] Provider token not found in DI: ${e}`,
-      );
     }
 
-    if (provider && typeof provider.checkStatus === 'function') {
+    if (
+      useLiveAdapter ||
+      (provider && typeof provider.checkStatus === 'function')
+    ) {
       try {
-        const check = await provider.checkStatus(tx.idempotencyKey);
+        const check = useLiveAdapter
+          ? await this.liveRewardAdapter!.checkStatus(tx.idempotencyKey)
+          : await provider.checkStatus(tx.idempotencyKey);
         const timestamp = new Date().toISOString();
 
         if (check.status === 'SUCCESS') {
@@ -475,6 +526,7 @@ export class CoinTrackingService implements OnModuleInit {
               status: CoinTransactionStatus.SUCCESS,
               externalTxId: check.externalTxId ?? tx.externalTxId,
               processedAt: new Date(),
+              errorCode: null,
               errorMessage: null,
               reconciliationHistory: [...previousHistory, auditEntry],
             },
@@ -494,55 +546,32 @@ export class CoinTrackingService implements OnModuleInit {
             transaction: updated,
             reconciled: true,
           };
-        } else if (check.status === 'FAILED') {
-          const auditEntry = {
-            reconciledAt: timestamp,
-            previousStatus: tx.status,
-            newStatus: CoinTransactionStatus.FAILED,
-            triggeredBy,
-            errorMessage: check.errorMessage ?? 'Provider reported failed',
-            details: check,
-          };
-
-          const updated = await this.prisma.coinTransaction.update({
-            where: { id: tx.id },
-            data: {
-              status: CoinTransactionStatus.FAILED,
-              errorMessage:
-                check.errorMessage ?? 'Provider reported transaction failed',
-              processedAt: new Date(),
-              reconciliationHistory: [...previousHistory, auditEntry],
-            },
-          });
-
-          await this.syncSourceTransaction(
-            tx,
-            CoinTransactionStatus.FAILED,
-            undefined,
-            check.errorMessage,
-          );
-
-          return {
-            success: true,
-            message:
-              'Đối soát hoàn tất: Nhà cung cấp báo giao dịch THẤT BẠI (FAILED).',
-            transaction: updated,
-            reconciled: true,
-          };
-        } else if (check.status === 'NOT_FOUND' && tx.requestPayload) {
-          // Re-dispatch if provider has no trace of this idempotencyKey
+        } else if (
+          (check.status === 'NOT_FOUND' || check.status === 'FAILED') &&
+          tx.requestPayload
+        ) {
           this.logger.log(
-            `[CoinTrackingService] IdempotencyKey ${tx.idempotencyKey} NOT_FOUND at provider. Re-dispatching...`,
+            `[CoinTrackingService] IdempotencyKey ${tx.idempotencyKey} ${check.status} at provider. Re-dispatching snapshot...`,
           );
-          const creditRes = await provider.creditReward(tx.requestPayload);
+          const creditRes = useLiveAdapter
+            ? await this.liveRewardAdapter!.dispatchPayload(
+                tx.requestPayload as any,
+              )
+            : await provider.creditReward(tx.requestPayload);
+
+          const nextStatus =
+            creditRes.status === 'SUCCESS'
+              ? CoinTransactionStatus.SUCCESS
+              : creditRes.status === 'PENDING'
+                ? CoinTransactionStatus.PENDING
+                : creditRes.status === 'UNKNOWN'
+                  ? CoinTransactionStatus.UNKNOWN
+                  : CoinTransactionStatus.FAILED;
 
           const auditEntry = {
             reconciledAt: timestamp,
             previousStatus: tx.status,
-            newStatus:
-              creditRes.status === 'SUCCESS'
-                ? CoinTransactionStatus.SUCCESS
-                : CoinTransactionStatus.FAILED,
+            newStatus: nextStatus,
             triggeredBy,
             action: 'RE_DISPATCH',
             details: creditRes,
@@ -554,7 +583,9 @@ export class CoinTrackingService implements OnModuleInit {
               data: {
                 status: CoinTransactionStatus.SUCCESS,
                 externalTxId: creditRes.externalTxId,
-                responsePayload: creditRes,
+                responsePayload: creditRes as Prisma.InputJsonValue,
+                errorCode: null,
+                errorMessage: null,
                 processedAt: new Date(),
                 reconciliationHistory: [...previousHistory, auditEntry],
               },
@@ -576,33 +607,82 @@ export class CoinTrackingService implements OnModuleInit {
             const updated = await this.prisma.coinTransaction.update({
               where: { id: tx.id },
               data: {
-                status: CoinTransactionStatus.FAILED,
-                errorMessage: creditRes.errorMessage ?? 'Re-dispatch failed',
-                responsePayload: creditRes,
+                status: nextStatus,
+                errorCode: creditRes.errorCode ?? check.errorCode ?? undefined,
+                errorMessage:
+                  creditRes.errorMessage ?? 'Re-dispatch did not succeed',
+                responsePayload: creditRes as Prisma.InputJsonValue,
+                retryCount: { increment: 1 },
                 reconciliationHistory: [...previousHistory, auditEntry],
               },
             });
+            await this.syncSourceTransaction(
+              tx,
+              nextStatus,
+              undefined,
+              creditRes.errorMessage,
+            );
             return {
               success: false,
-              message: `Gửi lại giao dịch thất bại: ${creditRes.errorMessage}`,
+              message: `Gửi lại giao dịch chưa thành công (${nextStatus}): ${creditRes.errorMessage ?? ''}`,
               transaction: updated,
               reconciled: true,
             };
           }
-        } else {
-          // Provider status still PENDING
+        } else if (check.status === 'FAILED') {
           const auditEntry = {
             reconciledAt: timestamp,
             previousStatus: tx.status,
-            newStatus: tx.status,
+            newStatus: CoinTransactionStatus.FAILED,
             triggeredBy,
+            errorMessage: check.errorMessage ?? 'Provider reported failed',
             details: check,
-            note: 'Provider still reporting PENDING',
           };
 
           const updated = await this.prisma.coinTransaction.update({
             where: { id: tx.id },
             data: {
+              status: CoinTransactionStatus.FAILED,
+              errorCode: check.errorCode ?? undefined,
+              errorMessage:
+                check.errorMessage ?? 'Provider reported transaction failed',
+              processedAt: new Date(),
+              reconciliationHistory: [...previousHistory, auditEntry],
+            },
+          });
+
+          await this.syncSourceTransaction(
+            tx,
+            CoinTransactionStatus.FAILED,
+            undefined,
+            check.errorMessage,
+          );
+
+          return {
+            success: false,
+            message:
+              'Đối soát hoàn tất: Nhà cung cấp báo giao dịch THẤT BẠI (FAILED) và không có snapshot payload để gửi lại.',
+            transaction: updated,
+            reconciled: true,
+          };
+        } else {
+          const nextStatus =
+            check.status === 'UNKNOWN'
+              ? CoinTransactionStatus.UNKNOWN
+              : CoinTransactionStatus.PENDING;
+          const auditEntry = {
+            reconciledAt: timestamp,
+            previousStatus: tx.status,
+            newStatus: nextStatus,
+            triggeredBy,
+            details: check,
+            note: `Provider reporting ${check.status}`,
+          };
+
+          const updated = await this.prisma.coinTransaction.update({
+            where: { id: tx.id },
+            data: {
+              status: nextStatus,
               retryCount: { increment: 1 },
               reconciliationHistory: [...previousHistory, auditEntry],
             },
@@ -610,8 +690,7 @@ export class CoinTrackingService implements OnModuleInit {
 
           return {
             success: true,
-            message:
-              'Nhà cung cấp báo giao dịch vẫn đang trong quá trình xử lý (PENDING).',
+            message: `Nhà cung cấp báo trạng thái ${check.status}.`,
             transaction: updated,
             reconciled: false,
           };
@@ -728,6 +807,7 @@ export class CoinTrackingService implements OnModuleInit {
 
   private async syncRewardToWallet(tx: CoinTransaction): Promise<boolean> {
     if (
+      getCoinProviderMode() !== 'mock' ||
       !this.mockWalletService ||
       tx.status !== CoinTransactionStatus.SUCCESS ||
       tx.amount <= 0
@@ -756,7 +836,7 @@ export class CoinTrackingService implements OnModuleInit {
   }
 
   async backfillSuccessRewardsToWallet(): Promise<number> {
-    if (!this.mockWalletService) return 0;
+    if (getCoinProviderMode() !== 'mock' || !this.mockWalletService) return 0;
 
     const successTxs = await this.prisma.coinTransaction.findMany({
       where: {

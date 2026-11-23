@@ -9,6 +9,7 @@ export type ProfilesUserSummary = {
   fullName: string | null;
   email: string;
   avatarUrl: string | null;
+  discordId?: string | null;
 };
 
 @Injectable()
@@ -18,6 +19,11 @@ export class ProfilesService {
   private readonly clientId: string;
   private readonly clientSecret: string;
   private warnedMissingSecret = false;
+  private readonly discordIdCache = new Map<
+    string,
+    { discordId: string | null; expiresAt: number }
+  >();
+  private static readonly DISCORD_CACHE_TTL_MS = 60_000;
 
   constructor(private readonly httpService: HttpService) {
     this.baseUrl = this.required('PROFILES_API_BASE_URL').replace(/\/$/, '');
@@ -143,24 +149,40 @@ export class ProfilesService {
   }
 
   async searchUserIds(query: string): Promise<string[]> {
-    const ids: string[] = [];
+    const users = await this.searchUsers(query);
+    return users.map((u) => u.id);
+  }
+
+  async searchUsers(query: string): Promise<ProfilesUserSummary[]> {
+    const found: ProfilesUserSummary[] = [];
     for (let page = 1; ; page += 1) {
       try {
         const response = await firstValueFrom(
           this.httpService.get(`${this.baseUrl}/internal/users/search`, {
             params: { q: query, page },
             headers: { Authorization: this.basicAuthHeader() },
+            timeout: Number(process.env.PROFILES_HTTP_TIMEOUT_MS ?? 5000),
           }),
         );
         const payload = response.data as {
-          data?: { users: Array<{ id: string }>; total: number };
-          users?: Array<{ id: string }>;
+          data?: { users: ProfilesUserSummary[]; total: number };
+          users?: ProfilesUserSummary[];
           total?: number;
         };
         const result = payload.data ?? payload;
         const users = result.users ?? [];
-        ids.push(...users.map((user) => user.id));
-        if (!users.length || ids.length >= (result.total ?? 0)) return ids;
+        for (const u of users) {
+          if (u?.id) {
+            found.push(u);
+            if (u.discordId !== undefined) {
+              this.discordIdCache.set(u.id, {
+                discordId: u.discordId ?? null,
+                expiresAt: Date.now() + ProfilesService.DISCORD_CACHE_TTL_MS,
+              });
+            }
+          }
+        }
+        if (!users.length || found.length >= (result.total ?? 0)) return found;
       } catch (error) {
         this.logger.warn(
           error instanceof AxiosError
@@ -170,6 +192,26 @@ export class ProfilesService {
         throw new BadGatewayException('Profiles user search is unavailable');
       }
     }
+  }
+
+  async resolveDiscordId(userId: string): Promise<string | null> {
+    if (!userId) return null;
+    const cached = this.discordIdCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.discordId;
+    }
+    const { users, failed } = await this.resolveUsersDetailed([userId]);
+    if (failed) {
+      throw new BadGatewayException(
+        'Không thể xác minh liên kết Discord từ Profiles',
+      );
+    }
+    const discordId = users.get(userId)?.discordId ?? null;
+    this.discordIdCache.set(userId, {
+      discordId,
+      expiresAt: Date.now() + ProfilesService.DISCORD_CACHE_TTL_MS,
+    });
+    return discordId;
   }
 
   async eligibleUserIds(

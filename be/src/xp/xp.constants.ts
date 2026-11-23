@@ -54,13 +54,13 @@ export const LEVEL_MILESTONE_COIN_REWARDS: ReadonlyArray<{
   coins: number;
   title: string;
 }> = [
-  { level: 3, coins: 5, title: 'Chiến Binh Code' },
-  { level: 6, coins: 10, title: 'Hiệp Sĩ Tinh Anh' },
-  { level: 10, coins: 15, title: 'Đại Sư Huyền Thoại' },
-  { level: 20, coins: 25, title: 'Thống Soái Tinh Vân' },
-  { level: 40, coins: 40, title: 'Hiền Triết Hư Không' },
-  { level: 70, coins: 70, title: 'Thần Sứ Thiên Giới' },
-  { level: 100, coins: 100, title: 'Đỉnh Cao Lv.100' },
+  { level: 3, coins: 3, title: 'Chiến Binh Code' },
+  { level: 6, coins: 5, title: 'Hiệp Sĩ Tinh Anh' },
+  { level: 10, coins: 6, title: 'Đại Sư Huyền Thoại' },
+  { level: 20, coins: 7, title: 'Thống Soái Tinh Vân' },
+  { level: 40, coins: 8, title: 'Hiền Triết Hư Không' },
+  { level: 70, coins: 9, title: 'Thần Sứ Thiên Giới' },
+  { level: 100, coins: 9, title: 'Đỉnh Cao Lv.100' },
 ];
 
 export const TIER_MIN_LEVELS: Readonly<Record<string, number>> = {
@@ -73,7 +73,7 @@ export const TIER_MIN_LEVELS: Readonly<Record<string, number>> = {
   'tier-7-seraph': 70,
 };
 
-export const DAILY_CHEST_REWARD_COINS = 15;
+export const DAILY_CHEST_REWARD_COINS = 5;
 
 export const SHOP_COSMETIC_PRICES: Readonly<Record<string, number>> = {
   'shop-blood-moon': 150,

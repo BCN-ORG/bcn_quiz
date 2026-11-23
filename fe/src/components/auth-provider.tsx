@@ -51,6 +51,7 @@ function normalizeUser(raw: unknown): User | null {
     role: typeof current.role === 'string' ? current.role : undefined,
     roles,
     permissions,
+    discordId: typeof current.discordId === 'string' ? current.discordId : null,
   };
 }
 
@@ -69,6 +70,7 @@ function isSameUser(a: User | null, b: User | null): boolean {
     a.fullName === b.fullName &&
     a.avatarUrl === b.avatarUrl &&
     a.role === b.role &&
+    a.discordId === b.discordId &&
     sameStringArray(a.roles, b.roles) &&
     sameStringArray(a.permissions, b.permissions)
   );

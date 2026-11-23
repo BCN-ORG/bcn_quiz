@@ -58,6 +58,7 @@ export class CreateBountyDto {
 
   @IsInt()
   @Min(1)
+  @Max(9, { message: 'Thưởng Bounty tối đa 9 coin để tránh lạm phát' })
   rewardCoins: number;
 
   @IsInt()
