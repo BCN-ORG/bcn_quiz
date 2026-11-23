@@ -206,7 +206,9 @@ export const walletApi = {
       referenceCode:
         res.referenceCode ||
         res.transaction?.reference ||
-        res.transaction?.referenceCode,
+        res.transaction?.referenceCode ||
+        res.transaction?.id ||
+        undefined,
       balance: res.senderBalance ?? res.balance,
       message: res.message,
     };
@@ -244,7 +246,7 @@ export const walletApi = {
 
     const items: WalletTransaction[] = rawItems.map((tx: RawWalletTransaction) => ({
       id: tx.id ?? null,
-      referenceCode: tx.referenceCode || tx.reference || '',
+      referenceCode: tx.referenceCode || tx.reference || tx.id || '',
       type: tx.type,
       amount: tx.amount,
       balanceAfter: tx.balanceAfter,

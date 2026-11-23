@@ -513,12 +513,22 @@ export default function WalletPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map((tx) => {
-                    const isReceived = tx.type === 'RECEIVED' || tx.type === 'REWARD';
-                    const isSent = tx.type === 'SENT';
+                  {transactions.map((tx, idx) => {
+                    const isReceived =
+                      tx.type === 'RECEIVED' ||
+                      tx.type === 'REWARD' ||
+                      tx.type === 'TRANSFER_IN' ||
+                      tx.type === 'SALARY' ||
+                      tx.type === 'MINT' ||
+                      (tx.amount > 0 && tx.type !== 'SENT' && tx.type !== 'TRANSFER_OUT' && tx.type !== 'DEDUCT');
+                    const isSent =
+                      tx.type === 'SENT' ||
+                      tx.type === 'TRANSFER_OUT' ||
+                      tx.type === 'DEDUCT' ||
+                      tx.amount < 0;
 
                     return (
-                      <tr key={tx.id} className="wallet-table-row">
+                      <tr key={tx.id ?? `${tx.createdAt}-${idx}`} className="wallet-table-row">
                         {/* 1. Time */}
                         <td className="col-time">
                           <div className="wallet-tx-time">
@@ -528,37 +538,53 @@ export default function WalletPage() {
 
                         {/* 2. Reference Code */}
                         <td className="col-ref">
-                          <div className="wallet-ref-cell">
-                            <code className="wallet-ref-code-inline" title={tx.referenceCode}>
-                              {tx.referenceCode}
-                            </code>
-                            <button
-                              type="button"
-                              className="wallet-copy-btn"
-                              onClick={() => copyReferenceCode(tx.referenceCode)}
-                              title="Sao chép mã giao dịch"
-                              aria-label={`Sao chép mã ${tx.referenceCode}`}
-                            >
-                              {copiedRefId === tx.referenceCode ? (
-                                <CheckCircle size={14} weight="fill" className="text-green" />
-                              ) : (
-                                <Copy size={14} />
-                              )}
-                            </button>
-                          </div>
+                          {tx.referenceCode ? (
+                            <div className="wallet-ref-cell">
+                              <code className="wallet-ref-code-inline" title={tx.referenceCode}>
+                                {tx.referenceCode}
+                              </code>
+                              <button
+                                type="button"
+                                className="wallet-copy-btn"
+                                onClick={() => copyReferenceCode(tx.referenceCode)}
+                                title="Sao chép mã giao dịch"
+                                aria-label={`Sao chép mã ${tx.referenceCode}`}
+                              >
+                                {copiedRefId === tx.referenceCode ? (
+                                  <CheckCircle size={14} weight="fill" className="text-green" />
+                                ) : (
+                                  <Copy size={14} />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="wallet-system-actor" title="Giao dịch thực hiện trực tiếp trên Discord">
+                              Discord
+                            </span>
+                          )}
                         </td>
 
                         {/* 3. Type */}
                         <td className="col-type">
-                          {tx.type === 'RECEIVED' ? (
+                          {tx.type === 'RECEIVED' || tx.type === 'TRANSFER_IN' ? (
                             <span className="wallet-type-pill pill-received">
                               <ArrowDownLeft size={13} weight="bold" aria-hidden="true" />
                               <span>Nhận Coin</span>
                             </span>
-                          ) : tx.type === 'SENT' ? (
+                          ) : tx.type === 'SENT' || tx.type === 'TRANSFER_OUT' ? (
                             <span className="wallet-type-pill pill-sent">
                               <ArrowUpRight size={13} weight="bold" aria-hidden="true" />
                               <span>Chuyển Coin</span>
+                            </span>
+                          ) : tx.type === 'SALARY' || tx.type === 'MINT' ? (
+                            <span className="wallet-type-pill pill-received">
+                              <Gift size={13} weight="fill" aria-hidden="true" />
+                              <span>{tx.type === 'SALARY' ? 'Lương Discord' : 'Admin cộng'}</span>
+                            </span>
+                          ) : tx.type === 'DEDUCT' ? (
+                            <span className="wallet-type-pill pill-sent">
+                              <ArrowUpRight size={13} weight="bold" aria-hidden="true" />
+                              <span>Trừ Coin</span>
                             </span>
                           ) : (
                             <span className="wallet-type-pill pill-reward">
