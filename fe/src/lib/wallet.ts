@@ -58,6 +58,7 @@ export interface WalletTransaction {
   referenceCode: string;
   type: WalletTransactionType;
   amount: number;
+  fee?: number;
   balanceAfter?: number;
   title?: string;
   status: WalletTransactionStatus;
@@ -66,6 +67,10 @@ export interface WalletTransaction {
   counterpartEmail?: string | null;
   counterpartFullName?: string | null;
   note?: string | null;
+  idempotencyKey?: string | null;
+  source?: string | null;
+  metadata?: Record<string, unknown> | null;
+  errorCode?: string | null;
   createdAt: string;
 }
 
@@ -291,6 +296,33 @@ export const walletApi = {
   },
 
   async getTransaction(id: string): Promise<WalletTransaction> {
-    return request.get<WalletTransaction>(`/wallet/transactions/${id}`);
+    const tx = await request.get<RawWalletTransaction & {
+      fee?: number;
+      idempotencyKey?: string | null;
+      source?: string | null;
+      metadata?: Record<string, unknown> | null;
+      errorCode?: string | null;
+    }>(`/wallet/transactions/${encodeURIComponent(id)}`);
+    return {
+      id: tx.id ?? id,
+      referenceCode: tx.referenceCode || tx.reference || tx.id || id,
+      type: tx.type,
+      amount: tx.amount,
+      fee: tx.fee,
+      balanceAfter: tx.balanceAfter,
+      title: tx.title,
+      status: tx.status,
+      counterpartUserId: tx.counterparty?.id ?? tx.counterpartUserId,
+      counterpartUsername: tx.counterpartUsername,
+      counterpartEmail: tx.counterpartEmail,
+      counterpartFullName:
+        tx.counterparty?.fullName || tx.counterpartFullName || tx.counterpartName,
+      note: tx.note || tx.description,
+      idempotencyKey: tx.idempotencyKey ?? null,
+      source: tx.source ?? null,
+      metadata: tx.metadata ?? null,
+      errorCode: tx.errorCode ?? null,
+      createdAt: tx.createdAt,
+    };
   },
 };

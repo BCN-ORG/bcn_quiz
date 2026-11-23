@@ -92,6 +92,7 @@ describe('MockCoinWalletService', () => {
       expect(result).toEqual({
         balance: 100,
         discordLinked: true,
+        isMock: true,
         lastSyncedAt: mockWallet.lastSyncedAt,
         syncStatus: 'SYNCED',
       });

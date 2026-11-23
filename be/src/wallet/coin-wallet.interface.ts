@@ -5,6 +5,7 @@ export interface WalletBalanceResult {
   lockedBalance?: number;
   currency?: string;
   discordLinked?: boolean;
+  isMock?: boolean;
   lastSyncedAt: Date;
   syncStatus: string;
 }
@@ -22,6 +23,7 @@ export interface WalletTransactionDto {
   userId?: string;
   type: string;
   amount: number;
+  fee?: number;
   balanceAfter?: number;
   title?: string;
   description: string | null;
@@ -29,6 +31,8 @@ export interface WalletTransactionDto {
   counterpartyId?: string | null;
   counterpartyName?: string | null;
   idempotencyKey?: string | null;
+  source?: string | null;
+  metadata?: Record<string, unknown> | null;
   status: string;
   errorCode?: string | null;
   createdAt: Date | string;

@@ -33,10 +33,10 @@ import {
 } from '@/lib/wallet';
 
 const DEFAULT_MOCK_BALANCE: WalletBalance = {
-  balance: 1000,
+  balance: 0,
   lastSyncedAt: new Date().toISOString(),
-  syncStatus: 'SYNCED',
-  isMock: true,
+  syncStatus: 'FAILED',
+  isMock: false,
 };
 
 export default function WalletPage() {
@@ -67,6 +67,28 @@ export default function WalletPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+
+  // Transaction Detail Modal
+  const [detailTx, setDetailTx] = useState<WalletTransaction | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const openTxDetail = async (tx: WalletTransaction) => {
+    if (!tx.id) return;
+    setDetailTx(tx);
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      const full = await walletApi.getTransaction(tx.id);
+      setDetailTx({ ...tx, ...full });
+    } catch (err) {
+      setDetailError(
+        err instanceof Error ? err.message : 'Không thể tải chi tiết giao dịch.',
+      );
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   // Check URL query param for action=transfer
   useEffect(() => {
@@ -202,7 +224,10 @@ export default function WalletPage() {
     setTxPage(1);
   };
 
-  const hasActiveFilters = search || typeFilter !== 'ALL' || statusFilter !== 'ALL' || fromDate || toDate;
+  const isMockMode = balance?.isMock === true;
+  const hasActiveFilters = isMockMode
+    ? Boolean(search || typeFilter !== 'ALL' || statusFilter !== 'ALL' || fromDate || toDate)
+    : typeFilter !== 'ALL';
 
   const currentBalanceNum = balance?.balance ?? 0;
   const isSyncStatusPending = balance?.syncStatus === 'SYNCING' || isSyncing;
@@ -215,13 +240,15 @@ export default function WalletPage() {
         <div className="page-heading-left">
           <div className="wallet-header-title-row">
             <h1>Ví Coin của tôi</h1>
-            <span className="wallet-mock-badge" title="Giao dịch trong môi trường mô phỏng học tập">
-              <Flask size={14} weight="fill" aria-hidden="true" />
-              <span>Môi trường thử nghiệm Mock</span>
-            </span>
+            {isMockMode ? (
+              <span className="wallet-mock-badge" title="Giao dịch trong môi trường mô phỏng học tập">
+                <Flask size={14} weight="fill" aria-hidden="true" />
+                <span>Môi trường thử nghiệm Mock</span>
+              </span>
+            ) : null}
           </div>
           <p className="page-heading-desc">
-            Quản lý số dư BCN Coin học tập, chuyển Coin cho bạn bè và theo dõi toàn bộ lịch sử biến động số dư.
+            Quản lý số dư BCN Coin liên kết Discord, chuyển Coin P2P và theo dõi toàn bộ lịch sử biến động số dư.
           </p>
         </div>
       </header>
@@ -358,33 +385,34 @@ export default function WalletPage() {
 
         {/* Filter Toolbar */}
         <div className="wallet-filters-toolbar">
-          {/* Search Box */}
-          <div className="wallet-filter-search-box">
-            <MagnifyingGlass size={16} className="wallet-filter-search-icon" aria-hidden="true" />
-            <input
-              type="text"
-              className="wallet-filter-input"
-              placeholder="Tìm theo mã GD, đối tác, nội dung..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setTxPage(1);
-              }}
-            />
-            {search ? (
-              <button
-                type="button"
-                className="icon-button sm"
-                onClick={() => {
-                  setSearch('');
+          {isMockMode ? (
+            <div className="wallet-filter-search-box">
+              <MagnifyingGlass size={16} className="wallet-filter-search-icon" aria-hidden="true" />
+              <input
+                type="text"
+                className="wallet-filter-input"
+                placeholder="Tìm theo mã GD, đối tác, nội dung..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
                   setTxPage(1);
                 }}
-                aria-label="Xóa từ khóa tìm kiếm"
-              >
-                ×
-              </button>
-            ) : null}
-          </div>
+              />
+              {search ? (
+                <button
+                  type="button"
+                  className="icon-button sm"
+                  onClick={() => {
+                    setSearch('');
+                    setTxPage(1);
+                  }}
+                  aria-label="Xóa từ khóa tìm kiếm"
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Type Filter */}
           <div className="wallet-filter-group">
@@ -402,62 +430,70 @@ export default function WalletPage() {
               <option value="REWARD">Phần thưởng</option>
               <option value="TRANSFER_IN">Nhận chuyển khoản (+)</option>
               <option value="TRANSFER_OUT">Chuyển đi (-)</option>
-              <option value="SALARY">Lương Discord</option>
-              <option value="MINT">Admin cộng Coin</option>
-              <option value="DEDUCT">Phạt / Trừ Coin</option>
-              <option value="RECEIVED">Đã nhận (Mock)</option>
-              <option value="SENT">Đã chuyển (Mock)</option>
+              {!isMockMode ? (
+                <>
+                  <option value="SALARY">Lương Discord</option>
+                  <option value="MINT">Admin cộng Coin</option>
+                  <option value="DEDUCT">Phạt / Trừ Coin</option>
+                </>
+              ) : (
+                <>
+                  <option value="RECEIVED">Đã nhận (+)</option>
+                  <option value="SENT">Đã chuyển (-)</option>
+                </>
+              )}
             </select>
           </div>
 
-          {/* Status Filter */}
-          <div className="wallet-filter-group">
-            <label htmlFor="filter-status-select" className="wallet-filter-label">Trạng thái:</label>
-            <select
-              id="filter-status-select"
-              className="wallet-select"
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setTxPage(1);
-              }}
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="SUCCESS">Thành công</option>
-              <option value="PENDING">Đang xử lý</option>
-              <option value="FAILED">Thất bại</option>
-            </select>
-          </div>
+          {isMockMode ? (
+            <>
+              <div className="wallet-filter-group">
+                <label htmlFor="filter-status-select" className="wallet-filter-label">Trạng thái:</label>
+                <select
+                  id="filter-status-select"
+                  className="wallet-select"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setTxPage(1);
+                  }}
+                >
+                  <option value="ALL">Tất cả trạng thái</option>
+                  <option value="SUCCESS">Thành công</option>
+                  <option value="PENDING">Đang xử lý</option>
+                  <option value="FAILED">Thất bại</option>
+                </select>
+              </div>
 
-          {/* Date Range: From */}
-          <div className="wallet-filter-group">
-            <label htmlFor="filter-from-date" className="wallet-filter-label">Từ ngày:</label>
-            <input
-              id="filter-from-date"
-              type="date"
-              className="wallet-filter-date-input"
-              value={fromDate}
-              onChange={(e) => {
-                setFromDate(e.target.value);
-                setTxPage(1);
-              }}
-            />
-          </div>
+              <div className="wallet-filter-group">
+                <label htmlFor="filter-from-date" className="wallet-filter-label">Từ ngày:</label>
+                <input
+                  id="filter-from-date"
+                  type="date"
+                  className="wallet-filter-date-input"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(e.target.value);
+                    setTxPage(1);
+                  }}
+                />
+              </div>
 
-          {/* Date Range: To */}
-          <div className="wallet-filter-group">
-            <label htmlFor="filter-to-date" className="wallet-filter-label">Đến ngày:</label>
-            <input
-              id="filter-to-date"
-              type="date"
-              className="wallet-filter-date-input"
-              value={toDate}
-              onChange={(e) => {
-                setToDate(e.target.value);
-                setTxPage(1);
-              }}
-            />
-          </div>
+              <div className="wallet-filter-group">
+                <label htmlFor="filter-to-date" className="wallet-filter-label">Đến ngày:</label>
+                <input
+                  id="filter-to-date"
+                  type="date"
+                  className="wallet-filter-date-input"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(e.target.value);
+                    setTxPage(1);
+                  }}
+                />
+              </div>
+            </>
+          ) : null}
 
           {/* Reset Filters CTA */}
           {hasActiveFilters ? (
@@ -504,7 +540,7 @@ export default function WalletPage() {
                 <thead>
                   <tr>
                     <th scope="col" className="col-time">Thời gian</th>
-                    <th scope="col" className="col-ref">Mã tham chiếu</th>
+                    <th scope="col" className="col-ref">ID giao dịch</th>
                     <th scope="col" className="col-type">Loại giao dịch</th>
                     <th scope="col" className="col-counterpart">Đối tác</th>
                     <th scope="col" className="col-amount text-right">Số Coin</th>
@@ -536,29 +572,39 @@ export default function WalletPage() {
                           </div>
                         </td>
 
-                        {/* 2. Reference Code */}
+                        {/* 2. Reference Code / Transaction ID */}
                         <td className="col-ref">
-                          {tx.referenceCode ? (
+                          {tx.id || tx.referenceCode ? (
                             <div className="wallet-ref-cell">
-                              <code className="wallet-ref-code-inline" title={tx.referenceCode}>
-                                {tx.referenceCode}
+                              <code className="wallet-ref-code-inline" title={tx.id || tx.referenceCode}>
+                                {tx.id || tx.referenceCode}
                               </code>
                               <button
                                 type="button"
                                 className="wallet-copy-btn"
-                                onClick={() => copyReferenceCode(tx.referenceCode)}
-                                title="Sao chép mã giao dịch"
-                                aria-label={`Sao chép mã ${tx.referenceCode}`}
+                                onClick={() => copyReferenceCode(tx.id || tx.referenceCode)}
+                                title="Sao chép ID giao dịch"
+                                aria-label={`Sao chép ID ${tx.id || tx.referenceCode}`}
                               >
-                                {copiedRefId === tx.referenceCode ? (
+                                {copiedRefId === (tx.id || tx.referenceCode) ? (
                                   <CheckCircle size={14} weight="fill" className="text-green" />
                                 ) : (
                                   <Copy size={14} />
                                 )}
                               </button>
+                              {tx.id ? (
+                                <button
+                                  type="button"
+                                  className="button secondary sm"
+                                  style={{ padding: '2px 8px', fontSize: 11 }}
+                                  onClick={() => void openTxDetail(tx)}
+                                >
+                                  Chi tiết
+                                </button>
+                              ) : null}
                             </div>
                           ) : (
-                            <span className="wallet-system-actor" title="Giao dịch thực hiện trực tiếp trên Discord">
+                            <span className="wallet-system-actor" title="Giao dịch thực hiện trực tiếp trên Discord (không có ID API)">
                               Discord
                             </span>
                           )}
@@ -615,7 +661,7 @@ export default function WalletPage() {
                           )}
                         </td>
 
-                        {/* 5. Amount */}
+                        {/* 5. Amount & Balance After */}
                         <td className="col-amount text-right">
                           <span
                             className={`wallet-amount-display ${
@@ -624,6 +670,11 @@ export default function WalletPage() {
                           >
                             {isReceived ? `+${formatCoinAmount(tx.amount)}` : `-${formatCoinAmount(tx.amount)}`}
                           </span>
+                          {typeof tx.balanceAfter === 'number' ? (
+                            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                              Số dư: {tx.balanceAfter.toLocaleString('vi-VN')}
+                            </div>
+                          ) : null}
                         </td>
 
                         {/* 6. Status */}
@@ -637,10 +688,12 @@ export default function WalletPage() {
                           )}
                         </td>
 
-                        {/* 7. Note */}
+                        {/* 7. Note / Title */}
                         <td className="col-note">
-                          <span className="wallet-tx-note-text" title={tx.note || undefined}>
-                            {tx.note || <em className="wallet-muted-empty">—</em>}
+                          <span className="wallet-tx-note-text" title={tx.note || tx.title || undefined}>
+                            {tx.title ? <strong>{tx.title}</strong> : null}
+                            {tx.title && tx.note ? ' — ' : null}
+                            {tx.note || (!tx.title ? <em className="wallet-muted-empty">—</em> : null)}
                           </span>
                         </td>
                       </tr>
@@ -675,6 +728,60 @@ export default function WalletPage() {
           currentUser={user}
           onSuccess={handleTransferSuccess}
         />
+      ) : null}
+
+      {/* Transaction Detail Modal */}
+      {detailTx ? (
+        <div
+          className="dialog-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chi tiết giao dịch Coin"
+          onClick={() => setDetailTx(null)}
+        >
+          <div className="dialog-card" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <h3>Chi tiết giao dịch</h3>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setDetailTx(null)}
+                aria-label="Đóng"
+              >
+                ×
+              </button>
+            </div>
+            <div className="dialog-body" style={{ display: 'grid', gap: 10, fontSize: 14 }}>
+              {detailLoading ? <Loading label="Đang tải chi tiết..." /> : null}
+              {detailError ? (
+                <div className="notice form-error">{detailError}</div>
+              ) : null}
+              <div><strong>ID giao dịch:</strong> <code>{detailTx.id}</code></div>
+              <div><strong>Loại:</strong> {detailTx.type}</div>
+              <div><strong>Số Coin:</strong> {formatCoinAmount(detailTx.amount)} Coin</div>
+              {typeof detailTx.fee === 'number' ? (
+                <div><strong>Phí:</strong> {detailTx.fee} Coin</div>
+              ) : null}
+              <div><strong>Trạng thái:</strong> {detailTx.status}</div>
+              {detailTx.source ? (
+                <div><strong>Nguồn:</strong> {detailTx.source}</div>
+              ) : null}
+              {detailTx.idempotencyKey ? (
+                <div><strong>Idempotency Key:</strong> <code>{detailTx.idempotencyKey}</code></div>
+              ) : null}
+              {detailTx.errorCode ? (
+                <div><strong>Mã lỗi:</strong> <code>{detailTx.errorCode}</code></div>
+              ) : null}
+              <div><strong>Nội dung:</strong> {detailTx.note || detailTx.title || '—'}</div>
+              <div><strong>Thời gian:</strong> {formatVNDateTime(detailTx.createdAt)}</div>
+            </div>
+            <div className="dialog-footer">
+              <button type="button" className="button primary" onClick={() => setDetailTx(null)}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

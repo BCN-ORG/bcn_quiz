@@ -46,6 +46,7 @@ export class MockCoinWalletService implements CoinWalletService {
     return {
       balance: wallet.balance,
       discordLinked: true,
+      isMock: true,
       lastSyncedAt: wallet.lastSyncedAt,
       syncStatus: wallet.syncStatus,
     };
@@ -70,6 +71,7 @@ export class MockCoinWalletService implements CoinWalletService {
     return {
       balance: wallet.balance,
       discordLinked: true,
+      isMock: true,
       lastSyncedAt: wallet.lastSyncedAt,
       syncStatus: wallet.syncStatus,
     };

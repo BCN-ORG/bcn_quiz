@@ -30,6 +30,7 @@ import { useAuth } from '@/components/auth-provider';
 import { AvatarFrame } from '@/components/avatar-frame';
 import { Nameplate } from '@/components/nameplate';
 import { request } from '@/lib/api';
+import { walletApi } from '@/lib/wallet';
 import {
   getCharacterProgression,
   getCharacterTierById,
@@ -83,8 +84,8 @@ export default function BountyBoardPage() {
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [isClaiming, setIsClaiming] = useState(false);
 
-  // User simulated wallet animation
-  const [displayCoins, setDisplayCoins] = useState<number>(1250);
+  // User real wallet balance
+  const [displayCoins, setDisplayCoins] = useState<number>(0);
   const [timeLeft, setTimeLeft] = useState<{ minutes: number; seconds: number; percent: number }>({
     minutes: 0,
     seconds: 0,
@@ -95,13 +96,14 @@ export default function BountyBoardPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [bountiesRes, statsRes, historyRes, xpRes] = await Promise.all([
+      const [bountiesRes, statsRes, historyRes, xpRes, walletRes] = await Promise.all([
         request.get<{ activeAssignment: BountyAssignment | null; isLockedByActiveQuest: boolean; bounties: Bounty[] }>(
           '/bounties',
         ),
         request.get<BountyStats>('/bounties/stats'),
         request.get<BountyAssignment[]>('/bounties/history'),
         xpApi.getMe().catch(() => null),
+        walletApi.getBalance().catch(() => null),
       ]);
 
       setBounties(bountiesRes.bounties || []);
@@ -110,6 +112,9 @@ export default function BountyBoardPage() {
       setStats(statsRes);
       setHistory(historyRes || []);
       setUserXp(xpRes);
+      if (walletRes && typeof walletRes.balance === 'number') {
+        setDisplayCoins(walletRes.balance);
+      }
     } catch (err: unknown) {
       console.error('Error fetching bounty board data:', err);
     } finally {
@@ -416,7 +421,7 @@ export default function BountyBoardPage() {
             <div>
               <div className="bounty-wallet-label">Kinh nghiệm</div>
               <div className="bounty-wallet-val">
-                {(userXp?.totalXp || 2450).toLocaleString('vi-VN')} <span className="bounty-wallet-unit">XP</span>
+                {(userXp?.totalXp ?? 0).toLocaleString('vi-VN')} <span className="bounty-wallet-unit">XP</span>
               </div>
             </div>
           </div>

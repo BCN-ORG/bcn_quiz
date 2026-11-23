@@ -59,6 +59,7 @@ export class LiveCoinWalletService implements CoinWalletService {
         lockedBalance: 0,
         currency: 'COIN',
         discordLinked: false,
+        isMock: false,
         lastSyncedAt: new Date(),
         syncStatus: 'UNLINKED',
       };
@@ -70,6 +71,7 @@ export class LiveCoinWalletService implements CoinWalletService {
       lockedBalance: data.lockedBalance ?? 0,
       currency: data.currency ?? 'COIN',
       discordLinked: true,
+      isMock: false,
       lastSyncedAt: new Date(data.lastSyncedAt),
       syncStatus: data.syncStatus,
     };
@@ -83,6 +85,7 @@ export class LiveCoinWalletService implements CoinWalletService {
       lockedBalance: data.lockedBalance ?? 0,
       currency: data.currency ?? 'COIN',
       discordLinked: true,
+      isMock: false,
       lastSyncedAt: new Date(data.lastSyncedAt),
       syncStatus: data.syncStatus,
     };
@@ -260,9 +263,12 @@ export class LiveCoinWalletService implements CoinWalletService {
       id: detail.id,
       type: detail.type,
       amount: detail.amount,
+      fee: detail.fee,
       description: detail.description,
       status: detail.status,
       idempotencyKey: detail.idempotencyKey,
+      source: detail.source ?? null,
+      metadata: detail.metadata ?? null,
       errorCode: detail.errorCode ?? null,
       createdAt: detail.createdAt,
     };

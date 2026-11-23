@@ -1238,7 +1238,7 @@ export default function DashboardPage() {
                         balance: result.balance!,
                         lastSyncedAt: new Date().toISOString(),
                         syncStatus: 'SYNCED',
-                        isMock: true,
+                        isMock: false,
                       },
               );
             } else if (user?.id) {
