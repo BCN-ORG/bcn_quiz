@@ -196,7 +196,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#e11d48',
     description: 'Trang bị Huyết Nguyệt rực cháy — mở khóa bằng Coin 🩸',
-    assetUrl: '/images/characters/shop-blood-moon.jpg',
+    assetUrl: '/images/characters/shop-blood-moon.png',
     bannerBgUrl: '/images/dashboard/shop-banner-blood-moon.jpg',
   },
   {
@@ -213,7 +213,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#f97316',
     description: 'Chiến binh Long Hồn rực lửa — mở khóa bằng Coin 🔥',
-    assetUrl: '/images/characters/shop-crimson-dragon.jpg',
+    assetUrl: '/images/characters/shop-crimson-dragon.png',
     bannerBgUrl: '/images/dashboard/shop-banner-crimson-dragon.jpg',
   },
   {
@@ -230,7 +230,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#06b6d4',
     description: 'Trang bị Cyber Neon tương lai — mở khóa bằng Coin ⚡',
-    assetUrl: '/images/characters/shop-cyber-neon.jpg',
+    assetUrl: '/images/characters/shop-cyber-neon.png',
     bannerBgUrl: '/images/dashboard/shop-banner-cyber-neon.jpg',
   },
   {
@@ -247,7 +247,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#10b981',
     description: 'Tinh Linh Ngân Hà huyền bí — mở khóa bằng Coin ✨',
-    assetUrl: '/images/characters/shop-astral-spirit.jpg',
+    assetUrl: '/images/characters/shop-astral-spirit.png',
     bannerBgUrl: '/images/dashboard/shop-banner-astral-spirit.jpg',
   },
   {
@@ -264,7 +264,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#38bdf8',
     description: 'Trang bị Băng Giá vĩnh cửu — mở khóa bằng Coin ❄️',
-    assetUrl: '/images/characters/shop-frost-ice.jpg',
+    assetUrl: '/images/characters/shop-frost-ice.png',
     bannerBgUrl: '/images/dashboard/shop-banner-frost-ice.jpg',
   },
   {
@@ -281,7 +281,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#8b5cf6',
     description: 'Ảnh Sát Bóng Đêm thoắt ẩn thoắt hiện — mở khóa bằng Coin 🗡️',
-    assetUrl: '/images/characters/shop-shadow-assassin.jpg',
+    assetUrl: '/images/characters/shop-shadow-assassin.png',
     bannerBgUrl: '/images/dashboard/shop-banner-shadow-assassin.jpg',
   },
   {
@@ -298,7 +298,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#f59e0b',
     description: 'Cơ Khí Thiết Giáp tối tân — mở khóa bằng Coin 🛡️',
-    assetUrl: '/images/characters/shop-mecha-titan.jpg',
+    assetUrl: '/images/characters/shop-mecha-titan.png',
     bannerBgUrl: '/images/dashboard/shop-banner-mecha-titan.jpg',
   },
   {
@@ -315,7 +315,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#facc15',
     description: 'Trang bị Hoàng Kim Độc Quyền — mở khóa bằng Coin 👑',
-    assetUrl: '/images/characters/shop-royal-gold.jpg',
+    assetUrl: '/images/characters/shop-royal-gold.png',
     bannerBgUrl: '/images/dashboard/shop-banner-royal-gold.jpg',
   },
   {
@@ -332,7 +332,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#f43f5e',
     description: 'Tử Thần Hắc Diện cực ngầu — mở khóa bằng Coin 💀',
-    assetUrl: '/images/characters/shop-obsidian-reaper.jpg',
+    assetUrl: '/images/characters/shop-obsidian-reaper.png',
     bannerBgUrl: '/images/dashboard/shop-banner-obsidian-reaper.jpg',
   },
   {
@@ -349,7 +349,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#f472b6',
     description: 'Lãng Khách Hoa Anh Đào thanh tao — mở khóa bằng Coin 🌸',
-    assetUrl: '/images/characters/shop-sakura-ronin.jpg',
+    assetUrl: '/images/characters/shop-sakura-ronin.png',
     bannerBgUrl: '/images/dashboard/shop-banner-sakura-ronin.jpg',
   },
   {
@@ -366,7 +366,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#38bdf8',
     description: 'Nữ Thần Sấm Sét uy lực — mở khóa bằng Coin ⚡',
-    assetUrl: '/images/characters/shop-storm-valkyrie.jpg',
+    assetUrl: '/images/characters/shop-storm-valkyrie.png',
     bannerBgUrl: '/images/dashboard/shop-banner-storm-valkyrie.jpg',
   },
   {
@@ -383,7 +383,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#2dd4bf',
     description: 'Thủy Thần Biển Sâu huyền bí — mở khóa bằng Coin 🔱',
-    assetUrl: '/images/characters/shop-abyssal-leviathan.jpg',
+    assetUrl: '/images/characters/shop-abyssal-leviathan.png',
     bannerBgUrl: '/images/dashboard/shop-banner-abyssal-leviathan.jpg',
   },
   {
@@ -400,7 +400,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#fb923c',
     description: 'Phượng Hoàng Bất Tử rực cháy — mở khóa bằng Coin 🔥',
-    assetUrl: '/images/characters/shop-crimson-dragon.jpg',
+    assetUrl: '/images/characters/shop-crimson-dragon.png',
     bannerBgUrl: '/images/dashboard/shop-banner-phoenix-sovereign.jpg',
   },
   {
@@ -434,7 +434,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#a78bfa',
     description: 'Chấp Chính Thiên Tinh tối thượng — mở khóa bằng Coin 🪐',
-    assetUrl: '/images/characters/shop-astral-spirit.jpg',
+    assetUrl: '/images/characters/shop-astral-spirit.png',
     bannerBgUrl: '/images/dashboard/shop-banner-celestial-archon.jpg',
   },
   {
@@ -451,7 +451,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#ef4444',
     description: 'Ma Vương Địa Ngục bá đạo — mở khóa bằng Coin 😈',
-    assetUrl: '/images/characters/shop-blood-moon.jpg',
+    assetUrl: '/images/characters/shop-blood-moon.png',
     bannerBgUrl: '/images/dashboard/hero-banner-tier-6.jpg',
   },
   {
@@ -468,7 +468,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#10b981',
     description: 'Học Giả Lượng Tử công nghệ cao — mở khóa bằng Coin 💠',
-    assetUrl: '/images/characters/shop-cyber-neon.jpg',
+    assetUrl: '/images/characters/shop-cyber-neon.png',
     bannerBgUrl: '/images/dashboard/hero-banner-tier-4.jpg',
   },
   {
@@ -485,7 +485,7 @@ export const SHOP_COSMETICS: CharacterTier[] = [
     isShop: true,
     accentColor: '#fde047',
     description: 'Thiên Đế Vĩnh Hằng thần thoại — mở khóa bằng Coin 👑✨',
-    assetUrl: '/images/characters/shop-eternal-emperor.jpg',
+    assetUrl: '/images/characters/shop-eternal-emperor.png',
     bannerBgUrl: '/images/dashboard/hero-banner-tier-7.jpg',
   },
 ];
