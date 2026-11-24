@@ -2491,6 +2491,7 @@
   align-items: center;
   justify-content: space-between;
   padding-right: 42px;
+  flex-shrink: 0;
 }
 
 .rpg-evo-pill {
@@ -2515,11 +2516,12 @@
 
 .rpg-evo-showcase {
   position: relative;
+  flex-shrink: 0;
   border-radius: 18px;
   overflow: hidden;
   background-size: cover;
   background-position: center;
-  min-height: 310px;
+  min-height: 300px;
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 20px;
@@ -2685,6 +2687,10 @@
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+  flex-shrink: 0;
+  max-height: 235px;
+  overflow-y: auto;
+  padding: 2px 4px 4px 2px;
 }
 
 .rpg-evo-thumb {
@@ -3322,6 +3328,7 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 0 20px 12px;
+  flex-shrink: 0;
 }
 
 .rpg-evo-mode-tab {
@@ -3813,6 +3820,7 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 0 20px 10px;
+  flex-shrink: 0;
 }
 
 .rpg-evo-slot-pill {
