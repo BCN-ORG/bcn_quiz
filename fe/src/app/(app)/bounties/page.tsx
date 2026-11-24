@@ -365,8 +365,11 @@ export default function BountyBoardPage() {
       {(() => {
         const hunterLevel = userXp?.level ?? 1;
         const hunterTierId = userXp?.equippedTierId ?? null;
+        const hunterBannerId = userXp?.equippedBannerId ?? hunterTierId;
+        const hunterFrameId = userXp?.equippedFrameId ?? hunterTierId;
+        const hunterNameplateId = userXp?.equippedNameplateId ?? hunterTierId;
         const hunterTier =
-          getCharacterTierById(hunterTierId) ??
+          getCharacterTierById(hunterBannerId) ??
           getCharacterProgression(hunterLevel);
         const hunterName = user?.fullName || user?.email || 'Học viên BCN';
         return (
@@ -381,7 +384,7 @@ export default function BountyBoardPage() {
                 name={hunterName}
                 avatarUrl={user?.avatarUrl}
                 level={hunterLevel}
-                tierIdOverride={hunterTierId}
+                tierIdOverride={hunterFrameId}
                 size="md"
                 showLevelBadge
               />
@@ -390,7 +393,7 @@ export default function BountyBoardPage() {
                   <Nameplate
                     name={hunterName}
                     level={hunterLevel}
-                    tierIdOverride={hunterTierId}
+                    tierIdOverride={hunterNameplateId}
                     pinnedBadges={userXp?.pinnedBadges}
                     showTitleBadge
                     compact

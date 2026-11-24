@@ -17,6 +17,10 @@ export interface XpSummaryDto {
   rankTitle: string;
   nextRankTitle: string | null;
   equippedTierId?: string | null;
+  equippedCharacterId?: string | null;
+  equippedBannerId?: string | null;
+  equippedFrameId?: string | null;
+  equippedNameplateId?: string | null;
   pinnedBadges?: string[];
   unlockedCosmetics?: string[];
   earnedBadges?: string[];
@@ -31,6 +35,10 @@ export interface PlayerProfileDto {
   level: number;
   rankTitle: string;
   equippedTierId: string | null;
+  equippedCharacterId?: string | null;
+  equippedBannerId?: string | null;
+  equippedFrameId?: string | null;
+  equippedNameplateId?: string | null;
   pinnedBadges: string[];
   earnedBadges: string[];
   stats: {

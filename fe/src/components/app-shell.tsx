@@ -183,8 +183,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [userLevel]);
   const activeTierId =
     localTransmog !== undefined ? localTransmog : serverEquippedTierId;
+  const activeBannerId = summaryQuery.data?.xp?.equippedBannerId ?? activeTierId;
+  const activeFrameId = summaryQuery.data?.xp?.equippedFrameId ?? activeTierId;
+  const activeNameplateId = summaryQuery.data?.xp?.equippedNameplateId ?? activeTierId;
   const activeTier =
-    getCharacterTierById(activeTierId) ?? getCharacterProgression(userLevel);
+    getCharacterTierById(activeBannerId) ?? getCharacterProgression(userLevel);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -403,7 +406,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 name={user.fullName || user.email}
                 avatarUrl={user.avatarUrl}
                 level={userLevel}
-                tierIdOverride={activeTierId}
+                tierIdOverride={activeFrameId}
                 size="sm"
                 showLevelBadge
               />
@@ -411,7 +414,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Nameplate
                   name={user.fullName || 'Thành viên BCN'}
                   level={userLevel}
-                  tierIdOverride={activeTierId}
+                  tierIdOverride={activeNameplateId}
                   showTitleBadge={false}
                   compact
                   className="rpg-nameplate--sidebar"
@@ -442,7 +445,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       name={user.fullName || user.email}
                       avatarUrl={user.avatarUrl}
                       level={userLevel}
-                      tierIdOverride={activeTierId}
+                      tierIdOverride={activeFrameId}
                       size="lg"
                       showLevelBadge
                     />
@@ -452,7 +455,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Nameplate
                     name={user.fullName || 'Thành viên BCN'}
                     level={userLevel}
-                    tierIdOverride={activeTierId}
+                    tierIdOverride={activeNameplateId}
                     pinnedBadges={summaryQuery.data?.xp?.pinnedBadges}
                     showTitleBadge={false}
                     compact

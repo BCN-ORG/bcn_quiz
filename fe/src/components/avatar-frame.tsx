@@ -32,9 +32,27 @@ export function AvatarFrame({
     getCharacterTierById(tierIdOverride) ?? getCharacterProgression(safeLevel);
   const SHOP_VISUAL_LEVEL: Record<string, number> = {
     'shop-blood-moon': 40,
+    'shop-crimson-dragon': 40,
     'shop-cyber-neon': 20,
+    'shop-astral-spirit': 20,
     'shop-frost-ice': 6,
+    'shop-shadow-assassin': 40,
+    'shop-mecha-titan': 20,
     'shop-royal-gold': 70,
+    'shop-obsidian-reaper': 40,
+    'shop-sakura-ronin': 10,
+    'shop-storm-valkyrie': 20,
+    'shop-abyssal-leviathan': 20,
+    'shop-phoenix-sovereign': 40,
+    'shop-phantom-samurai': 40,
+    'shop-celestial-archon': 70,
+    'shop-infernal-warlord': 40,
+    'shop-quantum-hacker': 20,
+    'shop-eternal-emperor': 70,
+    'frame:neon-pulse': 20,
+    'frame:sakura-petal': 10,
+    'frame:emerald-circuit': 20,
+    'frame:eclipse-ring': 40,
   };
   const visualLevel = SHOP_VISUAL_LEVEL[tier.tierId] ?? tier.minLevel;
   const initial = (name.trim().charAt(0) || 'B').toUpperCase();

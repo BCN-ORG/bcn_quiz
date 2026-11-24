@@ -38,6 +38,10 @@ export interface CharacterVideoPlayerProps {
    * Optional inline styles for the container element
    */
   style?: CSSProperties;
+  /**
+   * Optional static artwork override (used for Shop character skins)
+   */
+  posterOverride?: string | null;
 }
 
 /**
@@ -76,9 +80,11 @@ export function CharacterVideoPlayer({
   className = '',
   alt,
   style,
+  posterOverride,
 }: CharacterVideoPlayerProps) {
   const asset: ResolvedCharacterVideo = resolveCharacterVideo(level, state);
   const { webmUrl, mp4Url } = getVideoSources(asset.videoUrl);
+  const hasPosterOverride = Boolean(posterOverride?.trim());
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const failedSourcesCountRef = useRef(0);
@@ -180,10 +186,11 @@ export function CharacterVideoPlayer({
     }
   }, [asset.loop, asset.durationMs, hasError, isReady, isSupported, onStateComplete, state]);
 
-  const showVideo = isSupported && !hasError;
+  const showVideo = !hasPosterOverride && isSupported && !hasError;
   const isVideoVisible = showVideo && isReady && !isBuffering;
   const showPoster = !isVideoVisible;
   const displayTitle = alt || asset.title || `Nhân vật cấp ${level}`;
+  const activePosterUrl = hasPosterOverride ? posterOverride! : asset.posterUrl;
 
   return (
     <div
@@ -209,7 +216,7 @@ export function CharacterVideoPlayer({
       */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={asset.posterUrl}
+        src={activePosterUrl}
         alt={displayTitle}
         className="character-video-poster rpg-character-poster"
         style={{

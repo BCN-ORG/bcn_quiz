@@ -33,11 +33,31 @@ export class XpController {
   @Put('me/cosmetics')
   async updateCosmetics(
     @Request() req: ExpressRequest,
-    @Body() body: { equippedTierId?: string | null; pinnedBadges?: string[] },
+    @Body()
+    body: {
+      equippedTierId?: string | null;
+      equippedCharacterId?: string | null;
+      equippedBannerId?: string | null;
+      equippedFrameId?: string | null;
+      equippedNameplateId?: string | null;
+      pinnedBadges?: string[];
+    },
   ) {
     return this.xpService.updateCosmetics(this.extractUserId(req), {
       ...(body && 'equippedTierId' in body
         ? { equippedTierId: body.equippedTierId ?? null }
+        : {}),
+      ...(body && 'equippedCharacterId' in body
+        ? { equippedCharacterId: body.equippedCharacterId ?? null }
+        : {}),
+      ...(body && 'equippedBannerId' in body
+        ? { equippedBannerId: body.equippedBannerId ?? null }
+        : {}),
+      ...(body && 'equippedFrameId' in body
+        ? { equippedFrameId: body.equippedFrameId ?? null }
+        : {}),
+      ...(body && 'equippedNameplateId' in body
+        ? { equippedNameplateId: body.equippedNameplateId ?? null }
         : {}),
       ...(body && Array.isArray(body.pinnedBadges)
         ? { pinnedBadges: body.pinnedBadges }

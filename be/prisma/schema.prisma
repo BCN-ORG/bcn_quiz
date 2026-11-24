@@ -954,11 +954,15 @@ model MockWalletTransaction {
 }
 
 model UserCosmeticPreference {
-  userId            String   @id
-  equippedTierId    String?
-  pinnedBadges      String[] @default([])
-  unlockedCosmetics String[] @default([])
-  updatedAt         DateTime @updatedAt
+  userId              String   @id
+  equippedTierId      String?
+  equippedCharacterId String?
+  equippedBannerId    String?
+  equippedFrameId     String?
+  equippedNameplateId String?
+  pinnedBadges        String[] @default([])
+  unlockedCosmetics   String[] @default([])
+  updatedAt           DateTime @updatedAt
 
   @@map("user_cosmetic_preferences")
 }

@@ -79,8 +79,14 @@ export function PlayerProfileModal({
     profile?.equippedTierId !== undefined
       ? profile.equippedTierId
       : (player.equippedTierId ?? null);
+  const charId = profile?.equippedCharacterId ?? activeTierId;
+  const bannerId = profile?.equippedBannerId ?? activeTierId;
+  const frameId = profile?.equippedFrameId ?? activeTierId;
+  const nameplateId = profile?.equippedNameplateId ?? activeTierId;
   const tier =
-    getCharacterTierById(activeTierId) ?? getCharacterProgression(level);
+    getCharacterTierById(charId) ?? getCharacterProgression(level);
+  const bannerTier =
+    getCharacterTierById(bannerId) ?? tier;
   const pinned = profile?.pinnedBadges ?? player.pinnedBadges ?? [];
 
   return (
@@ -93,12 +99,12 @@ export function PlayerProfileModal({
     >
       <div
         className="rpg-player-popout"
-        data-tier={tier.tierId}
+        data-tier={bannerTier.tierId}
         onClick={(e) => e.stopPropagation()}
       >
         <div
           className="rpg-player-popout-banner"
-          style={{ backgroundImage: `url('${tier.bannerBgUrl}')` }}
+          style={{ backgroundImage: `url('${bannerTier.bannerBgUrl}')` }}
         >
           <span className="rpg-player-popout-scrim" aria-hidden="true" />
           <div className="rpg-player-popout-top">
@@ -129,7 +135,7 @@ export function PlayerProfileModal({
                 name={player.name}
                 avatarUrl={player.avatarUrl}
                 level={level}
-                tierIdOverride={activeTierId}
+                tierIdOverride={frameId}
                 size="lg"
                 showLevelBadge
               />
@@ -145,7 +151,7 @@ export function PlayerProfileModal({
             <Nameplate
               name={player.name}
               level={level}
-              tierIdOverride={activeTierId}
+              tierIdOverride={nameplateId}
               pinnedBadges={pinned}
               showTitleBadge={false}
               compact

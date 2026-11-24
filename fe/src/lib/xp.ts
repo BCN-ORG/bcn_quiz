@@ -15,6 +15,10 @@ export interface XpMe {
   rankTitle: string;
   nextRankTitle: string | null;
   equippedTierId?: string | null;
+  equippedCharacterId?: string | null;
+  equippedBannerId?: string | null;
+  equippedFrameId?: string | null;
+  equippedNameplateId?: string | null;
   pinnedBadges?: string[];
   unlockedCosmetics?: string[];
   earnedBadges?: string[];
@@ -35,6 +39,10 @@ export interface PlayerProfile {
   level: number;
   rankTitle: string;
   equippedTierId: string | null;
+  equippedCharacterId?: string | null;
+  equippedBannerId?: string | null;
+  equippedFrameId?: string | null;
+  equippedNameplateId?: string | null;
   pinnedBadges: string[];
   earnedBadges: string[];
   stats: {
@@ -51,10 +59,21 @@ export const xpApi = {
     payload:
       | string
       | null
-      | { equippedTierId?: string | null; pinnedBadges?: string[] },
+      | {
+          equippedTierId?: string | null;
+          equippedCharacterId?: string | null;
+          equippedBannerId?: string | null;
+          equippedFrameId?: string | null;
+          equippedNameplateId?: string | null;
+          pinnedBadges?: string[];
+        },
   ) =>
     request.put<{
       equippedTierId: string | null;
+      equippedCharacterId: string | null;
+      equippedBannerId: string | null;
+      equippedFrameId: string | null;
+      equippedNameplateId: string | null;
       pinnedBadges: string[];
       unlockedCosmetics: string[];
     }>(
@@ -69,6 +88,10 @@ export const xpApi = {
       alreadyOwned: boolean;
       cosmeticId: string;
       equippedTierId: string | null;
+      equippedCharacterId: string | null;
+      equippedBannerId: string | null;
+      equippedFrameId: string | null;
+      equippedNameplateId: string | null;
       unlockedCosmetics: string[];
       newBalance?: number;
     }>('/xp/cosmetics/purchase', { cosmeticId }),

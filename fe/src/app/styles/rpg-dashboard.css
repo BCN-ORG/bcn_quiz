@@ -3220,6 +3220,57 @@
 .rpg-avatar-frame[data-tier='shop-royal-gold'] .rpg-avatar-frame-aura { box-shadow: 0 0 22px rgba(250, 204, 21, 0.65); }
 .rpg-nameplate[data-tier='shop-royal-gold'] { border-color: rgba(254, 240, 138, 0.95); box-shadow: 0 4px 20px rgba(250, 204, 21, 0.5); }
 
+.rpg-avatar-frame[data-tier='shop-crimson-dragon'] .rpg-frame-ring-outer { stroke: #f97316; stroke-width: 4.5; }
+.rpg-avatar-frame[data-tier='shop-crimson-dragon'] .rpg-frame-ring-runes { stroke: #fdba74; stroke-width: 2; stroke-dasharray: 5 3; transform-origin: 50% 50%; animation: rpgSpinSlow 10s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-crimson-dragon'] .rpg-frame-gem { fill: #fb923c; stroke: #fff7ed; stroke-width: 1.4; }
+.rpg-avatar-frame[data-tier='shop-crimson-dragon'] .rpg-frame-wing,
+.rpg-avatar-frame[data-tier='shop-crimson-dragon'] .rpg-frame-blade { fill: #ea580c; stroke: #fed7aa; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-crimson-dragon'] .rpg-frame-node { fill: #fed7aa; }
+.rpg-avatar-frame[data-tier='shop-crimson-dragon'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(249, 115, 22, 0.58); }
+.rpg-nameplate[data-tier='shop-crimson-dragon'] { border-color: rgba(253, 186, 116, 0.88); box-shadow: 0 3px 16px rgba(249, 115, 22, 0.45); }
+
+.rpg-avatar-frame[data-tier='shop-astral-spirit'] .rpg-frame-ring-outer { stroke: #10b981; stroke-width: 4.2; }
+.rpg-avatar-frame[data-tier='shop-astral-spirit'] .rpg-frame-ring-runes { stroke: #a7f3d0; stroke-width: 2; stroke-dasharray: 3 4; transform-origin: 50% 50%; animation: rpgSpinSlow 15s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-astral-spirit'] .rpg-frame-gem { fill: #34d399; stroke: #ecfdf5; stroke-width: 1.4; }
+.rpg-avatar-frame[data-tier='shop-astral-spirit'] .rpg-frame-wing { fill: #059669; stroke: #a7f3d0; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-astral-spirit'] .rpg-frame-node { fill: #6ee7b7; }
+.rpg-avatar-frame[data-tier='shop-astral-spirit'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(16, 185, 129, 0.52), 0 0 8px rgba(167, 139, 250, 0.35); }
+.rpg-nameplate[data-tier='shop-astral-spirit'] { border-color: rgba(110, 231, 183, 0.85); box-shadow: 0 3px 16px rgba(16, 185, 129, 0.42); }
+
+.rpg-avatar-frame[data-tier='shop-shadow-assassin'] .rpg-frame-ring-outer { stroke: #8b5cf6; stroke-width: 4.5; }
+.rpg-avatar-frame[data-tier='shop-shadow-assassin'] .rpg-frame-ring-runes { stroke: #c4b5fd; stroke-width: 2; stroke-dasharray: 6 3; transform-origin: 50% 50%; animation: rpgSpinSlow 11s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-shadow-assassin'] .rpg-frame-gem { fill: #a78bfa; stroke: #f5f3ff; stroke-width: 1.4; }
+.rpg-avatar-frame[data-tier='shop-shadow-assassin'] .rpg-frame-wing,
+.rpg-avatar-frame[data-tier='shop-shadow-assassin'] .rpg-frame-blade { fill: #6d28d9; stroke: #ddd6fe; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-shadow-assassin'] .rpg-frame-node { fill: #ddd6fe; }
+.rpg-avatar-frame[data-tier='shop-shadow-assassin'] .rpg-avatar-frame-aura { box-shadow: 0 0 20px rgba(139, 92, 246, 0.58); }
+.rpg-nameplate[data-tier='shop-shadow-assassin'] { border-color: rgba(196, 181, 253, 0.85); box-shadow: 0 3px 16px rgba(139, 92, 246, 0.45); }
+
+.rpg-avatar-frame[data-tier='shop-mecha-titan'] .rpg-frame-ring-outer { stroke: #f59e0b; stroke-width: 4.5; }
+.rpg-avatar-frame[data-tier='shop-mecha-titan'] .rpg-frame-ring-runes { stroke: #fde68a; stroke-width: 2; stroke-dasharray: 8 3; transform-origin: 50% 50%; animation: rpgSpinSlow 13s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-mecha-titan'] .rpg-frame-gem { fill: #fbbf24; stroke: #fffbeb; stroke-width: 1.4; }
+.rpg-avatar-frame[data-tier='shop-mecha-titan'] .rpg-frame-wing { fill: #d97706; stroke: #fde68a; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-mecha-titan'] .rpg-frame-node { fill: #fde68a; }
+.rpg-avatar-frame[data-tier='shop-mecha-titan'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(245, 158, 11, 0.55); }
+.rpg-nameplate[data-tier='shop-mecha-titan'] { border-color: rgba(253, 230, 138, 0.85); box-shadow: 0 3px 16px rgba(245, 158, 11, 0.42); }
+
+/* Standalone Avatar Frames */
+.rpg-avatar-frame[data-tier='frame:neon-pulse'] .rpg-frame-ring-outer { stroke: #22d3ee; stroke-width: 4.5; }
+.rpg-avatar-frame[data-tier='frame:neon-pulse'] .rpg-frame-ring-runes { stroke: #c084fc; stroke-width: 2; stroke-dasharray: 4 3; transform-origin: 50% 50%; animation: rpgSpinSlow 8s linear infinite; }
+.rpg-avatar-frame[data-tier='frame:neon-pulse'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(34, 211, 238, 0.6), 0 0 8px rgba(192, 132, 252, 0.45); }
+
+.rpg-avatar-frame[data-tier='frame:sakura-petal'] .rpg-frame-ring-outer { stroke: #f472b6; stroke-width: 4.2; }
+.rpg-avatar-frame[data-tier='frame:sakura-petal'] .rpg-frame-ring-runes { stroke: #fbcfe8; stroke-width: 2; stroke-dasharray: 3 4; transform-origin: 50% 50%; animation: rpgSpinSlow 14s linear infinite; }
+.rpg-avatar-frame[data-tier='frame:sakura-petal'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(244, 114, 182, 0.55); }
+
+.rpg-avatar-frame[data-tier='frame:emerald-circuit'] .rpg-frame-ring-outer { stroke: #10b981; stroke-width: 4.4; }
+.rpg-avatar-frame[data-tier='frame:emerald-circuit'] .rpg-frame-ring-runes { stroke: #6ee7b7; stroke-width: 2; stroke-dasharray: 7 3; transform-origin: 50% 50%; animation: rpgSpinSlow 11s linear infinite; }
+.rpg-avatar-frame[data-tier='frame:emerald-circuit'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(16, 185, 129, 0.58); }
+
+.rpg-avatar-frame[data-tier='frame:eclipse-ring'] .rpg-frame-ring-outer { stroke: #f97316; stroke-width: 4.8; }
+.rpg-avatar-frame[data-tier='frame:eclipse-ring'] .rpg-frame-ring-runes { stroke: #fde047; stroke-width: 2.2; stroke-dasharray: 5 3; transform-origin: 50% 50%; animation: rpgSpinSlow 9s linear infinite; }
+.rpg-avatar-frame[data-tier='frame:eclipse-ring'] .rpg-avatar-frame-aura { box-shadow: 0 0 22px rgba(249, 115, 22, 0.65); }
+
 /* ==========================================================================
    PINNED BADGES ON NAMEPLATE
    ========================================================================== */
@@ -3755,3 +3806,153 @@
 .bounty-hud--banner .bounty-hud-sub {
   color: rgba(226, 232, 240, 0.9);
 }
+
+/* Mix-and-match slot pills & quick-equip buttons in EvolutionModal */
+.rpg-evo-slot-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 20px 10px;
+}
+
+.rpg-evo-slot-pill {
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.4);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rpg-evo-slot-pill:hover {
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #ffffff;
+}
+
+.rpg-evo-slot-pill.is-active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(56, 189, 248, 0.85);
+  color: #ffffff;
+}
+
+.rpg-evo-mix-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rpg-evo-mix-btn {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.5);
+  color: #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rpg-evo-mix-btn:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.7);
+  color: #ffffff;
+}
+
+.rpg-evo-mix-btn.is-equipped {
+  border-color: rgba(34, 197, 94, 0.55);
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+  cursor: default;
+}
+
+/* 10 New Cosmetic Shop Sets: Avatar Frames & Nameplates */
+.rpg-avatar-frame[data-tier='shop-obsidian-reaper'] .rpg-frame-ring-outer { stroke: #f43f5e; stroke-width: 4.6; }
+.rpg-avatar-frame[data-tier='shop-obsidian-reaper'] .rpg-frame-ring-runes { stroke: #fda4af; stroke-width: 2; stroke-dasharray: 6 3; transform-origin: 50% 50%; animation: rpgSpinSlow 10s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-obsidian-reaper'] .rpg-frame-blade,
+.rpg-avatar-frame[data-tier='shop-obsidian-reaper'] .rpg-frame-wing { fill: #9f1239; stroke: #fecdd3; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-obsidian-reaper'] .rpg-avatar-frame-aura { box-shadow: 0 0 20px rgba(244, 63, 94, 0.62); }
+.rpg-nameplate[data-tier='shop-obsidian-reaper'] { border-color: rgba(251, 113, 133, 0.85); box-shadow: 0 3px 16px rgba(244, 63, 94, 0.45); }
+
+.rpg-avatar-frame[data-tier='shop-sakura-ronin'] .rpg-frame-ring-outer { stroke: #f472b6; stroke-width: 4.4; }
+.rpg-avatar-frame[data-tier='shop-sakura-ronin'] .rpg-frame-ring-runes { stroke: #fbcfe8; stroke-width: 2; stroke-dasharray: 4 4; transform-origin: 50% 50%; animation: rpgSpinSlow 14s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-sakura-ronin'] .rpg-frame-gem { fill: #f472b6; stroke: #fdf2f8; stroke-width: 1.4; }
+.rpg-avatar-frame[data-tier='shop-sakura-ronin'] .rpg-avatar-frame-aura { box-shadow: 0 0 18px rgba(244, 114, 182, 0.58); }
+.rpg-nameplate[data-tier='shop-sakura-ronin'] { border-color: rgba(249, 168, 212, 0.85); box-shadow: 0 3px 16px rgba(244, 114, 182, 0.42); }
+
+.rpg-avatar-frame[data-tier='shop-storm-valkyrie'] .rpg-frame-ring-outer { stroke: #38bdf8; stroke-width: 4.6; }
+.rpg-avatar-frame[data-tier='shop-storm-valkyrie'] .rpg-frame-ring-runes { stroke: #bae6fd; stroke-width: 2.2; stroke-dasharray: 8 3; transform-origin: 50% 50%; animation: rpgSpinSlow 8s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-storm-valkyrie'] .rpg-frame-wing { fill: #0284c7; stroke: #e0f2fe; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-storm-valkyrie'] .rpg-avatar-frame-aura { box-shadow: 0 0 22px rgba(56, 189, 248, 0.65); }
+.rpg-nameplate[data-tier='shop-storm-valkyrie'] { border-color: rgba(125, 211, 252, 0.88); box-shadow: 0 3px 16px rgba(56, 189, 248, 0.48); }
+
+.rpg-avatar-frame[data-tier='shop-abyssal-leviathan'] .rpg-frame-ring-outer { stroke: #2dd4bf; stroke-width: 4.6; }
+.rpg-avatar-frame[data-tier='shop-abyssal-leviathan'] .rpg-frame-ring-runes { stroke: #99f6e4; stroke-width: 2; stroke-dasharray: 5 3; transform-origin: 50% 50%; animation: rpgSpinSlow 12s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-abyssal-leviathan'] .rpg-frame-wing { fill: #0f766e; stroke: #ccfbf1; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-abyssal-leviathan'] .rpg-avatar-frame-aura { box-shadow: 0 0 20px rgba(45, 212, 191, 0.6); }
+.rpg-nameplate[data-tier='shop-abyssal-leviathan'] { border-color: rgba(94, 234, 212, 0.85); box-shadow: 0 3px 16px rgba(45, 212, 191, 0.45); }
+
+.rpg-avatar-frame[data-tier='shop-phoenix-sovereign'] .rpg-frame-ring-outer { stroke: #fb923c; stroke-width: 4.8; }
+.rpg-avatar-frame[data-tier='shop-phoenix-sovereign'] .rpg-frame-ring-runes { stroke: #fde047; stroke-width: 2.2; stroke-dasharray: 7 3; transform-origin: 50% 50%; animation: rpgSpinSlow 9s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-phoenix-sovereign'] .rpg-frame-wing,
+.rpg-avatar-frame[data-tier='shop-phoenix-sovereign'] .rpg-frame-blade { fill: #ea580c; stroke: #fed7aa; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-phoenix-sovereign'] .rpg-avatar-frame-aura { box-shadow: 0 0 24px rgba(251, 146, 60, 0.68); }
+.rpg-nameplate[data-tier='shop-phoenix-sovereign'] { border-color: rgba(253, 186, 116, 0.88); box-shadow: 0 3px 18px rgba(251, 146, 60, 0.5); }
+
+.rpg-avatar-frame[data-tier='shop-phantom-samurai'] .rpg-frame-ring-outer { stroke: #34d399; stroke-width: 4.6; }
+.rpg-avatar-frame[data-tier='shop-phantom-samurai'] .rpg-frame-ring-runes { stroke: #c4b5fd; stroke-width: 2; stroke-dasharray: 6 4; transform-origin: 50% 50%; animation: rpgSpinSlow 11s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-phantom-samurai'] .rpg-frame-blade { fill: #6d28d9; stroke: #a7f3d0; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-phantom-samurai'] .rpg-avatar-frame-aura { box-shadow: 0 0 22px rgba(52, 211, 153, 0.58), 0 0 10px rgba(139, 92, 246, 0.45); }
+.rpg-nameplate[data-tier='shop-phantom-samurai'] { border-color: rgba(110, 231, 183, 0.85); box-shadow: 0 3px 16px rgba(52, 211, 153, 0.45); }
+
+.rpg-avatar-frame[data-tier='shop-celestial-archon'] .rpg-frame-ring-outer { stroke: #a78bfa; stroke-width: 4.8; }
+.rpg-avatar-frame[data-tier='shop-celestial-archon'] .rpg-frame-ring-runes { stroke: #fde047; stroke-width: 2.2; stroke-dasharray: 4 3; transform-origin: 50% 50%; animation: rpgSpinSlow 10s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-celestial-archon'] .rpg-frame-halo { stroke: #fde047; stroke-width: 1.8; }
+.rpg-avatar-frame[data-tier='shop-celestial-archon'] .rpg-avatar-frame-aura { box-shadow: 0 0 24px rgba(167, 139, 250, 0.65); }
+.rpg-nameplate[data-tier='shop-celestial-archon'] { border-color: rgba(253, 224, 71, 0.85); box-shadow: 0 3px 18px rgba(167, 139, 250, 0.48); }
+
+.rpg-avatar-frame[data-tier='shop-infernal-warlord'] .rpg-frame-ring-outer { stroke: #ef4444; stroke-width: 4.8; }
+.rpg-avatar-frame[data-tier='shop-infernal-warlord'] .rpg-frame-ring-runes { stroke: #fb923c; stroke-width: 2.2; stroke-dasharray: 8 3; transform-origin: 50% 50%; animation: rpgSpinSlow 9s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-infernal-warlord'] .rpg-frame-blade { fill: #b91c1c; stroke: #fca5a5; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-infernal-warlord'] .rpg-avatar-frame-aura { box-shadow: 0 0 24px rgba(239, 68, 68, 0.68); }
+.rpg-nameplate[data-tier='shop-infernal-warlord'] { border-color: rgba(248, 113, 113, 0.88); box-shadow: 0 3px 18px rgba(239, 68, 68, 0.5); }
+
+.rpg-avatar-frame[data-tier='shop-quantum-hacker'] .rpg-frame-ring-outer { stroke: #10b981; stroke-width: 4.6; }
+.rpg-avatar-frame[data-tier='shop-quantum-hacker'] .rpg-frame-ring-runes { stroke: #22d3ee; stroke-width: 2; stroke-dasharray: 3 3; transform-origin: 50% 50%; animation: rpgSpinSlow 7s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-quantum-hacker'] .rpg-frame-wing { fill: #047857; stroke: #6ee7b7; stroke-width: 1; }
+.rpg-avatar-frame[data-tier='shop-quantum-hacker'] .rpg-avatar-frame-aura { box-shadow: 0 0 22px rgba(16, 185, 129, 0.62); }
+.rpg-nameplate[data-tier='shop-quantum-hacker'] { border-color: rgba(52, 211, 153, 0.88); box-shadow: 0 3px 16px rgba(16, 185, 129, 0.45); }
+
+.rpg-avatar-frame[data-tier='shop-eternal-emperor'] .rpg-frame-ring-outer { stroke: #fde047; stroke-width: 5; }
+.rpg-avatar-frame[data-tier='shop-eternal-emperor'] .rpg-frame-ring-runes { stroke: #e879f9; stroke-width: 2.4; stroke-dasharray: 6 3; transform-origin: 50% 50%; animation: rpgSpinSlow 8s linear infinite; }
+.rpg-avatar-frame[data-tier='shop-eternal-emperor'] .rpg-frame-halo { stroke: #fef08a; stroke-width: 2.2; }
+.rpg-avatar-frame[data-tier='shop-eternal-emperor'] .rpg-frame-wing { fill: #a855f7; stroke: #fef08a; stroke-width: 1.2; }
+.rpg-avatar-frame[data-tier='shop-eternal-emperor'] .rpg-avatar-frame-aura { box-shadow: 0 0 26px rgba(250, 204, 21, 0.72), 0 0 12px rgba(192, 132, 252, 0.55); }
+.rpg-nameplate[data-tier='shop-eternal-emperor'] { border-color: rgba(253, 224, 71, 0.95); box-shadow: 0 4px 20px rgba(250, 204, 21, 0.55); }
+
+/* Studio Color-Grading & Aura Glow for Shop Sets */
+.rpg-evo-showcase[data-tier='shop-obsidian-reaper'] .rpg-evo-character-img { filter: drop-shadow(0 0 22px rgba(244, 63, 94, 0.65)); }
+
+.rpg-evo-showcase[data-tier='shop-sakura-ronin'] .rpg-evo-character-img { filter: drop-shadow(0 0 20px rgba(244, 114, 182, 0.6)); }
+
+.rpg-evo-showcase[data-tier='shop-storm-valkyrie'] .rpg-evo-character-img { filter: drop-shadow(0 0 22px rgba(56, 189, 248, 0.65)); }
+
+.rpg-evo-showcase[data-tier='shop-abyssal-leviathan'] .rpg-evo-character-img { filter: drop-shadow(0 0 20px rgba(45, 212, 191, 0.6)); }
+
+.rpg-evo-showcase[data-tier='shop-phoenix-sovereign'] .rpg-evo-character-img { filter: hue-rotate(18deg) saturate(1.45) drop-shadow(0 0 24px rgba(251, 146, 60, 0.68)); }
+
+.rpg-hero-grand[data-tier='shop-phantom-samurai'] .rpg-hero-parallax-bg { filter: hue-rotate(135deg) saturate(1.35) contrast(1.08); }
+.rpg-evo-showcase[data-tier='shop-phantom-samurai'] .rpg-evo-character-img { filter: hue-rotate(135deg) saturate(1.35) drop-shadow(0 0 22px rgba(52, 211, 153, 0.62)); }
+
+.rpg-evo-showcase[data-tier='shop-celestial-archon'] .rpg-evo-character-img { filter: hue-rotate(245deg) saturate(1.42) drop-shadow(0 0 22px rgba(167, 139, 250, 0.65)); }
+
+.rpg-hero-grand[data-tier='shop-infernal-warlord'] .rpg-hero-parallax-bg { filter: hue-rotate(-15deg) saturate(1.55) contrast(1.12); }
+.rpg-evo-showcase[data-tier='shop-infernal-warlord'] .rpg-evo-character-img { filter: hue-rotate(-15deg) saturate(1.55) drop-shadow(0 0 24px rgba(239, 68, 68, 0.68)); }
+
+.rpg-hero-grand[data-tier='shop-quantum-hacker'] .rpg-hero-parallax-bg { filter: hue-rotate(115deg) saturate(1.45) contrast(1.08); }
+.rpg-evo-showcase[data-tier='shop-quantum-hacker'] .rpg-evo-character-img { filter: hue-rotate(115deg) saturate(1.45) drop-shadow(0 0 22px rgba(16, 185, 129, 0.62)); }
+
+.rpg-evo-showcase[data-tier='shop-eternal-emperor'] .rpg-evo-character-img { filter: drop-shadow(0 0 26px rgba(250, 204, 21, 0.72)); }

@@ -48,6 +48,7 @@ import {
   getCharacterProgression,
   getCharacterTierById,
   getNextCharacterTier,
+  isShopItemUnlocked,
   setEquippedTransmogTier,
   TRANSMOG_STORAGE_KEY,
 } from '@/lib/character-progression';
@@ -123,6 +124,10 @@ export default function DashboardPage() {
     rank?: number;
   } | null>(null);
   const [equippedTierId, setEquippedTierId] = useState<string | null>(null);
+  const [equippedCharacterId, setEquippedCharacterId] = useState<string | null>(null);
+  const [equippedBannerId, setEquippedBannerId] = useState<string | null>(null);
+  const [equippedFrameId, setEquippedFrameId] = useState<string | null>(null);
+  const [equippedNameplateId, setEquippedNameplateId] = useState<string | null>(null);
   const [dailyChestClaimedLocal, setDailyChestClaimedLocal] = useState(false);
   const [claimingChest, setClaimingChest] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
@@ -139,21 +144,78 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (xp?.equippedTierId !== undefined) {
-      setEquippedTierId(xp.equippedTierId ?? null);
-      setEquippedTransmogTier(xp.equippedTierId ?? null);
+      const legacy = xp.equippedTierId ?? null;
+      setEquippedTierId(legacy);
+      setEquippedTransmogTier(legacy);
+      setEquippedCharacterId(xp.equippedCharacterId ?? legacy);
+      setEquippedBannerId(xp.equippedBannerId ?? legacy);
+      setEquippedFrameId(xp.equippedFrameId ?? legacy);
+      setEquippedNameplateId(xp.equippedNameplateId ?? legacy);
     } else if (typeof window !== 'undefined') {
       const savedTransmog = localStorage.getItem(TRANSMOG_STORAGE_KEY);
-      if (savedTransmog) setEquippedTierId(savedTransmog);
+      if (savedTransmog) {
+        setEquippedTierId(savedTransmog);
+        setEquippedCharacterId(savedTransmog);
+        setEquippedBannerId(savedTransmog);
+        setEquippedFrameId(savedTransmog);
+        setEquippedNameplateId(savedTransmog);
+      }
     }
-  }, [xp?.equippedTierId]);
+  }, [
+    xp?.equippedTierId,
+    xp?.equippedCharacterId,
+    xp?.equippedBannerId,
+    xp?.equippedFrameId,
+    xp?.equippedNameplateId,
+  ]);
 
   const handleSelectTransmog = useCallback(
     (tierId: string | null) => {
       setEquippedTierId(tierId);
+      setEquippedCharacterId(tierId);
+      setEquippedBannerId(tierId);
+      setEquippedFrameId(tierId);
+      setEquippedNameplateId(tierId);
       setEquippedTransmogTier(tierId);
       if (user?.id) {
         void xpApi
-          .updateCosmetics({ equippedTierId: tierId })
+          .updateCosmetics({
+            equippedTierId: tierId,
+            equippedCharacterId: tierId,
+            equippedBannerId: tierId,
+            equippedFrameId: tierId,
+            equippedNameplateId: tierId,
+          })
+          .then(() => {
+            void queryClient.invalidateQueries({
+              queryKey: dashboardQueryKeys.summary(user.id),
+            });
+          })
+          .catch(() => undefined);
+      }
+    },
+    [queryClient, user?.id],
+  );
+
+  const handleSelectSlot = useCallback(
+    (slot: 'character' | 'banner' | 'frame' | 'nameplate', id: string | null) => {
+      if (slot === 'character') setEquippedCharacterId(id);
+      if (slot === 'banner') setEquippedBannerId(id);
+      if (slot === 'frame') setEquippedFrameId(id);
+      if (slot === 'nameplate') setEquippedNameplateId(id);
+
+      const payload =
+        slot === 'character'
+          ? { equippedCharacterId: id }
+          : slot === 'banner'
+            ? { equippedBannerId: id }
+            : slot === 'frame'
+              ? { equippedFrameId: id }
+              : { equippedNameplateId: id };
+
+      if (user?.id) {
+        void xpApi
+          .updateCosmetics(payload)
           .then(() => {
             void queryClient.invalidateQueries({
               queryKey: dashboardQueryKeys.summary(user.id),
@@ -169,8 +231,27 @@ export default function DashboardPage() {
     async (cosmeticId: string) => {
       const res = await xpApi.purchaseCosmetic(cosmeticId);
       setEquippedTierId(res.equippedTierId);
+      setEquippedCharacterId(res.equippedCharacterId);
+      setEquippedBannerId(res.equippedBannerId);
+      setEquippedFrameId(res.equippedFrameId);
+      setEquippedNameplateId(res.equippedNameplateId);
       setEquippedTransmogTier(res.equippedTierId);
       if (user?.id) {
+        queryClient.setQueryData(
+          dashboardQueryKeys.summary(user.id),
+          (prev: Record<string, unknown> | undefined) =>
+            prev
+              ? {
+                  ...prev,
+                  equippedTierId: res.equippedTierId,
+                  equippedCharacterId: res.equippedCharacterId,
+                  equippedBannerId: res.equippedBannerId,
+                  equippedFrameId: res.equippedFrameId,
+                  equippedNameplateId: res.equippedNameplateId,
+                  unlockedCosmetics: res.unlockedCosmetics,
+                }
+              : prev,
+        );
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: dashboardQueryKeys.wallet(user.id),
@@ -468,15 +549,23 @@ export default function DashboardPage() {
 
   const displayName = user?.fullName || 'Trần Tuấn Hưng';
   const naturalProgression = getCharacterProgression(userLevel);
-  const transmogCandidate = getCharacterTierById(equippedTierId);
   const unlockedCosmetics = xp?.unlockedCosmetics ?? [];
-  const characterProgression =
-    transmogCandidate &&
-    (transmogCandidate.isShop
-      ? unlockedCosmetics.includes(transmogCandidate.tierId)
-      : userLevel >= transmogCandidate.minLevel)
-      ? transmogCandidate
-      : naturalProgression;
+
+  const resolveEquippedTier = (slotId: string | null) => {
+    const candidate = getCharacterTierById(slotId);
+    if (!candidate) return naturalProgression;
+    if (candidate.isShop) {
+      return isShopItemUnlocked(unlockedCosmetics, slotId ?? candidate.tierId)
+        ? candidate
+        : naturalProgression;
+    }
+    return userLevel >= candidate.minLevel ? candidate : naturalProgression;
+  };
+
+  const characterProgression = resolveEquippedTier(equippedCharacterId ?? equippedTierId);
+  const bannerProgression = resolveEquippedTier(equippedBannerId ?? equippedTierId);
+  const frameProgression = resolveEquippedTier(equippedFrameId ?? equippedTierId);
+  const nameplateProgression = resolveEquippedTier(equippedNameplateId ?? equippedTierId);
   const displayLevelForVisuals = characterProgression.minLevel;
   const nextTier = getNextCharacterTier(userLevel);
   const completedQuestsCount = [isQuest1Done, isQuest2Done, isQuest3Done].filter(Boolean).length;
@@ -554,7 +643,7 @@ export default function DashboardPage() {
       <section
         ref={heroRef}
         className="rpg-hero-grand"
-        data-tier={characterProgression.tierId}
+        data-tier={bannerProgression.tierId}
         onMouseMove={handleHeroMouseMove}
         onMouseLeave={handleHeroMouseLeave}
         aria-label="Hồ sơ nhân vật BCN Arena"
@@ -562,7 +651,7 @@ export default function DashboardPage() {
         {/* Parallax Background Layer */}
         <div
           className="rpg-hero-parallax-bg"
-          style={{ backgroundImage: `url('${characterProgression.bannerBgUrl}')` }}
+          style={{ backgroundImage: `url('${bannerProgression.bannerBgUrl}')` }}
           aria-hidden="true"
         />
         {/* Tier-specific Ambient Particles */}
@@ -616,6 +705,7 @@ export default function DashboardPage() {
               level={displayLevelForVisuals}
               state={activeVideoState}
               onStateComplete={handleVideoStateComplete}
+              posterOverride={characterProgression.isShop ? characterProgression.assetUrl : undefined}
               className="rpg-hero-character-standing"
               alt={characterProgression.tierTitle}
             />
@@ -1106,20 +1196,20 @@ export default function DashboardPage() {
             </div>
 
             {/* User's Current Rank Strip */}
-            <div className="rpg-my-rank-strip" data-tier={characterProgression.tierId}>
+            <div className="rpg-my-rank-strip" data-tier={bannerProgression.tierId}>
               <div className="rpg-my-rank-left">
                 <span className="rpg-my-rank-num">{myRankNum}</span>
                 <AvatarFrame
                   name={displayName}
                   avatarUrl={user?.avatarUrl}
                   level={userLevel}
-                  tierIdOverride={characterProgression.tierId}
+                  tierIdOverride={frameProgression.tierId}
                   size="sm"
                 />
                 <Nameplate
                   name={displayName}
                   level={userLevel}
-                  tierIdOverride={characterProgression.tierId}
+                  tierIdOverride={nameplateProgression.tierId}
                   pinnedBadges={xp?.pinnedBadges}
                   showTitleBadge
                   compact
@@ -1258,11 +1348,16 @@ export default function DashboardPage() {
         userName={displayName}
         userAvatarUrl={user?.avatarUrl}
         equippedTierId={equippedTierId}
+        equippedCharacterId={equippedCharacterId}
+        equippedBannerId={equippedBannerId}
+        equippedFrameId={equippedFrameId}
+        equippedNameplateId={equippedNameplateId}
         coinBalance={totalCoins}
         unlockedCosmetics={xp?.unlockedCosmetics ?? []}
         pinnedBadges={xp?.pinnedBadges ?? []}
         earnedBadges={xp?.earnedBadges ?? []}
         onSelectTransmog={handleSelectTransmog}
+        onSelectSlot={handleSelectSlot}
         onPurchaseCosmetic={handlePurchaseCosmetic}
         onUpdatePinnedBadges={handleUpdatePinnedBadges}
       />

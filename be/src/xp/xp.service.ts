@@ -266,6 +266,10 @@ export class XpService {
               where: { userId },
               select: {
                 equippedTierId: true,
+                equippedCharacterId: true,
+                equippedBannerId: true,
+                equippedFrameId: true,
+                equippedNameplateId: true,
                 pinnedBadges: true,
                 unlockedCosmetics: true,
               },
@@ -294,15 +298,31 @@ export class XpService {
     ]);
 
     const unlockedCosmetics = cosmeticPref?.unlockedCosmetics ?? [];
-    const rawEquipped = cosmeticPref?.equippedTierId ?? null;
-    const minReq = rawEquipped ? TIER_MIN_LEVELS[rawEquipped] : undefined;
-    const isUnlockedShop =
-      Boolean(rawEquipped) && unlockedCosmetics.includes(rawEquipped!);
-    const equippedTierId =
-      rawEquipped &&
-      ((minReq !== undefined && levelInfo.level >= minReq) || isUnlockedShop)
-        ? rawEquipped
-        : null;
+    const equippedTierId = this.resolveValidCosmeticId(
+      cosmeticPref?.equippedTierId ?? null,
+      levelInfo.level,
+      unlockedCosmetics,
+    );
+    const equippedCharacterId = this.resolveValidCosmeticId(
+      cosmeticPref?.equippedCharacterId ?? equippedTierId,
+      levelInfo.level,
+      unlockedCosmetics,
+    );
+    const equippedBannerId = this.resolveValidCosmeticId(
+      cosmeticPref?.equippedBannerId ?? equippedTierId,
+      levelInfo.level,
+      unlockedCosmetics,
+    );
+    const equippedFrameId = this.resolveValidCosmeticId(
+      cosmeticPref?.equippedFrameId ?? equippedTierId,
+      levelInfo.level,
+      unlockedCosmetics,
+    );
+    const equippedNameplateId = this.resolveValidCosmeticId(
+      cosmeticPref?.equippedNameplateId ?? equippedTierId,
+      levelInfo.level,
+      unlockedCosmetics,
+    );
     const pinnedBadges = (cosmeticPref?.pinnedBadges ?? []).slice(
       0,
       MAX_PINNED_BADGES,
@@ -312,6 +332,10 @@ export class XpService {
       totalXp,
       ...levelInfo,
       equippedTierId,
+      equippedCharacterId,
+      equippedBannerId,
+      equippedFrameId,
+      equippedNameplateId,
       pinnedBadges,
       unlockedCosmetics,
       earnedBadges: statsAndBadges.earnedBadges,
@@ -372,11 +396,80 @@ export class XpService {
     };
   }
 
+  private isCosmeticUnlocked(
+    unlockedCosmetics: string[],
+    itemId: string,
+  ): boolean {
+    if (unlockedCosmetics.includes(itemId)) return true;
+    const colonIdx = itemId.indexOf(':');
+    if (colonIdx > 0) {
+      const baseId = itemId.slice(colonIdx + 1);
+      if (unlockedCosmetics.includes(baseId)) return true;
+    }
+    return false;
+  }
+
+  private resolveValidCosmeticId(
+    rawId: string | null | undefined,
+    level: number,
+    unlockedCosmetics: string[],
+  ): string | null {
+    if (!rawId) return null;
+    const minReq = TIER_MIN_LEVELS[rawId];
+    if (minReq !== undefined) {
+      return level >= minReq ? rawId : null;
+    }
+    if (
+      SHOP_COSMETIC_PRICES[rawId] !== undefined &&
+      this.isCosmeticUnlocked(unlockedCosmetics, rawId)
+    ) {
+      return rawId;
+    }
+    return null;
+  }
+
+  private validateSlotSelection(
+    requested: string | null,
+    currentLevel: number,
+    unlockedCosmetics: string[],
+  ): string | null {
+    if (requested === null) return null;
+    if (TIER_MIN_LEVELS[requested] !== undefined) {
+      const minReq = TIER_MIN_LEVELS[requested];
+      if (currentLevel < minReq) {
+        throw new BadRequestException(
+          `Cần đạt Cấp ${minReq} để trang bị ngoại hình này.`,
+        );
+      }
+      return requested;
+    }
+    if (SHOP_COSMETIC_PRICES[requested] !== undefined) {
+      if (!this.isCosmeticUnlocked(unlockedCosmetics, requested)) {
+        throw new BadRequestException(
+          'Bạn chưa mở khóa trang bị cửa hàng này.',
+        );
+      }
+      return requested;
+    }
+    throw new BadRequestException('Giai đoạn ngoại hình không hợp lệ.');
+  }
+
   async updateCosmetics(
     userId: string,
-    payload: { equippedTierId?: string | null; pinnedBadges?: string[] },
+    payload: {
+      equippedTierId?: string | null;
+      equippedCharacterId?: string | null;
+      equippedBannerId?: string | null;
+      equippedFrameId?: string | null;
+      equippedNameplateId?: string | null;
+      pinnedBadges?: string[];
+    },
   ): Promise<{
     equippedTierId: string | null;
+    equippedCharacterId: string | null;
+    equippedBannerId: string | null;
+    equippedFrameId: string | null;
+    equippedNameplateId: string | null;
     pinnedBadges: string[];
     unlockedCosmetics: string[];
   }> {
@@ -385,34 +478,73 @@ export class XpService {
       .catch(() => null);
     const unlockedCosmetics = existing?.unlockedCosmetics ?? [];
 
+    let currentLevel = 1;
+    const needsLevelCheck =
+      payload.equippedTierId !== undefined ||
+      payload.equippedCharacterId !== undefined ||
+      payload.equippedBannerId !== undefined ||
+      payload.equippedFrameId !== undefined ||
+      payload.equippedNameplateId !== undefined;
+    if (needsLevelCheck) {
+      const agg = await this.prisma.userXpEvent.aggregate({
+        where: { userId },
+        _sum: { amount: true },
+      });
+      currentLevel = levelFromXp(agg._sum.amount ?? 0).level;
+    }
+
     let nextEquippedTierId = existing?.equippedTierId ?? null;
+    let nextCharacterId = existing?.equippedCharacterId ?? nextEquippedTierId;
+    let nextBannerId = existing?.equippedBannerId ?? nextEquippedTierId;
+    let nextFrameId = existing?.equippedFrameId ?? nextEquippedTierId;
+    let nextNameplateId = existing?.equippedNameplateId ?? nextEquippedTierId;
+
     if (payload.equippedTierId !== undefined) {
-      const requested = payload.equippedTierId;
-      if (requested === null) {
-        nextEquippedTierId = null;
-      } else if (TIER_MIN_LEVELS[requested] !== undefined) {
-        const minReq = TIER_MIN_LEVELS[requested];
-        const agg = await this.prisma.userXpEvent.aggregate({
-          where: { userId },
-          _sum: { amount: true },
-        });
-        const currentLevel = levelFromXp(agg._sum.amount ?? 0).level;
-        if (currentLevel < minReq) {
-          throw new BadRequestException(
-            `Cần đạt Cấp ${minReq} để trang bị ngoại hình này.`,
-          );
-        }
-        nextEquippedTierId = requested;
-      } else if (SHOP_COSMETIC_PRICES[requested] !== undefined) {
-        if (!unlockedCosmetics.includes(requested)) {
-          throw new BadRequestException(
-            'Bạn chưa mở khóa trang bị cửa hàng này.',
-          );
-        }
-        nextEquippedTierId = requested;
-      } else {
-        throw new BadRequestException('Giai đoạn ngoại hình không hợp lệ.');
+      nextEquippedTierId = this.validateSlotSelection(
+        payload.equippedTierId,
+        currentLevel,
+        unlockedCosmetics,
+      );
+      if (payload.equippedCharacterId === undefined) {
+        nextCharacterId = nextEquippedTierId;
       }
+      if (payload.equippedBannerId === undefined) {
+        nextBannerId = nextEquippedTierId;
+      }
+      if (payload.equippedFrameId === undefined) {
+        nextFrameId = nextEquippedTierId;
+      }
+      if (payload.equippedNameplateId === undefined) {
+        nextNameplateId = nextEquippedTierId;
+      }
+    }
+    if (payload.equippedCharacterId !== undefined) {
+      nextCharacterId = this.validateSlotSelection(
+        payload.equippedCharacterId,
+        currentLevel,
+        unlockedCosmetics,
+      );
+    }
+    if (payload.equippedBannerId !== undefined) {
+      nextBannerId = this.validateSlotSelection(
+        payload.equippedBannerId,
+        currentLevel,
+        unlockedCosmetics,
+      );
+    }
+    if (payload.equippedFrameId !== undefined) {
+      nextFrameId = this.validateSlotSelection(
+        payload.equippedFrameId,
+        currentLevel,
+        unlockedCosmetics,
+      );
+    }
+    if (payload.equippedNameplateId !== undefined) {
+      nextNameplateId = this.validateSlotSelection(
+        payload.equippedNameplateId,
+        currentLevel,
+        unlockedCosmetics,
+      );
     }
 
     let nextPinnedBadges = existing?.pinnedBadges ?? [];
@@ -441,17 +573,29 @@ export class XpService {
       where: { userId },
       update: {
         equippedTierId: nextEquippedTierId,
+        equippedCharacterId: nextCharacterId,
+        equippedBannerId: nextBannerId,
+        equippedFrameId: nextFrameId,
+        equippedNameplateId: nextNameplateId,
         pinnedBadges: nextPinnedBadges,
       },
       create: {
         userId,
         equippedTierId: nextEquippedTierId,
+        equippedCharacterId: nextCharacterId,
+        equippedBannerId: nextBannerId,
+        equippedFrameId: nextFrameId,
+        equippedNameplateId: nextNameplateId,
         pinnedBadges: nextPinnedBadges,
         unlockedCosmetics,
       },
     });
     return {
       equippedTierId: nextEquippedTierId,
+      equippedCharacterId: nextCharacterId,
+      equippedBannerId: nextBannerId,
+      equippedFrameId: nextFrameId,
+      equippedNameplateId: nextNameplateId,
       pinnedBadges: nextPinnedBadges,
       unlockedCosmetics,
     };
@@ -465,6 +609,10 @@ export class XpService {
     alreadyOwned: boolean;
     cosmeticId: string;
     equippedTierId: string | null;
+    equippedCharacterId: string | null;
+    equippedBannerId: string | null;
+    equippedFrameId: string | null;
+    equippedNameplateId: string | null;
     unlockedCosmetics: string[];
     newBalance?: number;
   }> {
@@ -478,12 +626,20 @@ export class XpService {
       .catch(() => null);
     const currentUnlocked = existing?.unlockedCosmetics ?? [];
 
-    if (currentUnlocked.includes(cosmeticId)) {
+    if (this.isCosmeticUnlocked(currentUnlocked, cosmeticId)) {
       return {
         purchased: false,
         alreadyOwned: true,
         cosmeticId,
         equippedTierId: existing?.equippedTierId ?? null,
+        equippedCharacterId:
+          existing?.equippedCharacterId ?? existing?.equippedTierId ?? null,
+        equippedBannerId:
+          existing?.equippedBannerId ?? existing?.equippedTierId ?? null,
+        equippedFrameId:
+          existing?.equippedFrameId ?? existing?.equippedTierId ?? null,
+        equippedNameplateId:
+          existing?.equippedNameplateId ?? existing?.equippedTierId ?? null,
         unlockedCosmetics: currentUnlocked,
       };
     }
@@ -526,17 +682,57 @@ export class XpService {
       newBalance = debit.balance;
     }
 
-    const nextUnlocked = Array.from(new Set([...currentUnlocked, cosmeticId]));
+    const isBundle = !cosmeticId.includes(':');
+    const bundlePieces = isBundle
+      ? [
+          `char:${cosmeticId}`,
+          `banner:${cosmeticId}`,
+          `frame:${cosmeticId}`,
+          `nameplate:${cosmeticId}`,
+        ]
+      : [];
+    const nextUnlocked = Array.from(
+      new Set([...currentUnlocked, cosmeticId, ...bundlePieces]),
+    );
+
+    const nextEquippedTierId = isBundle
+      ? cosmeticId
+      : (existing?.equippedTierId ?? null);
+    const nextCharacterId =
+      isBundle || cosmeticId.startsWith('char:')
+        ? cosmeticId
+        : (existing?.equippedCharacterId ?? existing?.equippedTierId ?? null);
+    const nextBannerId =
+      isBundle || cosmeticId.startsWith('banner:')
+        ? cosmeticId
+        : (existing?.equippedBannerId ?? existing?.equippedTierId ?? null);
+    const nextFrameId =
+      isBundle || cosmeticId.startsWith('frame:')
+        ? cosmeticId
+        : (existing?.equippedFrameId ?? existing?.equippedTierId ?? null);
+    const nextNameplateId =
+      isBundle || cosmeticId.startsWith('nameplate:')
+        ? cosmeticId
+        : (existing?.equippedNameplateId ?? existing?.equippedTierId ?? null);
+
     await this.prisma.userCosmeticPreference.upsert({
       where: { userId },
       update: {
         unlockedCosmetics: nextUnlocked,
-        equippedTierId: cosmeticId,
+        equippedTierId: nextEquippedTierId,
+        equippedCharacterId: nextCharacterId,
+        equippedBannerId: nextBannerId,
+        equippedFrameId: nextFrameId,
+        equippedNameplateId: nextNameplateId,
       },
       create: {
         userId,
         unlockedCosmetics: nextUnlocked,
-        equippedTierId: cosmeticId,
+        equippedTierId: nextEquippedTierId,
+        equippedCharacterId: nextCharacterId,
+        equippedBannerId: nextBannerId,
+        equippedFrameId: nextFrameId,
+        equippedNameplateId: nextNameplateId,
         pinnedBadges: [],
       },
     });
@@ -545,7 +741,11 @@ export class XpService {
       purchased: debited,
       alreadyOwned: false,
       cosmeticId,
-      equippedTierId: cosmeticId,
+      equippedTierId: nextEquippedTierId,
+      equippedCharacterId: nextCharacterId,
+      equippedBannerId: nextBannerId,
+      equippedFrameId: nextFrameId,
+      equippedNameplateId: nextNameplateId,
       unlockedCosmetics: nextUnlocked,
       newBalance,
     };
@@ -567,6 +767,10 @@ export class XpService {
           where: { userId: cleanId },
           select: {
             equippedTierId: true,
+            equippedCharacterId: true,
+            equippedBannerId: true,
+            equippedFrameId: true,
+            equippedNameplateId: true,
             pinnedBadges: true,
             unlockedCosmetics: true,
           },
@@ -582,15 +786,11 @@ export class XpService {
     );
 
     const unlockedCosmetics = cosmeticPref?.unlockedCosmetics ?? [];
-    const rawEquipped = cosmeticPref?.equippedTierId ?? null;
-    const minReq = rawEquipped ? TIER_MIN_LEVELS[rawEquipped] : undefined;
-    const isUnlockedShop =
-      Boolean(rawEquipped) && unlockedCosmetics.includes(rawEquipped!);
-    const equippedTierId =
-      rawEquipped &&
-      ((minReq !== undefined && levelInfo.level >= minReq) || isUnlockedShop)
-        ? rawEquipped
-        : null;
+    const equippedTierId = this.resolveValidCosmeticId(
+      cosmeticPref?.equippedTierId ?? null,
+      levelInfo.level,
+      unlockedCosmetics,
+    );
 
     return {
       userId: cleanId,
@@ -598,6 +798,26 @@ export class XpService {
       level: levelInfo.level,
       rankTitle: levelInfo.rankTitle,
       equippedTierId,
+      equippedCharacterId: this.resolveValidCosmeticId(
+        cosmeticPref?.equippedCharacterId ?? equippedTierId,
+        levelInfo.level,
+        unlockedCosmetics,
+      ),
+      equippedBannerId: this.resolveValidCosmeticId(
+        cosmeticPref?.equippedBannerId ?? equippedTierId,
+        levelInfo.level,
+        unlockedCosmetics,
+      ),
+      equippedFrameId: this.resolveValidCosmeticId(
+        cosmeticPref?.equippedFrameId ?? equippedTierId,
+        levelInfo.level,
+        unlockedCosmetics,
+      ),
+      equippedNameplateId: this.resolveValidCosmeticId(
+        cosmeticPref?.equippedNameplateId ?? equippedTierId,
+        levelInfo.level,
+        unlockedCosmetics,
+      ),
       pinnedBadges: (cosmeticPref?.pinnedBadges ?? []).slice(
         0,
         MAX_PINNED_BADGES,
