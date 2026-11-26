@@ -218,7 +218,7 @@ export function CharacterVideoPlayer({
       <img
         src={activePosterUrl}
         alt={displayTitle}
-        className="character-video-poster rpg-character-poster"
+        className={`character-video-poster rpg-character-poster${hasPosterOverride ? ' rpg-character-poster--animated' : ''}`}
         style={{
           display: 'block',
           width: 'auto',

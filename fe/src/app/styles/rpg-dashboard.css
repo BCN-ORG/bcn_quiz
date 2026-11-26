@@ -327,6 +327,64 @@
   transform: scale(1.03);
 }
 
+@keyframes rpgCharIdleFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scaleY(1) scaleX(1) rotate(0deg);
+  }
+  25% {
+    transform: translate3d(0, -5px, 0) scaleY(1.015) scaleX(0.994) rotate(0.45deg);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0) scaleY(1.022) scaleX(0.992) rotate(0deg);
+  }
+  75% {
+    transform: translate3d(0, -4px, 0) scaleY(1.012) scaleX(0.996) rotate(-0.45deg);
+  }
+}
+
+@keyframes rpgCharAuraPulse {
+  0%, 100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+.rpg-character-poster--animated {
+  transform-origin: 50% 92%;
+  will-change: transform;
+  animation: rpgCharIdleFloat 4.8s ease-in-out infinite;
+}
+
+.rpg-hero-character-trigger:hover .rpg-character-poster--animated {
+  animation-duration: 3.4s;
+}
+
+.rpg-hero-character-trigger:active .rpg-character-poster--animated {
+  transform: scale(0.97) translateY(2px);
+}
+
+.rpg-hero-character-glow {
+  animation: rpgCharAuraPulse 4.2s ease-in-out infinite;
+}
+
+.rpg-evo-character-img:not(.silhouette) {
+  transform-origin: 50% 92%;
+  will-change: transform;
+  animation: rpgCharIdleFloat 5.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rpg-character-poster--animated,
+  .rpg-hero-character-glow,
+  .rpg-evo-character-img:not(.silhouette) {
+    animation: none !important;
+  }
+}
+
 .rpg-character-video,
 .rpg-character-poster,
 .character-video-media,

@@ -739,9 +739,9 @@ export default function WalletPage() {
           aria-label="Chi tiết giao dịch Coin"
           onClick={() => setDetailTx(null)}
         >
-          <div className="dialog-card" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+          <div className="dialog dialog-wide" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className="dialog-header">
-              <h3>Chi tiết giao dịch</h3>
+              <h2>Chi tiết giao dịch</h2>
               <button
                 type="button"
                 className="icon-button"
