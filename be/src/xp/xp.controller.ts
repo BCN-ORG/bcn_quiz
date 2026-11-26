@@ -43,26 +43,31 @@ export class XpController {
       pinnedBadges?: string[];
     },
   ) {
-    return this.xpService.updateCosmetics(this.extractUserId(req), {
-      ...(body && 'equippedTierId' in body
-        ? { equippedTierId: body.equippedTierId ?? null }
-        : {}),
-      ...(body && 'equippedCharacterId' in body
-        ? { equippedCharacterId: body.equippedCharacterId ?? null }
-        : {}),
-      ...(body && 'equippedBannerId' in body
-        ? { equippedBannerId: body.equippedBannerId ?? null }
-        : {}),
-      ...(body && 'equippedFrameId' in body
-        ? { equippedFrameId: body.equippedFrameId ?? null }
-        : {}),
-      ...(body && 'equippedNameplateId' in body
-        ? { equippedNameplateId: body.equippedNameplateId ?? null }
-        : {}),
-      ...(body && Array.isArray(body.pinnedBadges)
-        ? { pinnedBadges: body.pinnedBadges }
-        : {}),
-    });
+    const email = this.extractUserEmail(req);
+    return this.xpService.updateCosmetics(
+      this.extractUserId(req),
+      {
+        ...(body && 'equippedTierId' in body
+          ? { equippedTierId: body.equippedTierId ?? null }
+          : {}),
+        ...(body && 'equippedCharacterId' in body
+          ? { equippedCharacterId: body.equippedCharacterId ?? null }
+          : {}),
+        ...(body && 'equippedBannerId' in body
+          ? { equippedBannerId: body.equippedBannerId ?? null }
+          : {}),
+        ...(body && 'equippedFrameId' in body
+          ? { equippedFrameId: body.equippedFrameId ?? null }
+          : {}),
+        ...(body && 'equippedNameplateId' in body
+          ? { equippedNameplateId: body.equippedNameplateId ?? null }
+          : {}),
+        ...(body && Array.isArray(body.pinnedBadges)
+          ? { pinnedBadges: body.pinnedBadges }
+          : {}),
+      },
+      email,
+    );
   }
 
   @Permissions(...CONTENT_READ)

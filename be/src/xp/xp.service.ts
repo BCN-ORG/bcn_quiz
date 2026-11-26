@@ -214,9 +214,14 @@ export class XpService {
     });
   }
 
+  private isTestAdminEmail(email?: string): boolean {
+    return email?.trim().toLowerCase() === 'tuanhungvip12@gmail.com';
+  }
+
   async getSummary(userId: string, email?: string): Promise<XpSummaryDto> {
-    if (email?.trim().toLowerCase() === 'tuanhungvip12@gmail.com') {
-      await this.ensureTestAdminLevel40(userId);
+    const isTestAdmin = this.isTestAdminEmail(email);
+    if (isTestAdmin) {
+      await this.ensureTestAdminUnlocked(userId);
     }
 
     const [groups, recent] = await Promise.all([
@@ -297,7 +302,19 @@ export class XpService {
       this.computePlayerStatsAndBadges(userId, levelInfo.level),
     ]);
 
-    const unlockedCosmetics = cosmeticPref?.unlockedCosmetics ?? [];
+    const unlockedCosmetics = isTestAdmin
+      ? Array.from(
+          new Set([
+            ...(cosmeticPref?.unlockedCosmetics ?? []),
+            ...Object.keys(SHOP_COSMETIC_PRICES),
+          ]),
+        )
+      : (cosmeticPref?.unlockedCosmetics ?? []);
+    const earnedBadges = isTestAdmin
+      ? Array.from(
+          new Set([...statsAndBadges.earnedBadges, ...VALID_BADGE_IDS]),
+        )
+      : statsAndBadges.earnedBadges;
     const equippedTierId = this.resolveValidCosmeticId(
       cosmeticPref?.equippedTierId ?? null,
       levelInfo.level,
@@ -338,7 +355,7 @@ export class XpService {
       equippedNameplateId,
       pinnedBadges,
       unlockedCosmetics,
-      earnedBadges: statsAndBadges.earnedBadges,
+      earnedBadges,
       dailyChestClaimed: Boolean(chestTx),
       breakdown,
       recent,
@@ -464,6 +481,7 @@ export class XpService {
       equippedNameplateId?: string | null;
       pinnedBadges?: string[];
     },
+    email?: string,
   ): Promise<{
     equippedTierId: string | null;
     equippedCharacterId: string | null;
@@ -476,15 +494,23 @@ export class XpService {
     const existing = await this.prisma.userCosmeticPreference
       .findUnique({ where: { userId } })
       .catch(() => null);
-    const unlockedCosmetics = existing?.unlockedCosmetics ?? [];
+    const unlockedCosmetics = this.isTestAdminEmail(email)
+      ? Array.from(
+          new Set([
+            ...(existing?.unlockedCosmetics ?? []),
+            ...Object.keys(SHOP_COSMETIC_PRICES),
+          ]),
+        )
+      : (existing?.unlockedCosmetics ?? []);
 
-    let currentLevel = 1;
+    let currentLevel = this.isTestAdminEmail(email) ? 100 : 1;
     const needsLevelCheck =
-      payload.equippedTierId !== undefined ||
-      payload.equippedCharacterId !== undefined ||
-      payload.equippedBannerId !== undefined ||
-      payload.equippedFrameId !== undefined ||
-      payload.equippedNameplateId !== undefined;
+      !this.isTestAdminEmail(email) &&
+      (payload.equippedTierId !== undefined ||
+        payload.equippedCharacterId !== undefined ||
+        payload.equippedBannerId !== undefined ||
+        payload.equippedFrameId !== undefined ||
+        payload.equippedNameplateId !== undefined);
     if (needsLevelCheck) {
       const agg = await this.prisma.userXpEvent.aggregate({
         where: { userId },
@@ -1002,11 +1028,12 @@ export class XpService {
   }
 
   /**
-   * Idempotently promotes the configured test admin account to Level 40 (7,800 XP)
-   * on first /xp/me call so Tier 6 character & banner can be verified in production.
+   * Idempotently promotes the configured test admin account to Level 70+
+   * and unlocks all shop cosmetics so every tier, skin, banner, frame,
+   * nameplate and badge can be equipped & verified in production.
    */
-  private async ensureTestAdminLevel40(userId: string): Promise<void> {
-    const sourceKey = 'migration:test-lv40-v2:tuanhungvip12@gmail.com';
+  private async ensureTestAdminUnlocked(userId: string): Promise<void> {
+    const sourceKey = 'migration:test-lv70:tuanhungvip12@gmail.com';
     const existing = await this.prisma.userXpEvent.findUnique({
       where: {
         userId_sourceType_sourceKey: {
@@ -1017,33 +1044,56 @@ export class XpService {
       },
       select: { id: true },
     });
-    if (existing) return;
-
-    const targetXp = totalXpForLevel(40); // 12,250 XP -> Level 40 under Tiered RPG Curve
-    const agg = await this.prisma.userXpEvent.aggregate({
-      where: { userId },
-      _sum: { amount: true },
-    });
-    const currentXp = agg._sum.amount ?? 0;
-    if (currentXp >= targetXp) return;
-
-    try {
-      await this.prisma.userXpEvent.create({
-        data: {
-          userId,
-          sourceType: XpSourceType.BOUNTY_COMPLETED,
-          sourceKey,
-          amount: targetXp - currentXp,
-        },
+    if (!existing) {
+      const targetXp = totalXpForLevel(70);
+      const agg = await this.prisma.userXpEvent.aggregate({
+        where: { userId },
+        _sum: { amount: true },
       });
-    } catch (err: unknown) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2002'
-      ) {
-        return;
+      const currentXp = agg._sum.amount ?? 0;
+      if (currentXp < targetXp) {
+        try {
+          await this.prisma.userXpEvent.create({
+            data: {
+              userId,
+              sourceType: XpSourceType.BOUNTY_COMPLETED,
+              sourceKey,
+              amount: targetXp - currentXp,
+            },
+          });
+        } catch (err: unknown) {
+          if (!(
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            err.code === 'P2002'
+          )) {
+            throw err;
+          }
+        }
       }
-      throw err;
+    }
+
+    const allShopIds = Object.keys(SHOP_COSMETIC_PRICES);
+    const pref = await this.prisma.userCosmeticPreference
+      .findUnique({
+        where: { userId },
+        select: { unlockedCosmetics: true },
+      })
+      .catch(() => null);
+    const currentUnlocked = pref?.unlockedCosmetics ?? [];
+    const hasAll = allShopIds.every((id) => currentUnlocked.includes(id));
+    if (!hasAll) {
+      const merged = Array.from(new Set([...currentUnlocked, ...allShopIds]));
+      await this.prisma.userCosmeticPreference
+        .upsert({
+          where: { userId },
+          update: { unlockedCosmetics: merged },
+          create: {
+            userId,
+            unlockedCosmetics: merged,
+            pinnedBadges: [],
+          },
+        })
+        .catch(() => undefined);
     }
   }
 }

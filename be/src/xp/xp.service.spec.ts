@@ -375,4 +375,21 @@ describe('XpService.purchaseCosmetic (Coin invariants)', () => {
     expect(res.equippedBannerId).toBe('shop-blood-moon');
     expect(res.equippedNameplateId).toBe('shop-blood-moon');
   });
+
+  it('allows tuanhungvip12@gmail.com to equip any shop cosmetic without prior purchase', async () => {
+    const { svc, prisma } = makeShopSetup();
+    const res = await svc.updateCosmetics(
+      'u1',
+      {
+        equippedCharacterId: 'char:shop-eternal-emperor',
+        equippedFrameId: 'frame:eclipse-ring',
+      },
+      'tuanhungvip12@gmail.com',
+    );
+    expect(res.equippedCharacterId).toBe('char:shop-eternal-emperor');
+    expect(res.equippedFrameId).toBe('frame:eclipse-ring');
+    expect(res.unlockedCosmetics).toContain('shop-eternal-emperor');
+    expect(res.unlockedCosmetics).toContain('frame:eclipse-ring');
+    expect(prisma.userCosmeticPreference.upsert).toHaveBeenCalledTimes(1);
+  });
 });
