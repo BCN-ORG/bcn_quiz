@@ -385,8 +385,21 @@ export function AdminBounties() {
                             <strong style={{ fontSize: '0.9375rem', color: 'var(--text)' }}>
                               {sub.bounty.title}
                             </strong>
-                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                              Học viên: <code>{sub.userId}</code> • Nộp lúc: {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString('vi-VN') : 'Mới nộp'}
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap', marginTop: '2px' }}>
+                              <span>Học viên:</span>
+                              {sub.user ? (
+                                <>
+                                  <strong style={{ color: 'var(--text)' }}>
+                                    {sub.user.fullName?.trim() || sub.user.email}
+                                  </strong>
+                                  {sub.user.email && sub.user.fullName?.trim() ? (
+                                    <span>({sub.user.email})</span>
+                                  ) : null}
+                                </>
+                              ) : (
+                                <code style={{ fontSize: '11px' }}>{sub.userId}</code>
+                              )}
+                              <span>• Nộp lúc: {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString('vi-VN') : 'Mới nộp'}</span>
                             </div>
                           </div>
                         </div>

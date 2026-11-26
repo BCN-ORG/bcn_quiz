@@ -223,6 +223,12 @@ export type BountyAssignment = {
   reviewedBy?: string | null;
   reviewFeedback?: string | null;
   bounty: Bounty;
+  user?: {
+    id: string;
+    fullName: string | null;
+    email: string;
+    avatarUrl: string | null;
+  } | null;
   transaction?: {
     id?: string;
     status: 'PENDING' | 'COMPLETED' | 'FAILED' | string;

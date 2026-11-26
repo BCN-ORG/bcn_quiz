@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { NotificationModule } from '../notification/notification.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { ProfilesModule } from '../profiles/profiles.module';
 import { XpModule } from '../xp/xp.module';
 import { CoinRewardSource } from '@prisma/client';
 import { CoinModule } from '../coin/coin.module';
@@ -18,7 +19,13 @@ import {
 import { MockBountyCoinProvider } from './coin/mock-bounty-coin.provider';
 
 @Module({
-  imports: [PrismaModule, XpModule, NotificationModule, CoinModule],
+  imports: [
+    PrismaModule,
+    ProfilesModule,
+    XpModule,
+    NotificationModule,
+    CoinModule,
+  ],
   controllers: [BountyController, BountyAdminController],
   providers: [
     BountyService,

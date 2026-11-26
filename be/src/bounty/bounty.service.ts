@@ -15,6 +15,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProfilesService } from '../profiles/profiles.service';
 import { NotificationService } from '../notification/notification.service';
 import { BountyRewardService } from './bounty-reward.service';
 import {
@@ -31,6 +32,7 @@ export class BountyService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly rewardService: BountyRewardService,
     @Optional() private readonly notificationService?: NotificationService,
+    @Optional() private readonly profilesService?: ProfilesService,
   ) {}
 
   async onModuleInit() {
@@ -584,12 +586,51 @@ export class BountyService implements OnModuleInit {
    * Admin lists submissions.
    */
   async listSubmissions(status?: BountyAssignmentStatus) {
-    return this.prisma.bountyAssignment.findMany({
+    const rows = await this.prisma.bountyAssignment.findMany({
       where: {
         status: status || BountyAssignmentStatus.SUBMITTED,
       },
       include: { bounty: true },
       orderBy: { submittedAt: 'desc' },
+    });
+
+    const userIds = Array.from(
+      new Set(rows.map((r) => r.userId).filter(Boolean)),
+    );
+    let userMap = new Map<
+      string,
+      {
+        id: string;
+        fullName: string | null;
+        email: string;
+        avatarUrl: string | null;
+      }
+    >();
+
+    if (this.profilesService && userIds.length > 0) {
+      try {
+        userMap = await this.profilesService.resolveUsers(userIds);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(
+          `[BountyService] Could not resolve submitter profiles: ${msg}`,
+        );
+      }
+    }
+
+    return rows.map((row) => {
+      const profile = userMap.get(row.userId);
+      return {
+        ...row,
+        user: profile
+          ? {
+              id: profile.id,
+              fullName: profile.fullName,
+              email: profile.email,
+              avatarUrl: profile.avatarUrl,
+            }
+          : null,
+      };
     });
   }
 

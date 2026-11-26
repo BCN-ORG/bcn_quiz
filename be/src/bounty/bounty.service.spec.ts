@@ -6,6 +6,7 @@ import {
   BountyStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProfilesService } from '../profiles/profiles.service';
 import { XpService } from '../xp/xp.service';
 import { BountyRewardService } from './bounty-reward.service';
 import { BountyService } from './bounty.service';
@@ -452,6 +453,66 @@ describe('BountyService', () => {
 
       expect(res.status).toBe('COMPLETED');
       expect(mockPrisma.bountyRewardTransaction.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listSubmissions (Admin review queue)', () => {
+    it('enriches submissions with resolved user profile and falls back cleanly on error', async () => {
+      const mockProfiles = {
+        resolveUsers: jest.fn().mockResolvedValue(
+          new Map([
+            [
+              'user-1',
+              {
+                id: 'user-1',
+                fullName: 'Nguyễn Văn A',
+                email: 'a@bcn.vn',
+                avatarUrl: null,
+              },
+            ],
+          ]),
+        ),
+      };
+
+      const mod = await Test.createTestingModule({
+        providers: [
+          BountyService,
+          BountyRewardService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: XpService, useValue: mockXpService },
+          {
+            provide: BOUNTY_COIN_SERVICE_PROVIDER,
+            useClass: MockBountyCoinProvider,
+          },
+          { provide: ProfilesService, useValue: mockProfiles },
+        ],
+      }).compile();
+
+      const svc = mod.get<BountyService>(BountyService);
+      mockPrisma.bountyAssignment.findMany.mockResolvedValue([
+        { id: 'assign-1', userId: 'user-1', bounty: mockBounty },
+        { id: 'assign-2', userId: 'user-missing', bounty: mockBounty },
+      ]);
+
+      const res = await svc.listSubmissions(BountyAssignmentStatus.SUBMITTED);
+      expect(mockProfiles.resolveUsers).toHaveBeenCalledWith([
+        'user-1',
+        'user-missing',
+      ]);
+      expect(res[0].user).toEqual({
+        id: 'user-1',
+        fullName: 'Nguyễn Văn A',
+        email: 'a@bcn.vn',
+        avatarUrl: null,
+      });
+      expect(res[1].user).toBeNull();
+
+      mockProfiles.resolveUsers.mockRejectedValueOnce(new Error('timeout'));
+      const fallbackRes = await svc.listSubmissions(
+        BountyAssignmentStatus.SUBMITTED,
+      );
+      expect(fallbackRes).toHaveLength(2);
+      expect(fallbackRes[0].user).toBeNull();
     });
   });
 });
