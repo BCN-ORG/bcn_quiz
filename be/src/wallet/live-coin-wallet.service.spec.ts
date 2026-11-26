@@ -174,4 +174,18 @@ describe('LiveCoinWalletService', () => {
     expect(history.transactions[0].id).toBeNull();
     expect(history.transactions[0].type).toBe('SALARY');
   });
+
+  it('rejects transferToDiscordId when sender Discord ID matches recipientDiscordId', async () => {
+    const { service, coinApiClient } = setup();
+    await expect(
+      service.transferToDiscordId(
+        'usr_sender',
+        'Sender',
+        '966153253400231988',
+        50,
+        'idem-self',
+      ),
+    ).rejects.toThrow('Không thể tự chuyển Coin cho chính mình');
+    expect(coinApiClient.transfer).not.toHaveBeenCalled();
+  });
 });

@@ -202,6 +202,12 @@ export class LiveCoinWalletService implements CoinWalletService {
   ): Promise<TransferCoinResult> {
     await this.assertTransfersEnabled();
     const senderDiscordId = await this.requireDiscordId(senderId, 'người gửi');
+    if (senderDiscordId === recipientDiscordId) {
+      throw new BadRequestException({
+        errorCode: 'SELF_TRANSFER_NOT_ALLOWED',
+        message: 'Không thể tự chuyển Coin cho chính mình',
+      });
+    }
     return this.executeTransfer(
       senderDiscordId,
       recipientDiscordId,

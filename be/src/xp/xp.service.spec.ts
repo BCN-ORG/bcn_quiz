@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   XpService,
   cappedBossContribution,
@@ -242,5 +243,136 @@ describe('XpService.awardBossSession', () => {
       svc.awardBossSession('u', 's1', { correctCount: 6, maxCombo: 2 }),
     ).resolves.toEqual({ sessionXp: 50, comboXp: 0 });
     expect(tx.userXpEvent.createMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('XpService.purchaseCosmetic (Coin invariants)', () => {
+  const prevProvider = process.env.COIN_PROVIDER;
+
+  afterEach(() => {
+    process.env.COIN_PROVIDER = prevProvider;
+    jest.clearAllMocks();
+  });
+
+  const makeShopSetup = (
+    unlocked: string[] = [],
+    existingPrefs: Record<string, unknown> = {},
+  ) => {
+    const prisma = {
+      userCosmeticPreference: {
+        findUnique: jest.fn().mockResolvedValue(
+          unlocked.length > 0 || Object.keys(existingPrefs).length > 0
+            ? {
+                userId: 'u1',
+                unlockedCosmetics: unlocked,
+                equippedTierId: null,
+                equippedCharacterId: null,
+                equippedBannerId: null,
+                equippedFrameId: null,
+                equippedNameplateId: null,
+                ...existingPrefs,
+              }
+            : null,
+        ),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const mockWallet = {
+      debitPurchase: jest
+        .fn()
+        .mockResolvedValue({ debited: true, balance: 850 }),
+      creditReward: jest.fn().mockResolvedValue({ credited: true }),
+    };
+    const coinWallet = {
+      transferToDiscordId: jest.fn().mockResolvedValue({ senderBalance: 850 }),
+    };
+    const coinApiClient = {
+      getTreasuryDiscordId: jest.fn().mockReturnValue('treasury-discord-1'),
+    };
+    const svc = new XpService(
+      prisma as never,
+      mockWallet as never,
+      coinWallet as never,
+      undefined,
+      undefined,
+      undefined,
+      coinApiClient as never,
+    );
+    return { svc, prisma, mockWallet, coinWallet, coinApiClient };
+  };
+
+  it('rejects unknown cosmeticId and never debits Coin', async () => {
+    process.env.COIN_PROVIDER = 'mock';
+    const { svc, mockWallet, coinWallet } = makeShopSetup();
+    await expect(
+      svc.purchaseCosmetic('u1', 'shop-non-existent'),
+    ).rejects.toThrow(BadRequestException);
+    expect(mockWallet.debitPurchase).not.toHaveBeenCalled();
+    expect(coinWallet.transferToDiscordId).not.toHaveBeenCalled();
+  });
+
+  it('treats piece of an already-owned bundle as alreadyOwned without double-charging', async () => {
+    process.env.COIN_PROVIDER = 'live';
+    const { svc, mockWallet, coinWallet, prisma } = makeShopSetup([
+      'shop-blood-moon',
+    ]);
+    const res = await svc.purchaseCosmetic('u1', 'char:shop-blood-moon');
+    expect(res.alreadyOwned).toBe(true);
+    expect(res.purchased).toBe(false);
+    expect(coinWallet.transferToDiscordId).not.toHaveBeenCalled();
+    expect(mockWallet.debitPurchase).not.toHaveBeenCalled();
+    expect(prisma.userCosmeticPreference.upsert).not.toHaveBeenCalled();
+  });
+
+  it('purchases a bundle in live mode via Treasury transfer, unlocks 4 pieces, and equips all 4 slots', async () => {
+    process.env.COIN_PROVIDER = 'live';
+    const { svc, coinWallet, prisma } = makeShopSetup();
+    const res = await svc.purchaseCosmetic('u1', 'shop-blood-moon');
+    expect(coinWallet.transferToDiscordId).toHaveBeenCalledWith(
+      'u1',
+      'u1',
+      'treasury-discord-1',
+      150,
+      'shop:cosmetic:u1:shop-blood-moon',
+      'Mua trang bị BCN Arena (shop-blood-moon)',
+    );
+    expect(res.purchased).toBe(true);
+    expect(res.newBalance).toBe(850);
+    expect(res.unlockedCosmetics).toEqual(
+      expect.arrayContaining([
+        'shop-blood-moon',
+        'char:shop-blood-moon',
+        'banner:shop-blood-moon',
+        'frame:shop-blood-moon',
+        'nameplate:shop-blood-moon',
+      ]),
+    );
+    expect(res.equippedCharacterId).toBe('shop-blood-moon');
+    expect(res.equippedBannerId).toBe('shop-blood-moon');
+    expect(res.equippedFrameId).toBe('shop-blood-moon');
+    expect(res.equippedNameplateId).toBe('shop-blood-moon');
+    expect(prisma.userCosmeticPreference.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('purchases an individual frame without overwriting other equipped slots', async () => {
+    process.env.COIN_PROVIDER = 'mock';
+    const { svc, mockWallet } = makeShopSetup(['shop-blood-moon'], {
+      equippedTierId: 'shop-blood-moon',
+      equippedCharacterId: 'shop-blood-moon',
+      equippedBannerId: 'shop-blood-moon',
+      equippedFrameId: 'shop-blood-moon',
+      equippedNameplateId: 'shop-blood-moon',
+    });
+    const res = await svc.purchaseCosmetic('u1', 'frame:neon-pulse');
+    expect(mockWallet.debitPurchase).toHaveBeenCalledWith({
+      userId: 'u1',
+      amount: 50,
+      idempotencyKey: 'shop:cosmetic:u1:frame:neon-pulse',
+      description: 'Mua trang bị BCN Arena (frame:neon-pulse)',
+    });
+    expect(res.equippedFrameId).toBe('frame:neon-pulse');
+    expect(res.equippedCharacterId).toBe('shop-blood-moon');
+    expect(res.equippedBannerId).toBe('shop-blood-moon');
+    expect(res.equippedNameplateId).toBe('shop-blood-moon');
   });
 });
