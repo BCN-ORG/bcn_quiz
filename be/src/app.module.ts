@@ -27,6 +27,13 @@ import { XpModule } from './xp/xp.module';
 import { BountyModule } from './bounty/bounty.module';
 import { CoinModule } from './coin/coin.module';
 import { WalletModule } from './wallet/wallet.module';
+import { QuestModule } from './quest/quest.module';
+import { ShopModule } from './shop/shop.module';
+import { MistakeModule } from './mistake/mistake.module';
+import { SeasonPassModule } from './season-pass/season-pass.module';
+import { DiscordWebhookModule } from './discord-webhook/discord-webhook.module';
+import { GuildModule } from './guild/guild.module';
+import { PvpModule } from './pvp/pvp.module';
 
 /** Env value only when it is a finite number above 0 (a blank `KEY=` would otherwise become 0 = block everything). */
 function positiveNumber(raw: unknown, fallback: number): number {
@@ -84,6 +91,13 @@ function positiveNumber(raw: unknown, fallback: number): number {
     BountyModule,
     CoinModule,
     WalletModule,
+    QuestModule,
+    ShopModule,
+    MistakeModule,
+    SeasonPassModule,
+    DiscordWebhookModule,
+    GuildModule,
+    PvpModule,
   ],
   controllers: [AppController],
   providers: [

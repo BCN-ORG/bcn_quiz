@@ -598,6 +598,10 @@ enum XpSourceType {
   BOSS_SESSION_COMPLETED
   BOSS_COMBO_STREAK
   BOUNTY_COMPLETED
+  QUEST_COMPLETED
+  MISTAKE_REVIEW
+  SEASON_PASS
+  PVP_MATCH
 }
 
 model UserXpEvent {
@@ -850,6 +854,11 @@ enum CoinRewardSource {
   BOUNTY
   LEADERBOARD
   DAILY_QUEST
+  WEEKLY_QUEST
+  MYSTERY_CHEST_REFUND
+  SEASON_PASS
+  PVP_MATCH
+  GUILD_BOSS
   LEVEL_UP
   OTHER
 }
@@ -965,6 +974,236 @@ model UserCosmeticPreference {
   updatedAt           DateTime @updatedAt
 
   @@map("user_cosmetic_preferences")
+}
+
+// ----------------------------------------------------------------------------
+// PHASE 1: DAILY/WEEKLY QUESTS, CONSUMABLES & MYSTERY CHEST
+// ----------------------------------------------------------------------------
+
+enum QuestPeriod {
+  DAILY
+  WEEKLY
+}
+
+enum ConsumableType {
+  STREAK_FREEZE
+  XP_BOOST_2X
+}
+
+model UserQuestClaim {
+  id          String      @id @default(cuid())
+  userId      String
+  period      QuestPeriod
+  periodKey   String
+  questCode   String
+  rewardXp    Int         @default(0)
+  rewardCoins Int         @default(0)
+  claimedAt   DateTime    @default(now())
+
+  @@unique([userId, periodKey, questCode])
+  @@index([userId, periodKey])
+  @@map("user_quest_claims")
+}
+
+model UserInventoryItem {
+  id          String         @id @default(cuid())
+  userId      String
+  itemType    ConsumableType
+  quantity    Int            @default(0)
+  activeUntil DateTime?
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([userId, itemType])
+  @@index([userId])
+  @@map("user_inventory_items")
+}
+
+model MysteryChestRoll {
+  id              String   @id @default(cuid())
+  userId          String
+  idempotencyKey  String   @unique
+  costCoins       Int
+  rewardType      String
+  rewardId        String
+  rewardLabel     String
+  isDuplicate     Boolean  @default(false)
+  refundCoins     Int      @default(0)
+  pityCountAfter  Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("mystery_chest_rolls")
+}
+
+// ----------------------------------------------------------------------------
+// PHASE 2: MISTAKE BANK (SRS) & MONTHLY SEASON PASS
+// ----------------------------------------------------------------------------
+
+enum MistakeStatus {
+  ACTIVE
+  MASTERED
+}
+
+model UserMistakeItem {
+  id                 String        @id @default(cuid())
+  userId             String
+  quizId             String
+  topicId            String
+  wrongCount         Int           @default(1)
+  consecutiveCorrect Int           @default(0)
+  status             MistakeStatus @default(ACTIVE)
+  lastWrongAt        DateTime      @default(now())
+  nextReviewAt       DateTime      @default(now())
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([userId, quizId])
+  @@index([userId, status, nextReviewAt])
+  @@index([userId, topicId])
+  @@map("user_mistake_items")
+}
+
+model SeasonPass {
+  id                String               @id @default(cuid())
+  code              String               @unique
+  title             String
+  startsAt          DateTime
+  endsAt            DateTime
+  premiumPriceCoins Int                  @default(300)
+  isActive          Boolean              @default(true)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  progresses        UserSeasonProgress[]
+
+  @@map("season_passes")
+}
+
+model UserSeasonProgress {
+  id                  String     @id @default(cuid())
+  userId              String
+  seasonId            String
+  seasonXp            Int        @default(0)
+  isPremium           Boolean    @default(false)
+  claimedFreeTiers    Int[]      @default([])
+  claimedPremiumTiers Int[]      @default([])
+  updatedAt           DateTime   @updatedAt
+  season              SeasonPass @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, seasonId])
+  @@index([userId])
+  @@map("user_season_progresses")
+}
+
+// ----------------------------------------------------------------------------
+// PHASE 3: PVP 1V1 QUIZ BATTLE & STUDY GUILDS
+// ----------------------------------------------------------------------------
+
+enum PvpMatchStatus {
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum GuildRole {
+  LEADER
+  OFFICER
+  MEMBER
+}
+
+model PvpMatch {
+  id           String           @id @default(cuid())
+  topicId      String
+  inviteCode   String           @unique
+  status       PvpMatchStatus   @default(WAITING)
+  player1Id    String
+  player2Id    String?
+  questionIds  String[]         @default([])
+  player1Score Int              @default(0)
+  player2Score Int              @default(0)
+  winnerId     String?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  answers      PvpMatchAnswer[]
+
+  @@index([status, createdAt])
+  @@index([player1Id])
+  @@index([player2Id])
+  @@map("pvp_matches")
+}
+
+model PvpMatchAnswer {
+  id             String   @id @default(cuid())
+  matchId        String
+  userId         String
+  questionIndex  Int
+  selectedAnswer String
+  isCorrect      Boolean
+  responseMs     Int      @default(0)
+  points         Int      @default(0)
+  createdAt      DateTime @default(now())
+  match          PvpMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, userId, questionIndex])
+  @@index([matchId])
+  @@map("pvp_match_answers")
+}
+
+model PvpUserRating {
+  userId        String   @id
+  elo           Int      @default(1000)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  draws         Int      @default(0)
+  winStreak     Int      @default(0)
+  bestWinStreak Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@index([elo])
+  @@map("pvp_user_ratings")
+}
+
+model Guild {
+  id          String                  @id @default(cuid())
+  name        String                  @unique
+  tag         String                  @unique
+  description String                  @default("")
+  leaderId    String
+  maxMembers  Int                     @default(10)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  members     GuildMember[]
+  bossStats   GuildBossContribution[]
+
+  @@map("guilds")
+}
+
+model GuildMember {
+  id       String    @id @default(cuid())
+  guildId  String
+  userId   String    @unique
+  role     GuildRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+  guild    Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@map("guild_members")
+}
+
+model GuildBossContribution {
+  id               String   @id @default(cuid())
+  seasonId         String
+  guildId          String
+  totalDamage      Int      @default(0)
+  participantCount Int      @default(0)
+  updatedAt        DateTime @updatedAt
+  guild            Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, guildId])
+  @@index([seasonId, totalDamage])
+  @@map("guild_boss_contributions")
 }
 
 

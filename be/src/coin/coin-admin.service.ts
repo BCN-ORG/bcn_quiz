@@ -110,6 +110,11 @@ export class CoinAdminService {
       [CoinRewardSource.BOUNTY]: { count: 0, totalCoins: 0 },
       [CoinRewardSource.LEADERBOARD]: { count: 0, totalCoins: 0 },
       [CoinRewardSource.DAILY_QUEST]: { count: 0, totalCoins: 0 },
+      [CoinRewardSource.WEEKLY_QUEST]: { count: 0, totalCoins: 0 },
+      [CoinRewardSource.MYSTERY_CHEST_REFUND]: { count: 0, totalCoins: 0 },
+      [CoinRewardSource.SEASON_PASS]: { count: 0, totalCoins: 0 },
+      [CoinRewardSource.PVP_MATCH]: { count: 0, totalCoins: 0 },
+      [CoinRewardSource.GUILD_BOSS]: { count: 0, totalCoins: 0 },
       [CoinRewardSource.LEVEL_UP]: { count: 0, totalCoins: 0 },
       [CoinRewardSource.OTHER]: { count: 0, totalCoins: 0 },
     };

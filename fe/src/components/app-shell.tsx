@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Certificate,
+  ArrowCounterClockwise,
   BookOpen,
   Briefcase,
   CaretDoubleLeft,
@@ -11,6 +12,7 @@ import {
   CaretDown,
   CheckSquare as FileCheck,
   Coins,
+  Crown,
   Exam,
   Folders,
   Gauge,
@@ -29,6 +31,7 @@ import {
   Plus,
   Receipt,
   Sun,
+  UsersThree,
   Wallet,
   X,
 } from '@phosphor-icons/react';
@@ -96,6 +99,7 @@ const navGroups: NavGroup[] = [
     icon: GraduationCap,
     items: [
       { href: '/courses', label: 'Khóa học', icon: BookOpen, allow: canReadQuestions },
+      { href: '/mistakes', label: 'Ôn câu sai', icon: ArrowCounterClockwise, allow: canReadQuestions },
       { href: '/certificates', label: 'Chứng nhận', icon: Certificate, allow: canReadResults },
       { href: '/history', label: 'Lịch sử', icon: ClockCounterClockwise, allow: canReadResults },
     ],
@@ -105,6 +109,9 @@ const navGroups: NavGroup[] = [
     label: 'Đấu Trường & Thử Thách',
     icon: Sword,
     items: [
+      { href: '/season-pass', label: 'Season Pass', icon: Crown, allow: canReadQuestions },
+      { href: '/pvp', label: 'Đấu trường PvP', icon: Sword, allow: canReadQuestions },
+      { href: '/guilds', label: 'Bang hội', icon: UsersThree, allow: canReadQuestions },
       { href: '/tower', label: 'Leo Tháp', icon: Lightning, allow: canReadQuestions },
       { href: '/boss', label: 'Săn Boss', icon: Sword, allow: canReadQuestions },
       { href: '/bounties', label: 'Nhiệm vụ', icon: Briefcase, allow: canReadQuestions, alsoActive: ['/missions'] },

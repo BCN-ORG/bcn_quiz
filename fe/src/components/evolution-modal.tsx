@@ -25,6 +25,7 @@ import {
 } from '@/lib/character-progression';
 import { AvatarFrame } from '@/components/avatar-frame';
 import { Nameplate } from '@/components/nameplate';
+import { ShopConsumablesPanel } from '@/components/shop-consumables-panel';
 import {
   playEquipSfx,
   triggerCelebrationBurst,
@@ -53,6 +54,7 @@ export interface EvolutionModalProps {
   ) => void;
   onPurchaseCosmetic?: (cosmeticId: string) => Promise<void>;
   onUpdatePinnedBadges?: (badges: string[]) => Promise<void>;
+  onShopInventoryChanged?: () => void;
 }
 
 const SHOP_SLOT_PILLS: Array<{ slot: CosmeticSlot; label: string }> = [
@@ -83,9 +85,10 @@ export function EvolutionModal({
   onSelectSlot,
   onPurchaseCosmetic,
   onUpdatePinnedBadges,
+  onShopInventoryChanged,
 }: EvolutionModalProps) {
   const naturalTier = getCharacterProgression(userLevel);
-  const [activeTab, setActiveTab] = useState<'tiers' | 'shop' | 'badges'>('tiers');
+  const [activeTab, setActiveTab] = useState<'tiers' | 'shop' | 'items' | 'badges'>('tiers');
   const [shopSlot, setShopSlot] = useState<CosmeticSlot>('bundle');
   const [selectedTier, setSelectedTier] = useState<CharacterTier>(naturalTier);
   const [selectedShopItem, setSelectedShopItem] = useState<ShopCosmeticItem | null>(null);
@@ -305,6 +308,19 @@ export function EvolutionModal({
           <button
             type="button"
             role="tab"
+            aria-selected={activeTab === 'items'}
+            className={`rpg-evo-mode-tab ${activeTab === 'items' ? 'is-active' : ''}`}
+            onClick={() => {
+              setActiveTab('items');
+              setShopError(null);
+            }}
+          >
+            <Sparkle size={15} weight="fill" />
+            <span>Vật Phẩm & Rương Bí Ẩn</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={activeTab === 'badges'}
             className={`rpg-evo-mode-tab ${activeTab === 'badges' ? 'is-active' : ''}`}
             onClick={() => {
@@ -317,7 +333,12 @@ export function EvolutionModal({
           </button>
         </div>
 
-        {activeTab === 'badges' ? (
+        {activeTab === 'items' ? (
+          <ShopConsumablesPanel
+            coinBalance={coinBalance}
+            onBalanceOrUnlockChanged={onShopInventoryChanged}
+          />
+        ) : activeTab === 'badges' ? (
           <div className="rpg-badge-picker-panel">
             <div className="rpg-badge-preview-bar">
               <span className="rpg-evo-perk-label">Xem trước trên bảng tên của bạn:</span>

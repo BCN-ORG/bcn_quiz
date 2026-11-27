@@ -8,6 +8,10 @@ export const XP_AMOUNTS: Record<XpSourceType, number> = {
   BOSS_SESSION_COMPLETED: 50,
   BOSS_COMBO_STREAK: 25,
   BOUNTY_COMPLETED: 100,
+  QUEST_COMPLETED: 25,
+  MISTAKE_REVIEW: 15,
+  SEASON_PASS: 50,
+  PVP_MATCH: 30,
 };
 
 export const XP_PER_LEVEL = 200;

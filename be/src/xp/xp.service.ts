@@ -1,5 +1,10 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
-import { CoinRewardSource, Prisma, XpSourceType } from '@prisma/client';
+import {
+  CoinRewardSource,
+  ConsumableType,
+  Prisma,
+  XpSourceType,
+} from '@prisma/client';
 import { CoinApiClient, getCoinProviderMode } from '../coin/coin-api.client';
 import { CoinConfigService } from '../coin/coin-config.service';
 import { CoinTrackingService } from '../coin/coin-tracking.service';
@@ -134,6 +139,27 @@ export class XpService {
       amount = overrideAmount;
     }
 
+    // Apply active 2x XP Boost consumable if present
+    if (
+      amount > 0 &&
+      typeof this.prisma.userInventoryItem?.findUnique === 'function'
+    ) {
+      const boost = await this.prisma.userInventoryItem
+        .findUnique({
+          where: {
+            userId_itemType: {
+              userId,
+              itemType: ConsumableType.XP_BOOST_2X,
+            },
+          },
+          select: { activeUntil: true },
+        })
+        .catch(() => null);
+      if (boost?.activeUntil && boost.activeUntil.getTime() > Date.now()) {
+        amount = Math.min(amount * 2, 1000);
+      }
+    }
+
     // createMany + skipDuplicates = INSERT .. ON CONFLICT DO NOTHING: no error
     // (and so no aborted Postgres transaction) on duplicates.
     const res = await client.userXpEvent.createMany({
@@ -252,6 +278,11 @@ export class XpService {
       CERTIFICATE_ISSUED: { count: 0, xp: 0 },
       BOSS_SESSION_COMPLETED: { count: 0, xp: 0 },
       BOSS_COMBO_STREAK: { count: 0, xp: 0 },
+      BOUNTY_COMPLETED: { count: 0, xp: 0 },
+      QUEST_COMPLETED: { count: 0, xp: 0 },
+      MISTAKE_REVIEW: { count: 0, xp: 0 },
+      SEASON_PASS: { count: 0, xp: 0 },
+      PVP_MATCH: { count: 0, xp: 0 },
     } as Record<XpSourceType, { count: number; xp: number }>;
     let totalXp = 0;
     for (const g of groups) {

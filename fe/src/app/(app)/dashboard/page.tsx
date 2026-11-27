@@ -28,6 +28,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEve
 import { useAuth } from '@/components/auth-provider';
 import { AvatarFrame } from '@/components/avatar-frame';
 import { CharacterVideoPlayer } from '@/components/character-video-player';
+import { DailyWeeklyQuestsCard } from '@/components/daily-weekly-quests-card';
 import { EvolutionModal } from '@/components/evolution-modal';
 import { LevelUpModal } from '@/components/level-up-modal';
 import { Nameplate } from '@/components/nameplate';
@@ -802,6 +803,21 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      <DailyWeeklyQuestsCard
+        onRewardClaimed={() => {
+          if (user?.id) {
+            void Promise.all([
+              queryClient.invalidateQueries({
+                queryKey: dashboardQueryKeys.summary(user.id),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: dashboardQueryKeys.wallet(user.id),
+              }),
+            ]);
+          }
+        }}
+      />
+
       {/* -------------------------------------------------------------------
           B & C. Mid Grid: Continue Learning (~68%) + Daily Quest (~32%)
           ------------------------------------------------------------------- */}
@@ -1360,6 +1376,18 @@ export default function DashboardPage() {
         onSelectSlot={handleSelectSlot}
         onPurchaseCosmetic={handlePurchaseCosmetic}
         onUpdatePinnedBadges={handleUpdatePinnedBadges}
+        onShopInventoryChanged={() => {
+          if (user?.id) {
+            void Promise.all([
+              queryClient.invalidateQueries({
+                queryKey: dashboardQueryKeys.summary(user.id),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: dashboardQueryKeys.wallet(user.id),
+              }),
+            ]);
+          }
+        }}
       />
 
       <LevelUpModal
