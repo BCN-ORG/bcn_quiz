@@ -161,4 +161,35 @@ describe('MinioService', () => {
       'Unable to verify',
     );
   });
+
+  it('onModuleInit runs bucket setup in background without blocking startup', async () => {
+    const service = new MinioService();
+    const client = (
+      service as unknown as { client: { bucketExists: jest.Mock } }
+    ).client;
+    const errorSpy = jest
+      .spyOn(
+        (service as unknown as { logger: { error: jest.Mock } }).logger,
+        'error',
+      )
+      .mockImplementation(() => undefined);
+    let rejectBucket!: (err: Error) => void;
+    client.bucketExists = jest.fn(
+      () =>
+        new Promise<boolean>((_resolve, reject) => {
+          rejectBucket = reject;
+        }),
+    );
+
+    const returnValue = service.onModuleInit();
+    expect(returnValue).toBeUndefined();
+    expect(client.bucketExists).toHaveBeenCalledWith('profiles');
+
+    rejectBucket(new Error('S3 timeout'));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(errorSpy).toHaveBeenCalledWith(
+      'MinIO bucket setup failed; upload may be unavailable',
+      expect.stringContaining('S3 timeout'),
+    );
+  });
 });

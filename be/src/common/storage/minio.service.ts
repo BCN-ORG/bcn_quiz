@@ -71,16 +71,16 @@ export class MinioService implements OnModuleInit {
     this.client = create(endpoint);
   }
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     if (!this.client) return;
-    try {
-      await this.ensureBucketReady();
-    } catch (error) {
+    // Run bucket initialization in the background so slow/unreachable MinIO
+    // never blocks NestJS HTTP server startup or container health checks.
+    void this.ensureBucketReady().catch((error: unknown) => {
       this.logger.error(
         'MinIO bucket setup failed; upload may be unavailable',
         error instanceof Error ? error.stack : String(error),
       );
-    }
+    });
   }
 
   private async ensureBucketReady(): Promise<void> {
