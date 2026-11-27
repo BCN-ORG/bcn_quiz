@@ -81,44 +81,23 @@ export function DailyWeeklyQuestsCard({
   ).length;
 
   return (
-    <section
-      className="rpg-card"
-      aria-label="Nhiệm vụ Ngày & Tuần"
-      style={{
-        padding: '18px 20px',
-        borderRadius: 18,
-        background: 'var(--surface)',
-        border: '1px solid var(--line)',
-        display: 'grid',
-        gap: 14,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 10,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Gift size={20} weight="fill" color="#f59e0b" aria-hidden="true" />
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
-            Nhiệm Vụ Ngày & Tuần
-          </h3>
+    <section className="dq-widget" aria-label="Nhiệm vụ Ngày & Tuần">
+      <div className="arena-section-head">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div
+            className="arena-kpi-icon arena-kpi-icon--amber"
+            style={{ width: 38, height: 38, borderRadius: 11 }}
+          >
+            <Gift size={20} weight="fill" aria-hidden="true" />
+          </div>
+          <div>
+            <h3 className="arena-section-title" style={{ fontSize: 16 }}>
+              Nhiệm Vụ Ngày & Tuần
+            </h3>
+          </div>
           {readyCount > 0 ? (
-            <span
-              style={{
-                padding: '2px 8px',
-                borderRadius: 999,
-                background: 'rgba(16, 185, 129, 0.16)',
-                color: '#10b981',
-                fontSize: 11.5,
-                fontWeight: 800,
-              }}
-            >
-              {readyCount} sẵn sàng nhận
+            <span className="mk-topic-pill">
+              <Sparkle size={12} weight="fill" /> {readyCount} sẵn sàng nhận
             </span>
           ) : null}
         </div>
@@ -127,52 +106,32 @@ export function DailyWeeklyQuestsCard({
           {inventory?.xpBoostActive ? (
             <span
               title={`Hết hạn: ${new Date(inventory.xpBoostActiveUntil!).toLocaleString('vi-VN')}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '3px 9px',
-                borderRadius: 999,
-                background: 'rgba(168, 85, 247, 0.16)',
-                color: '#a855f7',
-                fontSize: 11.5,
-                fontWeight: 800,
-              }}
+              className="arena-badge-xp"
             >
               <Lightning size={13} weight="fill" /> 2x XP Đang bật
             </span>
           ) : null}
           {(inventory?.streakFreezeCount ?? 0) > 0 ? (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '3px 9px',
-                borderRadius: 999,
-                background: 'rgba(56, 189, 248, 0.14)',
-                color: '#0284c7',
-                fontSize: 11.5,
-                fontWeight: 800,
-              }}
-            >
+            <span className="arena-badge-coin">
               <ShieldCheck size={13} weight="fill" /> {inventory?.streakFreezeCount} Khiên chuỗi
             </span>
           ) : null}
 
-          <div style={{ display: 'inline-flex', gap: 6 }}>
+          <div className="arena-pill-tabs" role="tablist" aria-label="Loại nhiệm vụ">
             <button
               type="button"
-              className={`button secondary ${tab === 'daily' ? 'active' : ''}`}
-              style={{ minHeight: 30, padding: '0 10px', fontSize: 12 }}
+              role="tab"
+              aria-selected={tab === 'daily'}
+              className={`arena-pill-tab ${tab === 'daily' ? 'is-active' : ''}`}
               onClick={() => setTab('daily')}
             >
               Hằng ngày
             </button>
             <button
               type="button"
-              className={`button secondary ${tab === 'weekly' ? 'active' : ''}`}
-              style={{ minHeight: 30, padding: '0 10px', fontSize: 12 }}
+              role="tab"
+              aria-selected={tab === 'weekly'}
+              className={`arena-pill-tab ${tab === 'weekly' ? 'is-active' : ''}`}
               onClick={() => setTab('weekly')}
             >
               Hằng tuần
@@ -182,97 +141,67 @@ export function DailyWeeklyQuestsCard({
       </div>
 
       {notice ? (
-        <div
-          style={{
-            padding: '8px 12px',
-            borderRadius: 10,
-            background: 'rgba(16, 185, 129, 0.12)',
-            color: '#059669',
-            fontSize: 12.5,
-            fontWeight: 700,
-          }}
-        >
-          {notice}
+        <div className="arena-notice arena-notice--success">
+          <CheckCircle size={17} weight="fill" />
+          <span>{notice}</span>
         </div>
       ) : null}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 10,
-        }}
-      >
+      <div className="dq-grid">
         {list.map((q) => {
-          const pct = Math.min(100, Math.round((q.progress / Math.max(1, q.target)) * 100));
+          const pct = Math.min(
+            100,
+            Math.round((q.progress / Math.max(1, q.target)) * 100),
+          );
+          const ready = q.completed && !q.claimed;
           return (
-            <div
-              key={q.code}
-              style={{
-                padding: '12px 14px',
-                borderRadius: 12,
-                background: 'var(--surface-2)',
-                border: q.completed && !q.claimed
-                  ? '1px solid rgba(16, 185, 129, 0.55)'
-                  : '1px solid var(--line)',
-                display: 'grid',
-                gap: 8,
-              }}
-            >
+            <article key={q.code} className={`dq-item ${ready ? 'is-ready' : ''}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <strong style={{ fontSize: 13.5 }}>{q.title}</strong>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)' }}>
+                <strong style={{ fontSize: 14 }}>{q.title}</strong>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: q.completed ? '#10b981' : 'var(--muted)',
+                  }}
+                >
                   {q.progress}/{q.target}
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.45 }}>
                 {q.description}
               </p>
-              <div
-                style={{
-                  height: 6,
-                  borderRadius: 999,
-                  background: 'var(--line)',
-                  overflow: 'hidden',
-                }}
-              >
+
+              <div className="arena-progress" style={{ height: 6 }}>
                 <div
-                  style={{
-                    width: `${pct}%`,
-                    height: '100%',
-                    background: q.completed ? '#10b981' : 'var(--accent)',
-                    transition: 'width 0.25s ease',
-                  }}
+                  className="arena-progress__fill"
+                  style={{ width: `${pct}%` }}
                 />
               </div>
+
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 8,
+                  marginTop: 2,
                 }}
               >
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   {q.rewardXp > 0 ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#0284c7' }}>
+                    <span className="arena-badge-xp">
                       <Sparkle size={12} weight="fill" /> +{q.rewardXp} XP
                     </span>
                   ) : null}
                   {q.rewardCoins > 0 ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#d97706' }}>
+                    <span className="arena-badge-coin">
                       <Coins size={12} weight="fill" /> +{q.rewardCoins} Coin
                     </span>
                   ) : null}
-                </span>
+                </div>
 
                 {q.claimed ? (
                   <span
@@ -285,25 +214,25 @@ export function DailyWeeklyQuestsCard({
                       color: '#10b981',
                     }}
                   >
-                    <CheckCircle size={14} weight="fill" /> Đã nhận
+                    <CheckCircle size={15} weight="fill" /> Đã nhận
                   </span>
-                ) : q.completed ? (
+                ) : ready ? (
                   <button
                     type="button"
                     className="button"
                     disabled={claimingCode === q.code}
-                    style={{ minHeight: 28, padding: '0 10px', fontSize: 12 }}
+                    style={{ minHeight: 30, padding: '0 12px', fontSize: 12 }}
                     onClick={(e) => void handleClaim(q, e)}
                   >
                     {claimingCode === q.code ? 'Đang nhận…' : 'Nhận thưởng'}
                   </button>
                 ) : (
-                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                    Đang thực hiện
+                  <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>
+                    Đang tiến hành
                   </span>
                 )}
               </div>
-            </div>
+            </article>
           );
         })}
       </div>

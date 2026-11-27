@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  CheckCircle,
   Coins,
   Gift,
   Lightning,
   ShieldCheck,
   Sparkle,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import {
   questsShopApi,
@@ -100,70 +102,48 @@ export function ShopConsumablesPanel({
   }
 
   const chestCost = inventory.mysteryChest.costCoins;
+  const pityPct = Math.min(
+    100,
+    Math.round(
+      (inventory.mysteryChest.pityCount /
+        Math.max(1, inventory.mysteryChest.pityThreshold)) *
+        100,
+    ),
+  );
 
   return (
-    <div style={{ display: 'grid', gap: 16, padding: '4px 4px 10px' }}>
+    <div className="sc-wrap">
       {error ? (
-        <div
-          role="alert"
-          style={{
-            padding: '10px 14px',
-            borderRadius: 10,
-            background: 'rgba(244, 63, 94, 0.16)',
-            color: '#fda4af',
-            fontSize: 13,
-            fontWeight: 700,
-          }}
-        >
-          {error}
+        <div role="alert" className="arena-notice arena-notice--error">
+          <WarningCircle size={18} weight="fill" />
+          <span>{error}</span>
         </div>
       ) : null}
 
       {toast ? (
-        <div
-          style={{
-            padding: '10px 14px',
-            borderRadius: 10,
-            background: 'rgba(16, 185, 129, 0.16)',
-            color: '#6ee7b7',
-            fontSize: 13,
-            fontWeight: 700,
-          }}
-        >
-          {toast}
+        <div className="arena-notice arena-notice--success">
+          <CheckCircle size={18} weight="fill" />
+          <span>{toast}</span>
         </div>
       ) : null}
 
       {/* Mystery Chest Hero Box */}
-      <div
-        style={{
-          padding: '18px 20px',
-          borderRadius: 16,
-          background:
-            'linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(234, 179, 8, 0.18))',
-          border: '1px solid rgba(250, 204, 21, 0.45)',
-          display: 'grid',
-          gap: 12,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 10,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Gift size={26} weight="fill" color="#facc15" />
+      <section className="sc-chest-hero">
+        <div className="sc-chest-top">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, maxWidth: 520 }}>
+            <div className="sc-chest-icon">
+              <Gift size={26} weight="fill" />
+            </div>
             <div>
-              <strong style={{ fontSize: 16, color: '#fff' }}>
+              <strong style={{ fontSize: 17, color: '#ffffff', fontFamily: 'var(--font-display)' }}>
                 Rương Bí Ẩn BCN Arena
               </strong>
-              <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#cbd5e1' }}>
+              <p style={{ margin: '3px 0 0', fontSize: 13, color: '#cbd5e1', lineHeight: 1.45 }}>
                 Mở ngẫu nhiên Khung/Mảnh trang bị hiếm, Thẻ 2x XP hoặc Khiên giữ chuỗi. Trùng đồ hoàn ngay{' '}
-                <strong>{inventory.mysteryChest.duplicateRefundCoins} Coin</strong>!
+                <strong style={{ color: '#fde047' }}>
+                  {inventory.mysteryChest.duplicateRefundCoins} Coin
+                </strong>
+                .
               </p>
             </div>
           </div>
@@ -183,23 +163,42 @@ export function ShopConsumablesPanel({
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
-          <span style={{ color: '#fde047', fontWeight: 700 }}>
-            Bảo hiểm Pity: {inventory.mysteryChest.pityCount}/
-            {inventory.mysteryChest.pityThreshold}
-          </span>
-          <span style={{ color: '#94a3b8' }}>
-            (Chắc chắn nhận trang bị hiếm chưa sở hữu ở lượt thứ{' '}
-            {inventory.mysteryChest.pityThreshold})
-          </span>
+        <div className="sc-pity-wrap">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 8,
+              fontSize: 12,
+            }}
+          >
+            <span style={{ color: '#fde047', fontWeight: 700 }}>
+              Bảo hiểm Pity: {inventory.mysteryChest.pityCount}/
+              {inventory.mysteryChest.pityThreshold}
+            </span>
+            <span style={{ color: '#94a3b8' }}>
+              Chắc chắn nhận trang bị hiếm chưa sở hữu ở lượt thứ{' '}
+              {inventory.mysteryChest.pityThreshold}
+            </span>
+          </div>
+          <div className="sp-hero-progress__bar" style={{ height: 7 }}>
+            <div
+              className="arena-progress__fill arena-progress__fill--gold"
+              style={{ width: `${pityPct}%` }}
+            />
+          </div>
         </div>
 
         {lastRoll ? (
           <div
             style={{
-              padding: '10px 14px',
+              position: 'relative',
+              zIndex: 1,
+              padding: '12px 15px',
               borderRadius: 12,
-              background: 'rgba(15, 23, 42, 0.72)',
+              background: 'rgba(15, 23, 42, 0.78)',
               border: '1px solid rgba(56, 189, 248, 0.5)',
               display: 'flex',
               alignItems: 'center',
@@ -208,65 +207,68 @@ export function ShopConsumablesPanel({
               flexWrap: 'wrap',
             }}
           >
-            <span style={{ fontSize: 13.5, fontWeight: 800, color: '#fde047' }}>
-              🎉 Bạn nhận được: {lastRoll.rewardLabel}
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                fontSize: 14,
+                fontWeight: 800,
+                color: '#fde047',
+              }}
+            >
+              <Sparkle size={17} weight="fill" />
+              Bạn nhận được: {lastRoll.rewardLabel}
             </span>
             {lastRoll.isDuplicate ? (
-              <span style={{ fontSize: 12, color: '#86efac', fontWeight: 700 }}>
+              <span style={{ fontSize: 12.5, color: '#86efac', fontWeight: 700 }}>
                 Đã sở hữu → Hoàn +{lastRoll.refundCoins} Coin
               </span>
             ) : null}
           </div>
         ) : null}
-      </div>
+      </section>
 
       {/* Consumables Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: 12,
-        }}
-      >
+      <div className="sc-consumables-grid">
         {inventory.catalog.map((item) => {
           const isFreeze = item.itemType === 'STREAK_FREEZE';
           const maxed =
             isFreeze &&
             inventory.streakFreezeCount >= inventory.maxStreakFreeze;
           return (
-            <div
-              key={item.itemType}
-              style={{
-                padding: '16px',
-                borderRadius: 14,
-                background: 'rgba(15, 23, 42, 0.65)',
-                border: '1px solid rgba(148, 163, 184, 0.25)',
-                display: 'grid',
-                gap: 10,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {isFreeze ? (
-                  <ShieldCheck size={24} weight="fill" color="#38bdf8" />
-                ) : (
-                  <Lightning size={24} weight="fill" color="#c084fc" />
-                )}
-                <div>
-                  <strong style={{ fontSize: 14.5, color: '#fff' }}>
-                    {item.name}
-                  </strong>
-                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>
-                    {isFreeze
-                      ? `Đang có: ${inventory.streakFreezeCount}/${inventory.maxStreakFreeze}`
-                      : inventory.xpBoostActive
-                        ? `Đang bật đến ${new Date(inventory.xpBoostActiveUntil!).toLocaleString('vi-VN')}`
-                        : 'Chưa kích hoạt'}
+            <article key={item.itemType} className="sc-item-card">
+              <div style={{ display: 'grid', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    className={`arena-kpi-icon ${
+                      isFreeze ? 'arena-kpi-icon--emerald' : 'arena-kpi-icon--amber'
+                    }`}
+                  >
+                    {isFreeze ? (
+                      <ShieldCheck size={24} weight="fill" />
+                    ) : (
+                      <Lightning size={24} weight="fill" />
+                    )}
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 15, color: '#ffffff' }}>
+                      {item.name}
+                    </strong>
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                      {isFreeze
+                        ? `Đang có: ${inventory.streakFreezeCount}/${inventory.maxStreakFreeze}`
+                        : inventory.xpBoostActive
+                          ? `Đang bật đến ${new Date(inventory.xpBoostActiveUntil!).toLocaleString('vi-VN')}`
+                          : 'Chưa kích hoạt'}
+                    </div>
                   </div>
                 </div>
+                <p style={{ margin: 0, fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>
+                  {item.description}
+                </p>
               </div>
-              <p style={{ margin: 0, fontSize: 12.5, color: '#cbd5e1' }}>
-                {item.description}
-              </p>
+
               <button
                 type="button"
                 className="rpg-evo-buy-btn"
@@ -284,7 +286,7 @@ export function ShopConsumablesPanel({
                       ? `Thiếu ${item.priceCoins - coinBalance} Coin`
                       : `Mua · ${item.priceCoins} Coin`}
               </button>
-            </div>
+            </article>
           );
         })}
       </div>

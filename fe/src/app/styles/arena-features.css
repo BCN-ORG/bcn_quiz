@@ -1,0 +1,1133 @@
+/* ==========================================================================
+   BCN ARENA — NEW FEATURES DESIGN SYSTEM
+   Cohesive styling for PvP, Season Pass, Mistakes, Guilds, Quests & Shop.
+   Full Light Mode & Dark Mode support via globals.css tokens.
+   ========================================================================== */
+
+.arena-page {
+  display: grid;
+  gap: 24px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------------------
+   Shared Hero Banner
+   -------------------------------------------------------------------------- */
+.arena-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 24px 28px;
+  color: #f8fafc;
+  background: linear-gradient(135deg, #0b1628 0%, #10243d 55%, #0a2e2a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 40px rgba(7, 15, 28, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.arena-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 88% 18%, rgba(16, 185, 129, 0.24), transparent 44%),
+    radial-gradient(circle at 12% 90%, rgba(56, 189, 248, 0.16), transparent 42%);
+}
+
+.arena-hero--pvp {
+  background: linear-gradient(135deg, #1a0f1f 0%, #24132d 50%, #131c31 100%);
+}
+.arena-hero--pvp::before {
+  background:
+    radial-gradient(circle at 86% 20%, rgba(244, 63, 94, 0.28), transparent 45%),
+    radial-gradient(circle at 14% 85%, rgba(251, 191, 36, 0.16), transparent 42%);
+}
+
+.arena-hero--season {
+  background: linear-gradient(135deg, #161433 0%, #1e1b4b 52%, #0f172a 100%);
+  border-color: rgba(250, 204, 21, 0.32);
+}
+.arena-hero--season::before {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(250, 204, 21, 0.26), transparent 45%),
+    radial-gradient(circle at 12% 88%, rgba(56, 189, 248, 0.2), transparent 42%);
+}
+
+.arena-hero--guild {
+  background: linear-gradient(135deg, #0d1d2b 0%, #132a3e 52%, #1d2538 100%);
+}
+.arena-hero--guild::before {
+  background:
+    radial-gradient(circle at 86% 22%, rgba(245, 158, 11, 0.24), transparent 45%),
+    radial-gradient(circle at 12% 86%, rgba(16, 185, 129, 0.2), transparent 42%);
+}
+
+.arena-hero__main {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  max-width: 660px;
+}
+
+.arena-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #e2e8f0;
+}
+
+.arena-hero--season .arena-hero__eyebrow {
+  background: rgba(250, 204, 21, 0.16);
+  border-color: rgba(250, 204, 21, 0.36);
+  color: #fde047;
+}
+
+.arena-hero--pvp .arena-hero__eyebrow {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: rgba(244, 63, 94, 0.36);
+  color: #fda4af;
+}
+
+.arena-hero__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.arena-hero__sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.arena-hero__aside {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------------
+   KPI Stat Cards
+   -------------------------------------------------------------------------- */
+.arena-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.arena-kpi-card {
+  position: relative;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.arena-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.arena-kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.arena-kpi-icon--amber {
+  background: rgba(245, 158, 11, 0.14);
+  color: #d97706;
+}
+:root[data-theme='dark'] .arena-kpi-icon--amber {
+  color: #fbbf24;
+}
+
+.arena-kpi-icon--emerald {
+  background: rgba(16, 185, 129, 0.14);
+  color: #059669;
+}
+:root[data-theme='dark'] .arena-kpi-icon--emerald {
+  color: #34d399;
+}
+
+.arena-kpi-icon--crimson {
+  background: rgba(244, 63, 94, 0.14);
+  color: #e11d48;
+}
+:root[data-theme='dark'] .arena-kpi-icon--crimson {
+  color: #fb7185;
+}
+
+.arena-kpi-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.arena-kpi-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.arena-kpi-value {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------------------
+   Shared Surface Cards, Section Headers, Pills & Inputs
+   -------------------------------------------------------------------------- */
+.arena-card {
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  display: grid;
+  gap: 16px;
+}
+
+.arena-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.arena-section-title {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.arena-pill-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.arena-pill-tab {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 6px 13px;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.arena-pill-tab:hover {
+  color: var(--text);
+}
+
+.arena-pill-tab.is-active {
+  background: var(--surface);
+  color: var(--accent-strong);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+:root[data-theme='dark'] .arena-pill-tab.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.arena-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.arena-notice--success {
+  background: rgba(16, 185, 129, 0.13);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #047857;
+}
+:root[data-theme='dark'] .arena-notice--success {
+  color: #6ee7b7;
+}
+
+.arena-notice--error {
+  background: rgba(244, 63, 94, 0.13);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  color: #be123c;
+}
+:root[data-theme='dark'] .arena-notice--error {
+  color: #fda4af;
+}
+
+.arena-field {
+  display: grid;
+  gap: 6px;
+}
+
+.arena-field label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.arena-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.arena-input::placeholder {
+  color: var(--muted);
+}
+
+.arena-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.arena-input--code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   Progress Bar & Reward Badges
+   -------------------------------------------------------------------------- */
+.arena-progress {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.arena-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #34d399);
+  transition: width 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arena-progress__fill--gold {
+  background: linear-gradient(90deg, #f59e0b, #fde047);
+}
+
+.arena-badge-xp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(14, 165, 233, 0.13);
+  color: #0369a1;
+}
+:root[data-theme='dark'] .arena-badge-xp {
+  color: #7dd3fc;
+}
+
+.arena-badge-coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+:root[data-theme='dark'] .arena-badge-coin {
+  color: #fde047;
+}
+
+/* --------------------------------------------------------------------------
+   Shared Leaderboard Rows with Top-3 Medals
+   -------------------------------------------------------------------------- */
+.arena-lb-list {
+  display: grid;
+  gap: 8px;
+}
+
+.arena-lb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  font-size: 13.5px;
+  transition: border-color 0.16s ease, transform 0.16s ease;
+}
+
+.arena-lb-row:hover {
+  border-color: var(--line);
+  transform: translateX(2px);
+}
+
+.arena-lb-row.is-top-1 {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.14), var(--surface-2) 65%);
+  border-color: rgba(245, 158, 11, 0.34);
+}
+.arena-lb-row.is-top-2 {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.16), var(--surface-2) 65%);
+  border-color: rgba(148, 163, 184, 0.32);
+}
+.arena-lb-row.is-top-3 {
+  background: linear-gradient(90deg, rgba(217, 119, 6, 0.12), var(--surface-2) 65%);
+  border-color: rgba(217, 119, 6, 0.28);
+}
+
+.arena-rank-pill {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  flex: none;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.arena-lb-row.is-top-1 .arena-rank-pill {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  color: #1f1300;
+  border-color: transparent;
+}
+.arena-lb-row.is-top-2 .arena-rank-pill {
+  background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+  color: #0f172a;
+  border-color: transparent;
+}
+.arena-lb-row.is-top-3 .arena-rank-pill {
+  background: linear-gradient(135deg, #b45309, #d97706);
+  color: #fffbeb;
+  border-color: transparent;
+}
+
+.arena-lb-left {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.arena-lb-name {
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arena-lb-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.arena-lb-score {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------------------
+   PvP 1v1 Arena
+   -------------------------------------------------------------------------- */
+.pvp-rating-strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+}
+
+.pvp-rating-stat {
+  display: grid;
+  gap: 2px;
+}
+
+.pvp-rating-stat small {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.pvp-rating-stat strong {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.pvp-rating-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.pvp-lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.pvp-lobby-card {
+  padding: 22px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 14px;
+  align-content: space-between;
+}
+
+.pvp-lobby-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pvp-versus-board {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+
+.pvp-player-box {
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+
+.pvp-player-box--p1 {
+  border-top: 3px solid #0ea5e9;
+}
+
+.pvp-player-box--p2 {
+  border-top: 3px solid #f43f5e;
+  text-align: right;
+}
+
+.pvp-player-box--p2 .pvp-pips {
+  justify-content: flex-end;
+}
+
+.pvp-score {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pvp-vs-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, #f43f5e, #f59e0b);
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(244, 63, 94, 0.3);
+}
+
+.pvp-pips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.pvp-pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+}
+
+.pvp-pip.is-done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pvp-code-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px dashed var(--accent);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--accent-strong);
+}
+
+.pvp-waiting-box {
+  padding: 28px 20px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px dashed var(--line);
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.pvp-result-banner {
+  padding: 24px 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(245, 158, 11, 0.14));
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Interactive Quiz Options (shared by PvP & Mistakes)
+   -------------------------------------------------------------------------- */
+.arena-options-grid {
+  display: grid;
+  gap: 9px;
+}
+
+.arena-option-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+
+.arena-option-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  background: var(--surface);
+}
+
+.arena-option-btn:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.arena-option-btn.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.arena-option-btn:disabled {
+  cursor: default;
+}
+
+.arena-option-key {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.arena-option-btn.is-selected .arena-option-key {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+   Season Pass Track
+   -------------------------------------------------------------------------- */
+.sp-hero-progress {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: 440px;
+}
+
+.sp-hero-progress__bar {
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.sp-hero-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #fde047);
+  transition: width 0.35s ease;
+}
+
+.sp-tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 14px;
+}
+
+.sp-tier-card {
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.sp-tier-card.is-unlocked {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+}
+
+.sp-tier-card.is-claimable {
+  border-color: rgba(250, 204, 21, 0.72);
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.12);
+}
+
+.sp-tier-card.is-locked {
+  opacity: 0.76;
+}
+
+.sp-tier-card:hover {
+  transform: translateY(-2px);
+}
+
+.sp-tier-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sp-tier-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.sp-tier-xp {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sp-track-box {
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+}
+
+.sp-track-box--premium {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(250, 204, 21, 0.05));
+  border-color: rgba(245, 158, 11, 0.34);
+}
+
+.sp-track-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sp-track-box--premium .sp-track-label {
+  color: #d97706;
+}
+:root[data-theme='dark'] .sp-track-box--premium .sp-track-label {
+  color: #fde047;
+}
+
+.sp-track-reward {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------------------
+   Mistakes Practice Cards
+   -------------------------------------------------------------------------- */
+.mk-question-card {
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 14px;
+}
+
+.mk-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mk-topic-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mk-mastery-pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.mk-pip {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+}
+
+.mk-pip.is-filled {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.mk-sticky-submit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+/* --------------------------------------------------------------------------
+   Guilds
+   -------------------------------------------------------------------------- */
+.gd-tag-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.gd-member-row {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.gd-member-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.gd-browse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 12px;
+}
+
+.gd-browse-card {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  align-content: space-between;
+}
+
+/* --------------------------------------------------------------------------
+   Daily & Weekly Quests Dashboard Widget
+   -------------------------------------------------------------------------- */
+.dq-widget {
+  padding: 20px 22px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  display: grid;
+  gap: 16px;
+}
+
+.dq-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.dq-item {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+
+.dq-item.is-ready {
+  border-color: rgba(16, 185, 129, 0.55);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.1);
+}
+
+.dq-item:hover {
+  transform: translateY(-1px);
+}
+
+/* --------------------------------------------------------------------------
+   Shop Consumables & Mystery Chest (inside dark EvolutionModal)
+   -------------------------------------------------------------------------- */
+.sc-wrap {
+  display: grid;
+  gap: 16px;
+  padding: 4px 2px 12px;
+}
+
+.sc-chest-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.92));
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  display: grid;
+  gap: 14px;
+}
+
+.sc-chest-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 86% 18%, rgba(250, 204, 21, 0.22), transparent 46%),
+    radial-gradient(circle at 12% 85%, rgba(16, 185, 129, 0.16), transparent 42%);
+}
+
+.sc-chest-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.sc-chest-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.28), rgba(250, 204, 21, 0.16));
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  color: #fde047;
+}
+
+.sc-pity-wrap {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+}
+
+.sc-consumables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.sc-item-card {
+  padding: 18px;
+  border-radius: 15px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  display: grid;
+  gap: 12px;
+  align-content: space-between;
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+
+.sc-item-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive & Reduced Motion
+   -------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .arena-hero {
+    padding: 20px;
+  }
+  .pvp-versus-board {
+    grid-template-columns: 1fr;
+  }
+  .pvp-player-box--p2 {
+    text-align: left;
+  }
+  .pvp-player-box--p2 .pvp-pips {
+    justify-content: flex-start;
+  }
+  .pvp-vs-badge {
+    justify-self: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arena-kpi-card,
+  .arena-lb-row,
+  .arena-option-btn,
+  .sp-tier-card,
+  .dq-item,
+  .sc-item-card,
+  .arena-progress__fill,
+  .sp-hero-progress__fill {
+    transition: none;
+  }
+  .arena-kpi-card:hover,
+  .arena-lb-row:hover,
+  .sp-tier-card:hover,
+  .dq-item:hover,
+  .sc-item-card:hover {
+    transform: none;
+  }
+}

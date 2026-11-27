@@ -5,6 +5,7 @@ import {
   CheckCircle,
   Coins,
   Crown,
+  Gift,
   Lock,
   Sparkle,
 } from '@phosphor-icons/react';
@@ -48,6 +49,7 @@ export default function SeasonPassPage() {
   const [data, setData] = useState<SeasonProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'claimable'>('all');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,7 +100,9 @@ export default function SeasonPassPage() {
       await request.post(`/season-pass/claim/${tier}`, { track });
       playChestSfx();
       triggerCelebrationBurst(e.clientX, e.clientY);
-      setMessage(`Đã nhận thưởng Bậc ${tier} (${track === 'premium' ? 'Premium' : 'Miễn phí'})!`);
+      setMessage(
+        `Đã nhận thưởng Bậc ${tier} (${track === 'premium' ? 'Premium' : 'Miễn phí'})!`,
+      );
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chưa thể nhận thưởng.');
@@ -109,198 +113,286 @@ export default function SeasonPassPage() {
 
   if (loading || !data) return <Loading label="Đang tải Season Pass..." />;
 
-  const nextTierXp = Math.min(data.maxTiers, data.currentTier + 1) * data.tierXpStep;
+  const nextTier = Math.min(data.maxTiers, data.currentTier + 1);
+  const nextTierXp = nextTier * data.tierXpStep;
+  const currentTierBaseXp = data.currentTier * data.tierXpStep;
+  const stepProgressPct =
+    data.currentTier >= data.maxTiers
+      ? 100
+      : Math.min(
+          100,
+          Math.max(
+            0,
+            Math.round(
+              ((data.seasonXp - currentTierBaseXp) /
+                Math.max(1, data.tierXpStep)) *
+                100,
+            ),
+          ),
+        );
+
+  const claimableTiers = data.tiers.filter((t) => {
+    const unlocked = data.currentTier >= t.tier;
+    if (!unlocked) return false;
+    const canClaimFree = !data.claimedFreeTiers.includes(t.tier);
+    const canClaimPrem =
+      data.isPremium && !data.claimedPremiumTiers.includes(t.tier);
+    return canClaimFree || canClaimPrem;
+  });
+
+  const visibleTiers = filter === 'claimable' ? claimableTiers : data.tiers;
 
   return (
-    <div style={{ display: 'grid', gap: 20, maxWidth: 1080, margin: '0 auto' }}>
-      <section
-        className="panel"
-        style={{
-          padding: '22px 24px',
-          background:
-            'linear-gradient(135deg, rgba(30, 27, 75, 0.96), rgba(15, 23, 42, 0.96))',
-          color: '#f8fafc',
-          border: '1px solid rgba(250, 204, 21, 0.35)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 16,
-        }}
-      >
-        <div style={{ display: 'grid', gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, color: '#fde047' }}>
-            SEASON PASS · {data.season.code}
+    <div className="arena-page">
+      <section className="arena-hero arena-hero--season">
+        <div className="arena-hero__main">
+          <span className="arena-hero__eyebrow">
+            <Crown size={13} weight="fill" /> Season Pass · {data.season.code}
           </span>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900 }}>
-            {data.season.title}
-          </h1>
-          <div style={{ fontSize: 13.5, color: '#cbd5e1' }}>
-            Bậc hiện tại: <strong>{data.currentTier}/{data.maxTiers}</strong> ·{' '}
-            <strong>{data.seasonXp.toLocaleString('vi-VN')} XP</strong> mùa (mục tiêu kế tiếp:{' '}
-            {nextTierXp.toLocaleString('vi-VN')} XP)
+          <h1 className="arena-hero__title">{data.season.title}</h1>
+          <p className="arena-hero__sub">
+            Tích lũy XP trong mùa để mở khóa Coin, vật phẩm hỗ trợ và phần thưởng
+            độc quyền qua {data.maxTiers} bậc thưởng.
+          </p>
+
+          <div className="sp-hero-progress">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 12.5,
+                color: '#e2e8f0',
+                fontWeight: 700,
+              }}
+            >
+              <span>
+                Bậc {data.currentTier}/{data.maxTiers}
+              </span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                {data.seasonXp.toLocaleString('vi-VN')} /{' '}
+                {nextTierXp.toLocaleString('vi-VN')} XP
+              </span>
+            </div>
+            <div className="sp-hero-progress__bar">
+              <div
+                className="sp-hero-progress__fill"
+                style={{ width: `${stepProgressPct}%` }}
+              />
+            </div>
           </div>
         </div>
 
-        {data.isPremium ? (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 16px',
-              borderRadius: 12,
-              background: 'rgba(250, 204, 21, 0.18)',
-              border: '1px solid rgba(250, 204, 21, 0.6)',
-              color: '#fde047',
-              fontWeight: 800,
-              fontSize: 13.5,
-            }}
-          >
-            <Crown size={18} weight="fill" /> Đã kích hoạt Premium
-          </span>
-        ) : (
-          <button
-            type="button"
-            className="rpg-evo-buy-btn"
-            disabled={busy === 'upgrade'}
-            onClick={(e) => void handleUpgrade(e)}
-          >
-            <Crown size={16} weight="fill" />
-            {busy === 'upgrade'
-              ? 'Đang mở khóa…'
-              : `Mở khóa Premium · ${data.season.premiumPriceCoins} Coin`}
-          </button>
-        )}
+        <div className="arena-hero__aside">
+          {data.isPremium ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '11px 18px',
+                borderRadius: 12,
+                background: 'rgba(250, 204, 21, 0.16)',
+                border: '1px solid rgba(250, 204, 21, 0.55)',
+                color: '#fde047',
+                fontWeight: 800,
+                fontSize: 13.5,
+              }}
+            >
+              <Crown size={18} weight="fill" /> Đã kích hoạt Premium
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="rpg-evo-buy-btn"
+              disabled={busy === 'upgrade'}
+              onClick={(e) => void handleUpgrade(e)}
+            >
+              <Crown size={17} weight="fill" />
+              {busy === 'upgrade'
+                ? 'Đang mở khóa…'
+                : `Mở khóa Premium · ${data.season.premiumPriceCoins} Coin`}
+            </button>
+          )}
+        </div>
       </section>
 
-      {error ? <div className="notice form-error">{error}</div> : null}
+      {error ? (
+        <div role="alert" className="arena-notice arena-notice--error">
+          {error}
+        </div>
+      ) : null}
       {message ? (
-        <div
-          style={{
-            padding: '10px 14px',
-            borderRadius: 10,
-            background: 'rgba(16, 185, 129, 0.14)',
-            color: '#059669',
-            fontWeight: 700,
-            fontSize: 13,
-          }}
-        >
-          {message}
+        <div className="arena-notice arena-notice--success">
+          <CheckCircle size={18} weight="fill" />
+          <span>{message}</span>
         </div>
       ) : null}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-          gap: 12,
-        }}
-      >
-        {data.tiers.map((t) => {
-          const unlocked = data.currentTier >= t.tier;
-          const freeClaimed = data.claimedFreeTiers.includes(t.tier);
-          const premClaimed = data.claimedPremiumTiers.includes(t.tier);
+      <div className="arena-section-head">
+        <h2 className="arena-section-title">
+          <Gift size={20} weight="fill" color="var(--accent)" />
+          Lộ trình phần thưởng ({data.maxTiers} bậc)
+        </h2>
 
-          return (
-            <div
-              key={t.tier}
-              className="panel"
-              style={{
-                padding: 14,
-                display: 'grid',
-                gap: 10,
-                border: unlocked
-                  ? '1px solid rgba(56, 189, 248, 0.55)'
-                  : '1px solid var(--line)',
-                opacity: unlocked ? 1 : 0.78,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: 14 }}>Bậc {t.tier}</strong>
-                <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                  {t.requiredXp.toLocaleString('vi-VN')} XP
-                </span>
-              </div>
-
-              {/* Free Track */}
-              <div
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: 10,
-                  background: 'var(--surface-2)',
-                  display: 'grid',
-                  gap: 6,
-                }}
-              >
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>
-                  MIỄN PHÍ
-                </span>
-                <div style={{ fontSize: 12.5, fontWeight: 700 }}>
-                  <Coins size={13} weight="fill" color="#d97706" /> {t.free.label}
-                </div>
-                {freeClaimed ? (
-                  <span style={{ fontSize: 11.5, color: '#10b981', fontWeight: 700 }}>
-                    <CheckCircle size={13} weight="fill" /> Đã nhận
-                  </span>
-                ) : unlocked ? (
-                  <button
-                    type="button"
-                    className="button secondary"
-                    style={{ minHeight: 28, fontSize: 12, padding: '0 10px' }}
-                    disabled={busy !== null}
-                    onClick={(e) => void handleClaim(t.tier, 'free', e)}
-                  >
-                    Nhận thưởng
-                  </button>
-                ) : (
-                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                    <Lock size={12} /> Chưa mở
-                  </span>
-                )}
-              </div>
-
-              {/* Premium Track */}
-              <div
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: 10,
-                  background: 'rgba(250, 204, 21, 0.08)',
-                  border: '1px solid rgba(250, 204, 21, 0.3)',
-                  display: 'grid',
-                  gap: 6,
-                }}
-              >
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#d97706' }}>
-                  PREMIUM
-                </span>
-                <div style={{ fontSize: 12.5, fontWeight: 700 }}>
-                  <Sparkle size={13} weight="fill" color="#eab308" /> {t.premium.label}
-                </div>
-                {premClaimed ? (
-                  <span style={{ fontSize: 11.5, color: '#10b981', fontWeight: 700 }}>
-                    <CheckCircle size={13} weight="fill" /> Đã nhận
-                  </span>
-                ) : unlocked && data.isPremium ? (
-                  <button
-                    type="button"
-                    className="button"
-                    style={{ minHeight: 28, fontSize: 12, padding: '0 10px' }}
-                    disabled={busy !== null}
-                    onClick={(e) => void handleClaim(t.tier, 'premium', e)}
-                  >
-                    Nhận Premium
-                  </button>
-                ) : (
-                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                    <Lock size={12} /> {data.isPremium ? 'Chưa đạt bậc' : 'Cần Premium'}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        <div className="arena-pill-tabs" role="tablist" aria-label="Bộ lọc bậc thưởng">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === 'all'}
+            className={`arena-pill-tab ${filter === 'all' ? 'is-active' : ''}`}
+            onClick={() => setFilter('all')}
+          >
+            Tất cả ({data.tiers.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === 'claimable'}
+            className={`arena-pill-tab ${filter === 'claimable' ? 'is-active' : ''}`}
+            onClick={() => setFilter('claimable')}
+          >
+            Sẵn sàng nhận ({claimableTiers.length})
+          </button>
+        </div>
       </div>
+
+      {visibleTiers.length === 0 ? (
+        <div className="arena-card" style={{ textAlign: 'center', padding: 32 }}>
+          <strong style={{ fontSize: 15 }}>Chưa có phần thưởng nào đang chờ nhận</strong>
+          <p style={{ margin: 0, fontSize: 13.5, color: 'var(--muted)' }}>
+            Hãy hoàn thành thêm bài quiz, nhiệm vụ hoặc PvP để tăng XP mùa và mở khóa bậc mới.
+          </p>
+        </div>
+      ) : (
+        <div className="sp-tiers-grid">
+          {visibleTiers.map((t) => {
+            const unlocked = data.currentTier >= t.tier;
+            const freeClaimed = data.claimedFreeTiers.includes(t.tier);
+            const premClaimed = data.claimedPremiumTiers.includes(t.tier);
+            const canClaimAny =
+              unlocked &&
+              (!freeClaimed || (data.isPremium && !premClaimed));
+
+            return (
+              <article
+                key={t.tier}
+                className={`sp-tier-card ${
+                  canClaimAny
+                    ? 'is-claimable'
+                    : unlocked
+                      ? 'is-unlocked'
+                      : 'is-locked'
+                }`}
+              >
+                <div className="sp-tier-head">
+                  <span className="sp-tier-num">
+                    Bậc {t.tier}
+                    {canClaimAny ? (
+                      <Sparkle size={14} weight="fill" color="#f59e0b" />
+                    ) : null}
+                  </span>
+                  <span className="sp-tier-xp">
+                    {t.requiredXp.toLocaleString('vi-VN')} XP
+                  </span>
+                </div>
+
+                {/* Free Track */}
+                <div className="sp-track-box">
+                  <span className="sp-track-label">Miễn phí</span>
+                  <div className="sp-track-reward">
+                    <Coins size={15} weight="fill" color="#d97706" />
+                    <span>{t.free.label}</span>
+                  </div>
+                  {freeClaimed ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        fontSize: 12,
+                        color: '#10b981',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <CheckCircle size={14} weight="fill" /> Đã nhận
+                    </span>
+                  ) : unlocked ? (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      style={{ minHeight: 32, fontSize: 12.5, padding: '0 12px' }}
+                      disabled={busy !== null}
+                      onClick={(e) => void handleClaim(t.tier, 'free', e)}
+                    >
+                      {busy === `${t.tier}:free` ? 'Đang nhận…' : 'Nhận thưởng'}
+                    </button>
+                  ) : (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        fontSize: 12,
+                        color: 'var(--muted)',
+                      }}
+                    >
+                      <Lock size={13} /> Chưa mở khóa
+                    </span>
+                  )}
+                </div>
+
+                {/* Premium Track */}
+                <div className="sp-track-box sp-track-box--premium">
+                  <span className="sp-track-label">Premium</span>
+                  <div className="sp-track-reward">
+                    <Sparkle size={15} weight="fill" color="#eab308" />
+                    <span>{t.premium.label}</span>
+                  </div>
+                  {premClaimed ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        fontSize: 12,
+                        color: '#10b981',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <CheckCircle size={14} weight="fill" /> Đã nhận
+                    </span>
+                  ) : unlocked && data.isPremium ? (
+                    <button
+                      type="button"
+                      className="button"
+                      style={{ minHeight: 32, fontSize: 12.5, padding: '0 12px' }}
+                      disabled={busy !== null}
+                      onClick={(e) => void handleClaim(t.tier, 'premium', e)}
+                    >
+                      {busy === `${t.tier}:premium`
+                        ? 'Đang nhận…'
+                        : 'Nhận Premium'}
+                    </button>
+                  ) : (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        fontSize: 12,
+                        color: 'var(--muted)',
+                      }}
+                    >
+                      <Lock size={13} />{' '}
+                      {data.isPremium ? 'Chưa đạt bậc' : 'Cần gói Premium'}
+                    </span>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

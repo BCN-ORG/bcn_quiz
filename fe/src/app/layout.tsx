@@ -4,6 +4,7 @@ import { QueryProvider } from '@/components/query-provider';
 import './globals.css';
 import './styles/quizzy-layout.css';
 import './styles/rpg-dashboard.css';
+import './styles/arena-features.css';
 
 export const metadata: Metadata = {
   title: { default: 'BCN Arena', template: '%s | BCN Arena' },

@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ArrowCounterClockwise,
+  BookOpenText,
   CheckCircle,
+  ClockCountdown,
   Coins,
   Sparkle,
+  Target,
   WarningCircle,
 } from '@phosphor-icons/react';
 import { request } from '@/lib/api';
@@ -100,93 +103,102 @@ export default function MistakesPage() {
 
   if (loading) return <Loading label="Đang tải kho ôn tập câu sai..." />;
 
+  const answeredCount = Object.keys(answers).length;
+
   return (
-    <div style={{ display: 'grid', gap: 20, maxWidth: 960, margin: '0 auto' }}>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>
-            Kho Câu Sai & Ôn Tập Thông Minh
-          </h1>
-          <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13.5 }}>
+    <div className="arena-page">
+      <section className="arena-hero">
+        <div className="arena-hero__main">
+          <span className="arena-hero__eyebrow">
+            <BookOpenText size={13} weight="fill" /> Ôn tập lặp lại ngắt quãng
+          </span>
+          <h1 className="arena-hero__title">Kho Câu Sai & Ôn Tập Thông Minh</h1>
+          <p className="arena-hero__sub">
             Trả lời đúng 2 lần liên tiếp để chuyển câu hỏi sang trạng thái Thành thạo (+15 XP & +5 Coin mỗi ngày).
           </p>
         </div>
-        <button type="button" className="button secondary" onClick={() => void load()}>
-          <ArrowCounterClockwise size={16} /> Làm mới danh sách
-        </button>
-      </header>
 
-      {/* Stats */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: 12,
-        }}
-      >
-        <div className="panel" style={{ padding: 16 }}>
-          <small style={{ color: 'var(--muted)' }}>Cần ôn hôm nay</small>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#f59e0b' }}>
-            {summary?.dueCount ?? 0}
+        <div className="arena-hero__aside">
+          <button
+            type="button"
+            className="button secondary"
+            style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              color: '#ffffff',
+              borderColor: 'rgba(255, 255, 255, 0.22)',
+            }}
+            onClick={() => void load()}
+          >
+            <ArrowCounterClockwise size={16} /> Làm mới danh sách
+          </button>
+        </div>
+      </section>
+
+      {/* KPI Stats */}
+      <div className="arena-kpi-grid">
+        <div className="arena-kpi-card">
+          <div className="arena-kpi-icon arena-kpi-icon--amber">
+            <ClockCountdown size={22} weight="fill" />
+          </div>
+          <div className="arena-kpi-meta">
+            <span className="arena-kpi-label">Cần ôn hôm nay</span>
+            <span className="arena-kpi-value">{summary?.dueCount ?? 0}</span>
           </div>
         </div>
-        <div className="panel" style={{ padding: 16 }}>
-          <small style={{ color: 'var(--muted)' }}>Đang luyện tập</small>
-          <div style={{ fontSize: 26, fontWeight: 800 }}>
-            {summary?.activeCount ?? 0}
+
+        <div className="arena-kpi-card">
+          <div className="arena-kpi-icon">
+            <Target size={22} weight="fill" />
+          </div>
+          <div className="arena-kpi-meta">
+            <span className="arena-kpi-label">Đang luyện tập</span>
+            <span className="arena-kpi-value">{summary?.activeCount ?? 0}</span>
           </div>
         </div>
-        <div className="panel" style={{ padding: 16 }}>
-          <small style={{ color: 'var(--muted)' }}>Đã thành thạo</small>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#10b981' }}>
-            {summary?.masteredCount ?? 0}
+
+        <div className="arena-kpi-card">
+          <div className="arena-kpi-icon arena-kpi-icon--emerald">
+            <CheckCircle size={22} weight="fill" />
+          </div>
+          <div className="arena-kpi-meta">
+            <span className="arena-kpi-label">Đã thành thạo</span>
+            <span className="arena-kpi-value">{summary?.masteredCount ?? 0}</span>
           </div>
         </div>
       </div>
 
       {result ? (
-        <div
-          className="panel"
+        <section
+          className="arena-card"
           style={{
-            padding: 18,
-            border: '1px solid rgba(16, 185, 129, 0.5)',
-            display: 'grid',
-            gap: 10,
+            borderColor: 'rgba(16, 185, 129, 0.5)',
+            background:
+              'linear-gradient(135deg, rgba(16, 185, 129, 0.09), var(--surface) 60%)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <CheckCircle size={22} weight="fill" color="#10b981" />
-            <strong style={{ fontSize: 16 }}>
-              Hoàn thành ôn tập: {result.correct}/{result.total} câu đúng · Thành thạo mới: {result.masteredNow}
-            </strong>
-            {result.rewardXp > 0 ? (
-              <span style={{ color: '#0284c7', fontWeight: 700, fontSize: 13 }}>
-                <Sparkle size={14} weight="fill" /> +{result.rewardXp} XP
-              </span>
-            ) : null}
-            {result.rewardCoins > 0 ? (
-              <span style={{ color: '#d97706', fontWeight: 700, fontSize: 13 }}>
-                <Coins size={14} weight="fill" /> +{result.rewardCoins} Coin
-              </span>
-            ) : null}
+          <div className="arena-section-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <CheckCircle size={24} weight="fill" color="#10b981" />
+              <strong style={{ fontSize: 16 }}>
+                Hoàn thành ôn tập: {result.correct}/{result.total} câu đúng · Thành thạo mới:{' '}
+                {result.masteredNow}
+              </strong>
+              {result.rewardXp > 0 ? (
+                <span className="arena-badge-xp">
+                  <Sparkle size={13} weight="fill" /> +{result.rewardXp} XP
+                </span>
+              ) : null}
+              {result.rewardCoins > 0 ? (
+                <span className="arena-badge-coin">
+                  <Coins size={13} weight="fill" /> +{result.rewardCoins} Coin
+                </span>
+              ) : null}
+            </div>
+            <button type="button" className="button" onClick={() => void load()}>
+              Luyện đợt tiếp theo
+            </button>
           </div>
-          <button
-            type="button"
-            className="button"
-            style={{ justifySelf: 'start' }}
-            onClick={() => void load()}
-          >
-            Luyện đợt tiếp theo
-          </button>
-        </div>
+        </section>
       ) : null}
 
       {items.length === 0 ? (
@@ -195,25 +207,36 @@ export default function MistakesPage() {
           description="Mọi câu trả lời sai trong các bài kiểm tra sẽ tự động xuất hiện tại đây để bạn ôn tập."
         />
       ) : (
-        <div style={{ display: 'grid', gap: 14 }}>
+        <div style={{ display: 'grid', gap: 16 }}>
           {items.map((item, idx) => {
             const resItem = result?.results.find((r) => r.quizId === item.quizId);
             return (
-              <article
-                key={item.quizId}
-                className="panel"
-                style={{ padding: 18, display: 'grid', gap: 12 }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-strong)' }}>
+              <article key={item.quizId} className="mk-question-card">
+                <div className="mk-meta-row">
+                  <span className="mk-topic-pill">
                     Câu {idx + 1} · {item.topicName}
                   </span>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    Sai {item.wrongCount} lần · Đúng liên tiếp: {item.consecutiveCorrect}/2
-                  </span>
+
+                  <div className="mk-mastery-pips">
+                    <span>Sai {item.wrongCount} lần</span>
+                    <span>·</span>
+                    <span>Thành thạo:</span>
+                    <span
+                      className={`mk-pip ${item.consecutiveCorrect >= 1 ? 'is-filled' : ''}`}
+                      title="Đúng lần 1"
+                    />
+                    <span
+                      className={`mk-pip ${item.consecutiveCorrect >= 2 ? 'is-filled' : ''}`}
+                      title="Đúng lần 2"
+                    />
+                  </div>
                 </div>
-                <strong style={{ fontSize: 15 }}>{item.question}</strong>
-                <div style={{ display: 'grid', gap: 8 }}>
+
+                <h3 style={{ margin: 0, fontSize: 16, lineHeight: 1.5 }}>
+                  {item.question}
+                </h3>
+
+                <div className="arena-options-grid">
                   {item.options.map((opt) => {
                     const selected = answers[item.quizId] === opt.label;
                     return (
@@ -221,47 +244,35 @@ export default function MistakesPage() {
                         key={opt.id}
                         type="button"
                         disabled={Boolean(result)}
+                        className={`arena-option-btn ${selected ? 'is-selected' : ''}`}
                         onClick={() =>
                           setAnswers((prev) => ({
                             ...prev,
                             [item.quizId]: opt.label,
                           }))
                         }
-                        style={{
-                          textAlign: 'left',
-                          padding: '10px 14px',
-                          borderRadius: 10,
-                          border: selected
-                            ? '2px solid var(--accent)'
-                            : '1px solid var(--line)',
-                          background: selected
-                            ? 'var(--accent-soft)'
-                            : 'var(--surface-2)',
-                          color: 'var(--text)',
-                          cursor: result ? 'default' : 'pointer',
-                        }}
                       >
-                        <strong>{opt.label}.</strong> {opt.text}
+                        <span className="arena-option-key">{opt.label}</span>
+                        <span>{opt.text}</span>
                       </button>
                     );
                   })}
                 </div>
+
                 {resItem ? (
                   <div
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 10,
-                      background: resItem.isCorrect
-                        ? 'rgba(16, 185, 129, 0.12)'
-                        : 'rgba(244, 63, 94, 0.12)',
-                      fontSize: 13,
-                    }}
+                    className={`arena-notice ${
+                      resItem.isCorrect
+                        ? 'arena-notice--success'
+                        : 'arena-notice--error'
+                    }`}
+                    style={{ display: 'grid', gap: 6 }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700 }}>
                       {resItem.isCorrect ? (
-                        <CheckCircle size={16} weight="fill" color="#10b981" />
+                        <CheckCircle size={17} weight="fill" />
                       ) : (
-                        <WarningCircle size={16} weight="fill" color="#f43f5e" />
+                        <WarningCircle size={17} weight="fill" />
                       )}
                       <span>
                         {resItem.isCorrect
@@ -272,7 +283,7 @@ export default function MistakesPage() {
                       </span>
                     </div>
                     {resItem.explanation ? (
-                      <p style={{ margin: '6px 0 0', color: 'var(--muted)' }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 500, opacity: 0.92 }}>
                         {resItem.explanation}
                       </p>
                     ) : null}
@@ -283,11 +294,19 @@ export default function MistakesPage() {
           })}
 
           {!result ? (
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="mk-sticky-submit">
+              <div style={{ display: 'grid', gap: 2 }}>
+                <strong style={{ fontSize: 14 }}>
+                  Đã chọn {answeredCount}/{items.length} câu hỏi
+                </strong>
+                <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                  Bạn có thể nộp ngay khi hoàn tất các câu muốn ôn tập.
+                </span>
+              </div>
               <button
                 type="button"
                 className="button"
-                disabled={submitting || Object.keys(answers).length === 0}
+                disabled={submitting || answeredCount === 0}
                 onClick={(e) => void handleSubmit(e)}
               >
                 {submitting ? 'Đang chấm bài…' : 'Nộp bài ôn tập'}

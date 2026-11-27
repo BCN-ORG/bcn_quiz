@@ -2,9 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Check,
   CheckCircle,
   Copy,
+  Fire,
+  KeyReturn,
   Lightning,
+  PlusCircle,
+  SignOut,
   Sword,
   Trophy,
   WarningCircle,
@@ -45,6 +50,15 @@ interface PvpMatchDetail {
     question: string;
     options: Array<{ id: string; label: string; text: string }>;
   }>;
+}
+
+function getEloTierLabel(elo: number): string {
+  if (elo >= 1600) return 'Huyền Thoại';
+  if (elo >= 1400) return 'Kim Cương';
+  if (elo >= 1200) return 'Bạch Kim';
+  if (elo >= 1050) return 'Vàng';
+  if (elo >= 950) return 'Bạc';
+  return 'Đồng';
 }
 
 export default function PvpPage() {
@@ -106,7 +120,8 @@ export default function PvpPage() {
     }
   };
 
-  const handleJoin = async () => {
+  const handleJoin = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (busy || !joinCode.trim()) return;
     setBusy(true);
     setError(null);
@@ -156,69 +171,153 @@ export default function PvpPage() {
   const nextQIdx = match ? match.myAnswers.length : 0;
   const activeQuestion =
     match && match.status === 'IN_PROGRESS' ? match.questions[nextQIdx] : null;
+  const totalMatches = rating ? rating.wins + rating.losses + rating.draws : 0;
+  const winRate =
+    rating && totalMatches > 0
+      ? Math.round((rating.wins / totalMatches) * 100)
+      : 0;
 
   return (
-    <div style={{ display: 'grid', gap: 20, maxWidth: 980, margin: '0 auto' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>
-            Đấu Trường PvP 1v1
-          </h1>
-          <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13.5 }}>
+    <div className="arena-page">
+      <section className="arena-hero arena-hero--pvp">
+        <div className="arena-hero__main">
+          <span className="arena-hero__eyebrow">
+            <Sword size={13} weight="fill" /> Đấu trường tốc độ 1v1
+          </span>
+          <h1 className="arena-hero__title">Đấu Trường PvP 1v1</h1>
+          <p className="arena-hero__sub">
             Thách đấu 5 câu hỏi tốc độ theo thời gian thực · Thưởng +30 XP & +10 Coin khi thắng (tối đa 5 trận thưởng Coin/ngày).
           </p>
         </div>
+
         {rating ? (
-          <div className="panel" style={{ padding: '10px 16px', display: 'flex', gap: 16, fontSize: 13 }}>
-            <span>ELO: <strong>{rating.elo}</strong></span>
-            <span>Thắng/Thua: <strong>{rating.wins}/{rating.losses}</strong></span>
-            <span>Chuỗi thắng: <strong>{rating.winStreak}</strong></span>
+          <div className="arena-hero__aside">
+            <div className="pvp-rating-strip">
+              <div className="pvp-rating-stat">
+                <small>Hạng · ELO</small>
+                <strong>
+                  {rating.elo}{' '}
+                  <span style={{ fontSize: 12, color: '#fde047', fontWeight: 700 }}>
+                    ({getEloTierLabel(rating.elo)})
+                  </span>
+                </strong>
+              </div>
+              <div className="pvp-rating-divider" />
+              <div className="pvp-rating-stat">
+                <small>Thắng / Thua</small>
+                <strong>
+                  {rating.wins}/{rating.losses}{' '}
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>({winRate}%)</span>
+                </strong>
+              </div>
+              <div className="pvp-rating-divider" />
+              <div className="pvp-rating-stat">
+                <small>Chuỗi thắng</small>
+                <strong style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Fire size={16} weight="fill" color="#fb923c" />
+                  {rating.winStreak}
+                </strong>
+              </div>
+            </div>
           </div>
         ) : null}
-      </header>
+      </section>
 
-      {error ? <div className="notice form-error">{error}</div> : null}
+      {error ? (
+        <div role="alert" className="arena-notice arena-notice--error">
+          <WarningCircle size={18} weight="fill" />
+          <span>{error}</span>
+        </div>
+      ) : null}
 
       {match ? (
-        <section className="panel" style={{ padding: 20, display: 'grid', gap: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Sword size={20} weight="fill" color="#f43f5e" />
-              <strong>Mã phòng: <code>{match.inviteCode}</code></strong>
+        <section className="arena-card">
+          <div className="arena-section-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span className="pvp-code-chip">
+                <Sword size={16} weight="fill" />
+                {match.inviteCode}
+              </span>
               <button
                 type="button"
                 className="button secondary"
-                style={{ minHeight: 28, padding: '0 8px', fontSize: 12 }}
+                style={{ minHeight: 34, padding: '0 12px', fontSize: 12.5 }}
                 onClick={() => {
                   void navigator.clipboard.writeText(match.inviteCode);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 1800);
                 }}
               >
-                <Copy size={13} /> {copied ? 'Đã copy' : 'Copy mã'}
+                {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
+                {copied ? 'Đã sao chép' : 'Copy mã phòng'}
               </button>
             </div>
-            <button type="button" className="button secondary" onClick={() => setMatch(null)}>
-              Rời màn hình trận
+
+            <button
+              type="button"
+              className="button secondary"
+              style={{ minHeight: 34, padding: '0 12px', fontSize: 12.5 }}
+              onClick={() => setMatch(null)}
+            >
+              <SignOut size={14} /> Rời màn hình trận
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ padding: 12, borderRadius: 12, background: 'var(--surface-2)' }}>
-              <strong>{match.player1.fullName}</strong>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#0284c7' }}>
-                {match.player1.score} điểm
+          <div className="pvp-versus-board">
+            <div className="pvp-player-box pvp-player-box--p1">
+              <strong style={{ fontSize: 15 }}>{match.player1.fullName}</strong>
+              <div className="pvp-score" style={{ color: '#0ea5e9' }}>
+                {match.player1.score}{' '}
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)' }}>
+                  điểm
+                </span>
               </div>
-              <small style={{ color: 'var(--muted)' }}>
+              <div className="pvp-pips" aria-label="Tiến độ trả lời người chơi 1">
+                {match.questions.map((q) => (
+                  <span
+                    key={q.index}
+                    className={`pvp-pip ${q.index < match.player1.answeredCount ? 'is-done' : ''}`}
+                  />
+                ))}
+              </div>
+              <small style={{ color: 'var(--muted)', fontSize: 12 }}>
                 Đã trả lời: {match.player1.answeredCount}/{match.questions.length}
               </small>
             </div>
-            <div style={{ padding: 12, borderRadius: 12, background: 'var(--surface-2)' }}>
-              <strong>{match.player2 ? match.player2.fullName : 'Đang chờ đối thủ...'}</strong>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#f43f5e' }}>
-                {match.player2 ? `${match.player2.score} điểm` : '—'}
+
+            <div className="pvp-vs-badge" aria-hidden="true">
+              VS
+            </div>
+
+            <div className="pvp-player-box pvp-player-box--p2">
+              <strong style={{ fontSize: 15 }}>
+                {match.player2 ? match.player2.fullName : 'Đang chờ đối thủ…'}
+              </strong>
+              <div className="pvp-score" style={{ color: '#f43f5e' }}>
+                {match.player2 ? (
+                  <>
+                    {match.player2.score}{' '}
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)' }}>
+                      điểm
+                    </span>
+                  </>
+                ) : (
+                  '—'
+                )}
               </div>
-              <small style={{ color: 'var(--muted)' }}>
+              <div className="pvp-pips" aria-label="Tiến độ trả lời người chơi 2">
+                {match.questions.map((q) => (
+                  <span
+                    key={q.index}
+                    className={`pvp-pip ${
+                      match.player2 && q.index < match.player2.answeredCount
+                        ? 'is-done'
+                        : ''
+                    }`}
+                  />
+                ))}
+              </div>
+              <small style={{ color: 'var(--muted)', fontSize: 12 }}>
                 {match.player2
                   ? `Đã trả lời: ${match.player2.answeredCount}/${match.questions.length}`
                   : 'Gửi mã phòng cho bạn bè để bắt đầu'}
@@ -227,119 +326,179 @@ export default function PvpPage() {
           </div>
 
           {match.status === 'WAITING' ? (
-            <div style={{ textAlign: 'center', padding: '18px 0', color: 'var(--muted)' }}>
-              <Lightning size={28} weight="fill" color="#f59e0b" />
-              <p>Đang chờ đối thủ nhập mã <strong>{match.inviteCode}</strong> để bắt đầu trận đấu...</p>
+            <div className="pvp-waiting-box">
+              <Lightning size={32} weight="fill" color="#f59e0b" />
+              <strong style={{ fontSize: 16 }}>Phòng đã sẵn sàng!</strong>
+              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--muted)' }}>
+                Gửi mã{' '}
+                <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
+                  {match.inviteCode}
+                </strong>{' '}
+                cho bạn bè. Trận đấu sẽ tự động bắt đầu ngay khi đối thủ vào phòng.
+              </p>
             </div>
           ) : match.status === 'COMPLETED' ? (
-            <div style={{ padding: 16, borderRadius: 12, background: 'rgba(16, 185, 129, 0.14)', textAlign: 'center' }}>
-              <Trophy size={30} weight="fill" color="#f59e0b" />
-              <h3 style={{ margin: '6px 0' }}>
+            <div className="pvp-result-banner">
+              <Trophy size={36} weight="fill" color="#f59e0b" />
+              <h3 style={{ margin: 0, fontSize: 20, fontFamily: 'var(--font-display)' }}>
                 {match.winnerId === null
-                  ? 'Trận đấu hòa!'
+                  ? 'Trận đấu hòa đầy kịch tính!'
                   : match.winnerId === match.player1.userId
-                    ? `🏆 ${match.player1.fullName} chiến thắng!`
-                    : `🏆 ${match.player2?.fullName ?? 'Người chơi 2'} chiến thắng!`}
+                    ? `${match.player1.fullName} giành chiến thắng!`
+                    : `${match.player2?.fullName ?? 'Người chơi 2'} giành chiến thắng!`}
               </h3>
+              <button
+                type="button"
+                className="button"
+                style={{ marginTop: 6 }}
+                onClick={() => setMatch(null)}
+              >
+                Quay lại sảnh PvP
+              </button>
             </div>
           ) : activeQuestion ? (
-            <div style={{ display: 'grid', gap: 12 }}>
-              <strong style={{ fontSize: 16 }}>
-                Câu {activeQuestion.index + 1}/{match.questions.length}: {activeQuestion.question}
-              </strong>
-              <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'grid', gap: 14 }}>
+              <div className="arena-section-head">
+                <span className="mk-topic-pill">
+                  Câu {activeQuestion.index + 1} / {match.questions.length}
+                </span>
+                <span style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 600 }}>
+                  Trả lời nhanh và chính xác để tối đa điểm tốc độ
+                </span>
+              </div>
+              <h3 style={{ margin: 0, fontSize: 17, lineHeight: 1.45 }}>
+                {activeQuestion.question}
+              </h3>
+              <div className="arena-options-grid">
                 {activeQuestion.options.map((opt) => (
                   <button
                     key={opt.id}
                     type="button"
-                    className="button secondary"
+                    className="arena-option-btn"
                     disabled={busy}
-                    style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '12px 14px' }}
-                    onClick={(e) => void handleAnswer(activeQuestion.index, opt.label, e)}
+                    onClick={(e) =>
+                      void handleAnswer(activeQuestion.index, opt.label, e)
+                    }
                   >
-                    <strong>{opt.label}.</strong>&nbsp;{opt.text}
+                    <span className="arena-option-key">{opt.label}</span>
+                    <span>{opt.text}</span>
                   </button>
                 ))}
               </div>
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: 14, color: 'var(--muted)' }}>
-              <CheckCircle size={24} weight="fill" color="#10b981" />
-              <p>Bạn đã hoàn thành toàn bộ câu hỏi! Đang chờ đối thủ hoàn tất...</p>
+            <div className="pvp-waiting-box">
+              <CheckCircle size={32} weight="fill" color="#10b981" />
+              <strong style={{ fontSize: 16 }}>Bạn đã hoàn thành toàn bộ câu hỏi!</strong>
+              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--muted)' }}>
+                Đang chờ đối thủ trả lời nốt để tổng kết điểm và cập nhật ELO…
+              </p>
             </div>
           )}
         </section>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-          <div className="panel" style={{ padding: 20, display: 'grid', gap: 12 }}>
-            <h3 style={{ margin: 0 }}>Tạo phòng thách đấu</h3>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
-              Tạo phòng 1v1 mới và gửi mã 6 ký tự cho bạn bè cùng đấu tốc độ.
-            </p>
-            <button type="button" className="button" disabled={busy} onClick={() => void handleCreate()}>
-              <Sword size={16} weight="fill" /> Tạo phòng ngay
-            </button>
-          </div>
-
-          <div className="panel" style={{ padding: 20, display: 'grid', gap: 12 }}>
-            <h3 style={{ margin: 0 }}>Tham gia bằng mã phòng</h3>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                placeholder="Nhập mã 6 ký tự (VD: A1B2C3)"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid var(--line)',
-                  background: 'var(--bg)',
-                  color: 'var(--text)',
-                }}
-              />
-              <button
-                type="button"
-                className="button"
-                disabled={busy || !joinCode.trim()}
-                onClick={() => void handleJoin()}
-              >
-                Vào phòng
-              </button>
+        <div className="pvp-lobby-grid">
+          <article className="pvp-lobby-card">
+            <div className="pvp-lobby-card__head">
+              <div className="arena-kpi-icon arena-kpi-icon--crimson">
+                <PlusCircle size={24} weight="fill" />
+              </div>
+              <div>
+                <h2 className="arena-section-title" style={{ fontSize: 16 }}>
+                  Tạo phòng thách đấu
+                </h2>
+                <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--muted)' }}>
+                  Khởi tạo phòng 1v1 mới và nhận mã mời 6 ký tự gửi cho bạn bè cùng đấu tốc độ.
+                </p>
+              </div>
             </div>
-          </div>
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={() => void handleCreate()}
+            >
+              <Sword size={17} weight="fill" />
+              {busy ? 'Đang tạo phòng…' : 'Tạo phòng ngay'}
+            </button>
+          </article>
+
+          <form className="pvp-lobby-card" onSubmit={(e) => void handleJoin(e)}>
+            <div className="pvp-lobby-card__head">
+              <div className="arena-kpi-icon arena-kpi-icon--emerald">
+                <KeyReturn size={24} weight="fill" />
+              </div>
+              <div>
+                <h2 className="arena-section-title" style={{ fontSize: 16 }}>
+                  Tham gia bằng mã phòng
+                </h2>
+                <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--muted)' }}>
+                  Nhập mã 6 ký tự từ bạn bè để vào trận đấu trực tiếp ngay lập tức.
+                </p>
+              </div>
+            </div>
+
+            <div className="arena-field">
+              <label htmlFor="pvp-join-code">Mã phòng thách đấu</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  id="pvp-join-code"
+                  type="text"
+                  maxLength={10}
+                  className="arena-input arena-input--code"
+                  placeholder="VD: A1B2C3"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                />
+                <button
+                  type="submit"
+                  className="button"
+                  style={{ whiteSpace: 'nowrap' }}
+                  disabled={busy || !joinCode.trim()}
+                >
+                  Vào phòng
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       )}
 
       {/* Leaderboard */}
-      <section className="panel" style={{ padding: 18, display: 'grid', gap: 10 }}>
-        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Trophy size={18} weight="fill" color="#f59e0b" /> Bảng Xếp Hạng ELO PvP
-        </h3>
+      <section className="arena-card">
+        <div className="arena-section-head">
+          <h2 className="arena-section-title">
+            <Trophy size={20} weight="fill" color="#f59e0b" />
+            Bảng Xếp Hạng ELO PvP
+          </h2>
+          <span style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 600 }}>
+            Top {leaders.length} đấu sĩ
+          </span>
+        </div>
+
         {leaders.length === 0 ? (
-          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>
-            <WarningCircle size={14} /> Chưa có trận đấu PvP nào được hoàn thành.
+          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13.5 }}>
+            Chưa có trận đấu PvP nào được hoàn thành. Hãy tạo phòng và mở màn bảng xếp hạng!
           </p>
         ) : (
-          <div style={{ display: 'grid', gap: 6 }}>
+          <div className="arena-lb-list">
             {leaders.map((row) => (
               <div
                 key={row.userId}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  background: 'var(--surface-2)',
-                  fontSize: 13,
-                }}
+                className={`arena-lb-row ${row.rank <= 3 ? `is-top-${row.rank}` : ''}`}
               >
-                <span>
-                  <strong>#{row.rank}</strong> · {row.fullName || row.userId}
-                </span>
-                <span>
-                  <strong>{row.elo} ELO</strong> ({row.wins}W / {row.losses}L)
-                </span>
+                <div className="arena-lb-left">
+                  <span className="arena-rank-pill">#{row.rank}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="arena-lb-name">
+                      {row.fullName || row.userId}
+                    </div>
+                    <div className="arena-lb-sub">
+                      {getEloTierLabel(row.elo)} · {row.wins} thắng / {row.losses} thua
+                    </div>
+                  </div>
+                </div>
+                <span className="arena-lb-score">{row.elo} ELO</span>
               </div>
             ))}
           </div>
