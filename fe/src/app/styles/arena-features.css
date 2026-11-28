@@ -1,73 +1,91 @@
 /* ==========================================================================
-   BCN ARENA — NEW FEATURES DESIGN SYSTEM
-   Cohesive styling for PvP, Season Pass, Mistakes, Guilds, Quests & Shop.
-   Full Light Mode & Dark Mode support via globals.css tokens.
+   BCN ARENA — NEW FEATURES DESIGN SYSTEM (FULL-WIDTH + RPG BANNER ARTWORK)
+   Matches .bounty-page, .rpg-hero-grand, and globals.css tokens seamlessly.
+   Supports both Light Mode & Dark Mode.
    ========================================================================== */
 
 .arena-page {
-  display: grid;
-  gap: 24px;
-  max-width: 1120px;
-  margin: 0 auto;
-  padding-bottom: 40px;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-bottom: 48px;
   color: var(--text);
 }
 
+/* Full-width 2-column split matching .figma-split proportions */
+.arena-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.95fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.arena-two-col > * {
+  min-width: 0;
+}
+
+.arena-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
 /* --------------------------------------------------------------------------
-   Shared Hero Banner
+   Shared Illustrated RPG Hero Banner (matches .rpg-hero-grand & .bounty-hud)
    -------------------------------------------------------------------------- */
 .arena-hero {
   position: relative;
   overflow: hidden;
-  border-radius: 20px;
-  padding: 24px 28px;
+  min-height: 196px;
+  border-radius: 22px;
+  padding: 28px 32px;
   color: #f8fafc;
-  background: linear-gradient(135deg, #0b1628 0%, #10243d 55%, #0a2e2a 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 18px 40px rgba(7, 15, 28, 0.18);
+  background-color: #0b1628;
+  background-image: url('/images/dashboard/hero-bg.jpg');
+  background-size: cover;
+  background-position: center right;
+  background-repeat: no-repeat;
+  border: 1px solid color-mix(in srgb, var(--line) 40%, rgba(255, 255, 255, 0.16));
+  box-shadow: 0 16px 38px rgba(6, 26, 24, 0.16), 0 2px 10px rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 22px;
 }
 
 .arena-hero::before {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 88% 18%, rgba(16, 185, 129, 0.24), transparent 44%),
-    radial-gradient(circle at 12% 90%, rgba(56, 189, 248, 0.16), transparent 42%);
+  background: linear-gradient(
+    95deg,
+    rgba(7, 15, 28, 0.92) 0%,
+    rgba(9, 20, 36, 0.78) 46%,
+    rgba(9, 20, 36, 0.34) 100%
+  );
 }
 
 .arena-hero--pvp {
-  background: linear-gradient(135deg, #1a0f1f 0%, #24132d 50%, #131c31 100%);
-}
-.arena-hero--pvp::before {
-  background:
-    radial-gradient(circle at 86% 20%, rgba(244, 63, 94, 0.28), transparent 45%),
-    radial-gradient(circle at 14% 85%, rgba(251, 191, 36, 0.16), transparent 42%);
+  background-image: url('/images/dashboard/arena-banner-pvp.jpg');
 }
 
 .arena-hero--season {
-  background: linear-gradient(135deg, #161433 0%, #1e1b4b 52%, #0f172a 100%);
-  border-color: rgba(250, 204, 21, 0.32);
+  background-image: url('/images/dashboard/arena-banner-season-pass.jpg');
+  border-color: rgba(250, 204, 21, 0.35);
 }
-.arena-hero--season::before {
-  background:
-    radial-gradient(circle at 85% 20%, rgba(250, 204, 21, 0.26), transparent 45%),
-    radial-gradient(circle at 12% 88%, rgba(56, 189, 248, 0.2), transparent 42%);
+
+.arena-hero--mistakes {
+  background-image: url('/images/dashboard/arena-banner-mistakes.jpg');
 }
 
 .arena-hero--guild {
-  background: linear-gradient(135deg, #0d1d2b 0%, #132a3e 52%, #1d2538 100%);
-}
-.arena-hero--guild::before {
-  background:
-    radial-gradient(circle at 86% 22%, rgba(245, 158, 11, 0.24), transparent 45%),
-    radial-gradient(circle at 12% 86%, rgba(16, 185, 129, 0.2), transparent 42%);
+  background-image: url('/images/dashboard/arena-banner-guilds.jpg');
 }
 
 .arena-hero__main {
@@ -75,7 +93,7 @@
   z-index: 1;
   display: grid;
   gap: 8px;
-  max-width: 660px;
+  max-width: 640px;
 }
 
 .arena-hero__eyebrow {
@@ -83,44 +101,53 @@
   align-items: center;
   gap: 6px;
   width: fit-content;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #e2e8f0;
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.42);
+  color: #6ee7b7;
+  backdrop-filter: blur(8px);
 }
 
 .arena-hero--season .arena-hero__eyebrow {
-  background: rgba(250, 204, 21, 0.16);
-  border-color: rgba(250, 204, 21, 0.36);
+  background: rgba(250, 204, 21, 0.18);
+  border-color: rgba(250, 204, 21, 0.45);
   color: #fde047;
 }
 
 .arena-hero--pvp .arena-hero__eyebrow {
-  background: rgba(244, 63, 94, 0.18);
-  border-color: rgba(244, 63, 94, 0.36);
+  background: rgba(244, 63, 94, 0.22);
+  border-color: rgba(251, 113, 133, 0.45);
   color: #fda4af;
+}
+
+.arena-hero--guild .arena-hero__eyebrow {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(251, 191, 36, 0.44);
+  color: #fde68a;
 }
 
 .arena-hero__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(22px, 3vw, 30px);
+  font-size: clamp(24px, 3vw, 34px);
   font-weight: 800;
-  line-height: 1.18;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
   color: #ffffff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
 }
 
 .arena-hero__sub {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #cbd5e1;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: rgba(226, 232, 240, 0.92);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
 }
 
 .arena-hero__aside {
@@ -133,36 +160,37 @@
 }
 
 /* --------------------------------------------------------------------------
-   KPI Stat Cards
+   KPI Stat Cards (aligned with .figma-stats / .figma-stat)
    -------------------------------------------------------------------------- */
 .arena-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .arena-kpi-card {
   position: relative;
   padding: 18px 20px;
-  border-radius: 16px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
   display: flex;
   align-items: center;
   gap: 14px;
-  transition: transform 0.18s ease, border-color 0.18s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .arena-kpi-card:hover {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
 }
 
 .arena-kpi-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
   flex: none;
@@ -201,14 +229,14 @@
 }
 
 .arena-kpi-label {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
 }
 
 .arena-kpi-value {
   font-family: var(--font-display);
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 800;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
@@ -219,11 +247,11 @@
    Shared Surface Cards, Section Headers, Pills & Inputs
    -------------------------------------------------------------------------- */
 .arena-card {
-  padding: 20px 22px;
-  border-radius: 16px;
+  padding: 22px 24px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
   display: grid;
   gap: 16px;
 }
@@ -263,7 +291,7 @@
   color: var(--muted);
   font-size: 12.5px;
   font-weight: 700;
-  padding: 6px 13px;
+  padding: 6px 14px;
   border-radius: 999px;
   white-space: nowrap;
   transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
@@ -317,16 +345,16 @@
 }
 
 .arena-field label {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text);
 }
 
 .arena-input {
   width: 100%;
-  min-height: 42px;
-  padding: 9px 13px;
-  border-radius: 10px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 11px;
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--text);
@@ -348,7 +376,7 @@
 .arena-input--code {
   font-family: var(--font-mono);
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -378,7 +406,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
@@ -393,7 +421,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
@@ -508,12 +536,12 @@
 .pvp-rating-strip {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.56);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(8px);
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: rgba(9, 17, 31, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12px);
 }
 
 .pvp-rating-stat {
@@ -538,41 +566,42 @@
 
 .pvp-rating-divider {
   width: 1px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.14);
+  height: 30px;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .pvp-lobby-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
 }
 
 .pvp-lobby-card {
   padding: 22px;
-  border-radius: 16px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
   display: grid;
-  gap: 14px;
+  gap: 16px;
   align-content: space-between;
 }
 
 .pvp-lobby-card__head {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
 }
 
 .pvp-versus-board {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .pvp-player-box {
-  padding: 16px 18px;
+  padding: 18px 20px;
   border-radius: 14px;
   background: var(--surface-2);
   border: 1px solid var(--line);
@@ -581,7 +610,7 @@
 }
 
 .pvp-player-box--p1 {
-  border-top: 3px solid #0ea5e9;
+  border-top: 3px solid var(--accent);
 }
 
 .pvp-player-box--p2 {
@@ -595,20 +624,20 @@
 
 .pvp-score {
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 800;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
 .pvp-vs-badge {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 999px;
   display: grid;
   place-items: center;
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.04em;
   background: linear-gradient(135deg, #f43f5e, #f59e0b);
@@ -640,7 +669,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 7px 14px;
   border-radius: 10px;
   background: var(--surface-2);
   border: 1px dashed var(--accent);
@@ -652,7 +681,7 @@
 }
 
 .pvp-waiting-box {
-  padding: 28px 20px;
+  padding: 32px 20px;
   border-radius: 14px;
   background: var(--surface-2);
   border: 1px dashed var(--line);
@@ -663,7 +692,7 @@
 }
 
 .pvp-result-banner {
-  padding: 24px 20px;
+  padding: 26px 20px;
   border-radius: 16px;
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(245, 158, 11, 0.14));
   border: 1px solid rgba(16, 185, 129, 0.4);
@@ -674,11 +703,12 @@
 }
 
 /* --------------------------------------------------------------------------
-   Interactive Quiz Options (shared by PvP & Mistakes)
+   Interactive Quiz Options (2x2 on desktop matching Quizzy layout)
    -------------------------------------------------------------------------- */
 .arena-options-grid {
   display: grid;
-  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .arena-option-btn {
@@ -687,7 +717,7 @@
   gap: 12px;
   width: 100%;
   text-align: left;
-  padding: 12px 14px;
+  padding: 13px 15px;
   border-radius: 12px;
   border: 2px solid var(--line);
   background: var(--surface-2);
@@ -716,8 +746,8 @@
 }
 
 .arena-option-key {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
   display: grid;
   place-items: center;
@@ -735,58 +765,62 @@
   color: #ffffff;
   border-color: var(--accent);
 }
+:root[data-theme='dark'] .arena-option-btn.is-selected .arena-option-key {
+  color: #042f2e;
+}
 
 /* --------------------------------------------------------------------------
-   Season Pass Track
+   Season Pass Track (Full-width 4-5 column desktop grid)
    -------------------------------------------------------------------------- */
 .sp-hero-progress {
   display: grid;
-  gap: 6px;
-  margin-top: 6px;
-  max-width: 440px;
+  gap: 7px;
+  margin-top: 8px;
+  max-width: 480px;
 }
 
 .sp-hero-progress__bar {
-  height: 9px;
+  height: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.16);
   overflow: hidden;
 }
 
 .sp-hero-progress__fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #38bdf8, #fde047);
+  background: linear-gradient(90deg, #10b981, #fde047);
   transition: width 0.35s ease;
 }
 
 .sp-tiers-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
 }
 
 .sp-tier-card {
   padding: 16px;
-  border-radius: 16px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
   display: grid;
   gap: 12px;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .sp-tier-card.is-unlocked {
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
 }
 
 .sp-tier-card.is-claimable {
-  border-color: rgba(250, 204, 21, 0.72);
+  border-color: rgba(245, 158, 11, 0.72);
   box-shadow: 0 8px 24px rgba(245, 158, 11, 0.12);
 }
 
 .sp-tier-card.is-locked {
-  opacity: 0.76;
+  opacity: 0.78;
 }
 
 .sp-tier-card:hover {
@@ -805,7 +839,7 @@
   align-items: center;
   gap: 6px;
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 800;
 }
 
@@ -826,7 +860,7 @@
 }
 
 .sp-track-box--premium {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(250, 204, 21, 0.05));
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.11), rgba(250, 204, 21, 0.04));
   border-color: rgba(245, 158, 11, 0.34);
 }
 
@@ -858,10 +892,11 @@
    Mistakes Practice Cards
    -------------------------------------------------------------------------- */
 .mk-question-card {
-  padding: 20px;
-  border-radius: 16px;
+  padding: 22px 24px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
   display: grid;
   gap: 14px;
 }
@@ -878,7 +913,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 4px 11px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-strong);
@@ -890,7 +925,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -914,11 +949,11 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 14px 18px;
-  border-radius: 14px;
+  padding: 16px 22px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
 }
 
 /* --------------------------------------------------------------------------
@@ -936,6 +971,9 @@
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
+}
+:root[data-theme='dark'] .gd-tag-badge {
+  color: #042f2e;
 }
 
 .gd-member-row {
@@ -957,8 +995,8 @@
 
 .gd-browse-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
 }
 
 .gd-browse-card {
@@ -1021,11 +1059,14 @@
 .sc-chest-hero {
   position: relative;
   overflow: hidden;
-  padding: 20px 22px;
+  padding: 22px 24px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.92));
+  background-color: #0b1628;
+  background-image: url('/images/dashboard/arena-banner-season-pass.jpg');
+  background-size: cover;
+  background-position: center right;
   border: 1px solid rgba(250, 204, 21, 0.45);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
   display: grid;
   gap: 14px;
 }
@@ -1035,9 +1076,12 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 86% 18%, rgba(250, 204, 21, 0.22), transparent 46%),
-    radial-gradient(circle at 12% 85%, rgba(16, 185, 129, 0.16), transparent 42%);
+  background: linear-gradient(
+    95deg,
+    rgba(8, 15, 28, 0.92) 0%,
+    rgba(12, 22, 40, 0.8) 54%,
+    rgba(12, 22, 40, 0.46) 100%
+  );
 }
 
 .sc-chest-top {
@@ -1088,15 +1132,25 @@
 
 .sc-item-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(56, 189, 248, 0.45);
+  border-color: rgba(16, 185, 129, 0.5);
 }
 
 /* --------------------------------------------------------------------------
    Responsive & Reduced Motion
    -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .arena-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 720px) {
   .arena-hero {
+    min-height: 160px;
     padding: 20px;
+  }
+  .arena-options-grid {
+    grid-template-columns: 1fr;
   }
   .pvp-versus-board {
     grid-template-columns: 1fr;

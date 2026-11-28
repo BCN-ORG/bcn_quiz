@@ -11,7 +11,7 @@ import {
 import { ConsumableType } from '@prisma/client';
 import type { Request as ExpressRequest } from 'express';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { CONTENT_READ } from '../auth/quiz-permissions';
+import { CONTENT_READ, CONTENT_UPDATE } from '../auth/quiz-permissions';
 import { ShopService } from './shop.service';
 
 @Controller('shop')
@@ -49,6 +49,30 @@ export class ShopController {
       this.extractUserId(req),
       body?.idempotencyKey,
     );
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('admin/overview')
+  async getAdminOverview() {
+    return this.shopService.getAdminOverview();
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Post('admin/grant-consumable')
+  @HttpCode(HttpStatus.OK)
+  async grantAdminConsumable(
+    @Body()
+    body: {
+      userId?: string;
+      itemType?: ConsumableType;
+      amount?: number;
+    },
+  ) {
+    return this.shopService.grantAdminConsumable({
+      userId: body?.userId ?? '',
+      itemType: body?.itemType as ConsumableType,
+      amount: body?.amount,
+    });
   }
 
   private extractUserId(req: ExpressRequest): string {

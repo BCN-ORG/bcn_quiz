@@ -350,4 +350,69 @@ export class QuestService {
       });
     }
   }
+
+  // --------------------------------------------------------------------------
+  // ADMIN STATS
+  // --------------------------------------------------------------------------
+
+  async getAdminStats(now: Date = new Date()) {
+    const todayKey = businessDate(now);
+    const { weekKey } = vietnamWeekKey(now);
+
+    const [todayClaims, weekClaims, totals] = await Promise.all([
+      this.prisma.userQuestClaim.groupBy({
+        by: ['questCode'],
+        where: { period: QuestPeriod.DAILY, periodKey: todayKey },
+        _count: { _all: true },
+        _sum: { rewardXp: true, rewardCoins: true },
+      }),
+      this.prisma.userQuestClaim.groupBy({
+        by: ['questCode'],
+        where: { period: QuestPeriod.WEEKLY, periodKey: weekKey },
+        _count: { _all: true },
+        _sum: { rewardXp: true, rewardCoins: true },
+      }),
+      this.prisma.userQuestClaim.aggregate({
+        _count: { _all: true },
+        _sum: { rewardXp: true, rewardCoins: true },
+      }),
+    ]);
+
+    const claimMap = new Map<
+      string,
+      { count: number; xp: number; coins: number }
+    >();
+    for (const row of [...todayClaims, ...weekClaims]) {
+      claimMap.set(row.questCode, {
+        count: row._count._all,
+        xp: row._sum.rewardXp ?? 0,
+        coins: row._sum.rewardCoins ?? 0,
+      });
+    }
+
+    return {
+      todayKey,
+      weekKey,
+      totals: {
+        totalClaims: totals._count._all,
+        totalXpGranted: totals._sum.rewardXp ?? 0,
+        totalCoinsGranted: totals._sum.rewardCoins ?? 0,
+      },
+      quests: QUEST_DEFINITIONS.map((q) => {
+        const stat = claimMap.get(q.code);
+        return {
+          code: q.code,
+          period: q.period,
+          title: q.title,
+          description: q.description,
+          target: q.target,
+          rewardXp: q.rewardXp,
+          rewardCoins: q.rewardCoins,
+          currentPeriodClaims: stat?.count ?? 0,
+          currentPeriodXp: stat?.xp ?? 0,
+          currentPeriodCoins: stat?.coins ?? 0,
+        };
+      }),
+    };
+  }
 }

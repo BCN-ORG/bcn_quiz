@@ -80,22 +80,36 @@ export default function PvpPage() {
       ]);
       setRating(r);
       setLeaders(lb ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không tải được dữ liệu PvP.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const refreshMatch = useCallback(async (matchId: string) => {
-    const detail = await request.get<PvpMatchDetail>(`/pvp/matches/${matchId}`);
-    setMatch(detail);
-  }, []);
+  const refreshMatch = useCallback(
+    async (matchId: string) => {
+      try {
+        const detail = await request.get<PvpMatchDetail>(`/pvp/matches/${matchId}`);
+        setMatch(detail);
+        if (detail.status === 'COMPLETED') {
+          void loadLobby();
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Không thể đồng bộ trạng thái trận đấu.');
+      }
+    },
+    [loadLobby],
+  );
 
   useEffect(() => {
     void loadLobby();
   }, [loadLobby]);
 
   useEffect(() => {
-    if (!match?.id || match.status === 'COMPLETED') return;
+    if (!match?.id || match.status === 'COMPLETED' || match.status === 'CANCELLED') {
+      return;
+    }
     const stream = new EventSource(apiUrl(`/pvp/matches/${match.id}/stream`), {
       withCredentials: true,
     });
@@ -161,6 +175,8 @@ export default function PvpPage() {
       }
       await refreshMatch(match.id);
       questionStartRef.current = Date.now();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể gửi đáp án.');
     } finally {
       setBusy(false);
     }
@@ -230,6 +246,8 @@ export default function PvpPage() {
         </div>
       ) : null}
 
+      <div className="arena-two-col">
+        <div className="arena-stack">
       {match ? (
         <section className="arena-card">
           <div className="arena-section-head">
@@ -336,6 +354,22 @@ export default function PvpPage() {
                 </strong>{' '}
                 cho bạn bè. Trận đấu sẽ tự động bắt đầu ngay khi đối thủ vào phòng.
               </p>
+            </div>
+          ) : match.status === 'CANCELLED' ? (
+            <div className="pvp-waiting-box">
+              <WarningCircle size={32} weight="fill" color="#f43f5e" />
+              <strong style={{ fontSize: 16 }}>Trận đấu đã bị hủy</strong>
+              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--muted)' }}>
+                Phòng này đã bị đóng hoặc hủy bởi quản trị viên. Bạn có thể tạo hoặc vào phòng mới.
+              </p>
+              <button
+                type="button"
+                className="button secondary"
+                style={{ marginTop: 6 }}
+                onClick={() => setMatch(null)}
+              >
+                Quay lại sảnh PvP
+              </button>
             </div>
           ) : match.status === 'COMPLETED' ? (
             <div className="pvp-result-banner">
@@ -463,6 +497,7 @@ export default function PvpPage() {
           </form>
         </div>
       )}
+        </div>
 
       {/* Leaderboard */}
       <section className="arena-card">
@@ -504,6 +539,7 @@ export default function PvpPage() {
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }

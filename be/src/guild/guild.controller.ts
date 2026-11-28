@@ -1,17 +1,23 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Request,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { CONTENT_READ } from '../auth/quiz-permissions';
+import {
+  CONTENT_DELETE,
+  CONTENT_READ,
+  CONTENT_UPDATE,
+} from '../auth/quiz-permissions';
 import { GuildService } from './guild.service';
 
 @Controller('guilds')
@@ -61,6 +67,48 @@ export class GuildController {
   @HttpCode(HttpStatus.OK)
   async leaveGuild(@Request() req: ExpressRequest) {
     return this.guildService.leaveGuild(this.extractUserId(req));
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('admin/list')
+  async listAdminGuilds() {
+    return this.guildService.listAdminGuilds();
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('admin/:id')
+  async getAdminGuildDetail(@Param('id') id: string) {
+    return this.guildService.getAdminGuildDetail(id);
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Patch('admin/:id')
+  async updateAdminGuild(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name?: string;
+      tag?: string;
+      description?: string;
+      maxMembers?: number;
+    },
+  ) {
+    return this.guildService.updateAdminGuild(id, body ?? {});
+  }
+
+  @Permissions(...CONTENT_DELETE)
+  @Delete('admin/:id/members/:userId')
+  async kickAdminMember(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.guildService.kickAdminMember(id, userId);
+  }
+
+  @Permissions(...CONTENT_DELETE)
+  @Delete('admin/:id')
+  async deleteAdminGuild(@Param('id') id: string) {
+    return this.guildService.deleteAdminGuild(id);
   }
 
   private extractUserId(req: ExpressRequest): string {

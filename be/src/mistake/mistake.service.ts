@@ -324,4 +324,58 @@ export class MistakeService {
       });
     }
   }
+
+  // --------------------------------------------------------------------------
+  // ADMIN ANALYTICS (TOP MOST-MISSED QUESTIONS)
+  // --------------------------------------------------------------------------
+
+  async getAdminAnalytics() {
+    const [activeTotal, masteredTotal, grouped] = await Promise.all([
+      this.prisma.userMistakeItem.count({
+        where: { status: MistakeStatus.ACTIVE },
+      }),
+      this.prisma.userMistakeItem.count({
+        where: { status: MistakeStatus.MASTERED },
+      }),
+      this.prisma.userMistakeItem.groupBy({
+        by: ['quizId', 'topicId'],
+        _count: { _all: true },
+        _sum: { wrongCount: true },
+        orderBy: { _sum: { wrongCount: 'desc' } },
+        take: 20,
+      }),
+    ]);
+
+    const quizIds = grouped.map((g) => g.quizId);
+    const quizzes =
+      quizIds.length > 0
+        ? await this.prisma.quiz.findMany({
+            where: { id: { in: quizIds } },
+            include: { topic: { select: { name: true } } },
+          })
+        : [];
+    const quizMap = new Map(quizzes.map((q) => [q.id, q]));
+
+    return {
+      totals: {
+        activeTotal,
+        masteredTotal,
+        masteryRatePercent:
+          activeTotal + masteredTotal > 0
+            ? Math.round((masteredTotal / (activeTotal + masteredTotal)) * 100)
+            : 0,
+      },
+      topMissedQuestions: grouped.map((g) => {
+        const quiz = quizMap.get(g.quizId);
+        return {
+          quizId: g.quizId,
+          topicId: g.topicId,
+          topicName: quiz?.topic?.name ?? 'Chủ đề',
+          question: quiz?.question ?? '(Câu hỏi đã bị xóa)',
+          affectedUsers: g._count._all,
+          totalWrongCount: g._sum.wrongCount ?? 0,
+        };
+      }),
+    };
+  }
 }

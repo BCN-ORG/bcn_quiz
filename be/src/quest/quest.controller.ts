@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { CONTENT_READ } from '../auth/quiz-permissions';
+import { CONTENT_READ, CONTENT_UPDATE } from '../auth/quiz-permissions';
 import { QuestService } from './quest.service';
 
 @Controller('quests')
@@ -31,6 +31,12 @@ export class QuestController {
     @Param('questCode') questCode: string,
   ) {
     return this.questService.claimQuest(this.extractUserId(req), questCode);
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('admin/stats')
+  async getAdminStats() {
+    return this.questService.getAdminStats();
   }
 
   private extractUserId(req: ExpressRequest): string {

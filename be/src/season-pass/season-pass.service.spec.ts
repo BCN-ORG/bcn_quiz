@@ -14,6 +14,7 @@ describe('SeasonPassService', () => {
     };
     const prisma = {
       seasonPass: {
+        findFirst: jest.fn().mockResolvedValue(season),
         findUnique: jest.fn().mockResolvedValue(season),
       },
       userXpEvent: {
@@ -53,10 +54,46 @@ describe('SeasonPassService', () => {
     // Tier 1 requires 200 XP (user has 450 XP -> Tier 2 unlocked)
     const claimFree = await svc.claimTier('u1', 1, 'free');
     expect(claimFree.claimed).toBe(true);
+    // Regression guard: claiming a tier must NOT write total seasonXp back into bonusXp
+    expect(prisma.userSeasonProgress.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        update: { claimedFreeTiers: [1] },
+        create: expect.objectContaining({ seasonXp: 0 }),
+      }),
+    );
 
     // Tier 3 requires 600 XP -> rejected
     await expect(svc.claimTier('u1', 3, 'free')).rejects.toThrow(
       BadRequestException,
     );
+  });
+
+  it('creates an active season via admin and deactivates previous active seasons', async () => {
+    const prisma = {
+      seasonPass: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockResolvedValue({
+          id: 's2',
+          code: '2026-12',
+          title: 'Mùa Đông 2026',
+          isActive: true,
+        }),
+      },
+      $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
+    };
+    const svc = new SeasonPassService(prisma as never);
+    const created = await svc.createAdminSeason({
+      code: '2026-12',
+      title: 'Mùa Đông 2026',
+      startsAt: '2026-12-01T00:00:00Z',
+      endsAt: '2027-01-01T00:00:00Z',
+      premiumPriceCoins: 250,
+      isActive: true,
+    });
+    expect(prisma.seasonPass.updateMany).toHaveBeenCalledWith({
+      where: { isActive: true },
+      data: { isActive: false },
+    });
+    expect(created.code).toBe('2026-12');
   });
 });

@@ -88,4 +88,20 @@ describe('PvpService', () => {
     expect(prisma.pvpUserRating.upsert).not.toHaveBeenCalled();
     expect(xp.award).not.toHaveBeenCalled();
   });
+
+  it('cancels a waiting match via admin and rejects cancelling completed matches', async () => {
+    const prisma = {
+      pvpMatch: {
+        updateMany: jest
+          .fn()
+          .mockResolvedValueOnce({ count: 1 })
+          .mockResolvedValueOnce({ count: 0 }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'm2' }),
+      },
+    };
+    const svc = new PvpService(prisma as never, { award: jest.fn() } as never);
+    const res = await svc.cancelAdminMatch('m1');
+    expect(res.status).toBe(PvpMatchStatus.CANCELLED);
+    await expect(svc.cancelAdminMatch('m2')).rejects.toThrow();
+  });
 });

@@ -4,6 +4,7 @@ import { CoinApiClient, getCoinProviderMode } from '../coin/coin-api.client';
 import { CoinTrackingService } from '../coin/coin-tracking.service';
 import { LiveCoinRewardAdapter } from '../coin/live-coin-reward.adapter';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProfilesService } from '../profiles/profiles.service';
 import { CoinWalletService } from '../wallet/coin-wallet.interface';
 import { MockCoinWalletService } from '../wallet/mock-coin-wallet.service';
 import {
@@ -25,6 +26,7 @@ export class ShopService {
     @Optional() private readonly coinApiClient?: CoinApiClient,
     @Optional() private readonly coinTrackingService?: CoinTrackingService,
     @Optional() private readonly liveRewardAdapter?: LiveCoinRewardAdapter,
+    @Optional() private readonly profilesService?: ProfilesService,
   ) {}
 
   async getInventory(userId: string) {
@@ -406,5 +408,154 @@ export class ShopService {
         description: reason,
       });
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // ADMIN OVERVIEW & SUPPORT GRANT
+  // --------------------------------------------------------------------------
+
+  async getAdminOverview() {
+    const [rollAgg, duplicateCount, recentRolls, activeBoostCount] =
+      await Promise.all([
+        this.prisma.mysteryChestRoll.aggregate({
+          _count: { _all: true },
+          _sum: { costCoins: true, refundCoins: true },
+        }),
+        this.prisma.mysteryChestRoll.count({ where: { isDuplicate: true } }),
+        this.prisma.mysteryChestRoll.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        }),
+        this.prisma.userInventoryItem.count({
+          where: {
+            itemType: ConsumableType.XP_BOOST_2X,
+            activeUntil: { gt: new Date() },
+          },
+        }),
+      ]);
+
+    const userIds = Array.from(new Set(recentRolls.map((r) => r.userId)));
+    const profiles =
+      this.profilesService && userIds.length > 0
+        ? await this.profilesService
+            .resolveUsers(userIds)
+            .catch(() => new Map())
+        : new Map();
+
+    const totalWeight = MYSTERY_CHEST_POOL.reduce((s, p) => s + p.weight, 0);
+
+    return {
+      stats: {
+        totalRolls: rollAgg._count._all,
+        duplicateRolls: duplicateCount,
+        totalCoinsSpent: rollAgg._sum.costCoins ?? 0,
+        totalCoinsRefunded: rollAgg._sum.refundCoins ?? 0,
+        activeXpBoostUsers: activeBoostCount,
+      },
+      catalog: Object.values(CONSUMABLE_CATALOG),
+      mysteryChest: {
+        costCoins: MYSTERY_CHEST_COST_COINS,
+        duplicateRefundCoins: MYSTERY_CHEST_DUPLICATE_REFUND_COINS,
+        pityThreshold: MYSTERY_CHEST_PITY_THRESHOLD,
+        pool: MYSTERY_CHEST_POOL.map((p) => ({
+          ...p,
+          chancePercent: Number(((p.weight / totalWeight) * 100).toFixed(1)),
+        })),
+      },
+      recentRolls: recentRolls.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        fullName: profiles.get(r.userId)?.fullName ?? r.userId,
+        costCoins: r.costCoins,
+        rewardType: r.rewardType,
+        rewardLabel: r.rewardLabel,
+        isDuplicate: r.isDuplicate,
+        refundCoins: r.refundCoins,
+        pityCountAfter: r.pityCountAfter,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async grantAdminConsumable(dto: {
+    userId: string;
+    itemType: ConsumableType;
+    amount?: number;
+  }) {
+    const userId = typeof dto.userId === 'string' ? dto.userId.trim() : '';
+    if (!userId) {
+      throw new BadRequestException('Thiếu userId học viên.');
+    }
+    if (
+      dto.itemType !== ConsumableType.STREAK_FREEZE &&
+      dto.itemType !== ConsumableType.XP_BOOST_2X
+    ) {
+      throw new BadRequestException('Loại vật phẩm không hợp lệ.');
+    }
+
+    const rawAmount = dto.amount !== undefined ? Number(dto.amount) : 1;
+    if (!Number.isFinite(rawAmount) || rawAmount < 1 || rawAmount > 72) {
+      throw new BadRequestException('Số lượng hoặc số giờ phải từ 1 đến 72.');
+    }
+    const amount = Math.floor(rawAmount);
+
+    if (dto.itemType === ConsumableType.STREAK_FREEZE) {
+      const current = await this.prisma.userInventoryItem.findUnique({
+        where: {
+          userId_itemType: { userId, itemType: ConsumableType.STREAK_FREEZE },
+        },
+      });
+      const nextQty = Math.min(
+        MAX_STREAK_FREEZE_QTY,
+        (current?.quantity ?? 0) + amount,
+      );
+      const saved = await this.prisma.userInventoryItem.upsert({
+        where: {
+          userId_itemType: { userId, itemType: ConsumableType.STREAK_FREEZE },
+        },
+        update: { quantity: nextQty },
+        create: {
+          userId,
+          itemType: ConsumableType.STREAK_FREEZE,
+          quantity: nextQty,
+        },
+      });
+      return {
+        granted: true,
+        userId,
+        itemType: saved.itemType,
+        quantity: saved.quantity,
+      };
+    }
+
+    const current = await this.prisma.userInventoryItem.findUnique({
+      where: {
+        userId_itemType: { userId, itemType: ConsumableType.XP_BOOST_2X },
+      },
+    });
+    const now = new Date();
+    const baseTime =
+      current?.activeUntil && current.activeUntil > now
+        ? current.activeUntil.getTime()
+        : now.getTime();
+    const activeUntil = new Date(baseTime + amount * 3600 * 1000);
+    const saved = await this.prisma.userInventoryItem.upsert({
+      where: {
+        userId_itemType: { userId, itemType: ConsumableType.XP_BOOST_2X },
+      },
+      update: { activeUntil, quantity: { increment: 1 } },
+      create: {
+        userId,
+        itemType: ConsumableType.XP_BOOST_2X,
+        quantity: 1,
+        activeUntil,
+      },
+    });
+    return {
+      granted: true,
+      userId,
+      itemType: saved.itemType,
+      activeUntil: saved.activeUntil?.toISOString() ?? null,
+    };
   }
 }

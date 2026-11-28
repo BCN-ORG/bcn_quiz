@@ -10,16 +10,20 @@ import {
   CheckCircle,
   CheckSquare as FileCheck,
   Coins,
+  Crosshair,
+  Crown,
   DotsThree,
   Exam,
   FloppyDisk,
   Folders,
+  Gift,
   MagnifyingGlass,
   Plus,
   Receipt,
   Stack,
   Sword,
   Trophy,
+  UsersThree,
   WarningCircle,
   X,
 } from '@phosphor-icons/react';
@@ -44,6 +48,10 @@ import { AdminBoss } from '@/components/admin-boss';
 import { AdminBounties } from '@/components/admin-bounties';
 import { AdminTower } from '@/components/admin-tower';
 import { AdminCoins } from '@/components/admin-coins';
+import { AdminSeasonPass } from '@/components/admin-season-pass';
+import { AdminPvp } from '@/components/admin-pvp';
+import { AdminGuilds } from '@/components/admin-guilds';
+import { AdminArenaOps } from '@/components/admin-arena-ops';
 import {
   canCreateContent,
   canDeleteContent,
@@ -62,7 +70,11 @@ type Tab =
   | 'tower'
   | 'boss'
   | 'bounties'
-  | 'coins';
+  | 'coins'
+  | 'season-pass'
+  | 'pvp'
+  | 'guilds'
+  | 'arena-ops';
 
 const TAB_KEYS: readonly Tab[] = [
   'courses',
@@ -75,6 +87,10 @@ const TAB_KEYS: readonly Tab[] = [
   'boss',
   'bounties',
   'coins',
+  'season-pass',
+  'pvp',
+  'guilds',
+  'arena-ops',
 ];
 
 interface ModuleConfig {
@@ -173,6 +189,34 @@ const ADMIN_CATEGORIES: CategoryConfig[] = [
         label: 'Giao dịch Coin',
         description: 'Theo dõi, đối soát và lịch sử trả thưởng Coin',
         icon: Receipt,
+        requiresUpdate: true,
+      },
+      {
+        id: 'season-pass',
+        label: 'Season Pass',
+        description: 'Tạo/kích hoạt mùa, giá Premium & hỗ trợ học viên',
+        icon: Crown,
+        requiresUpdate: true,
+      },
+      {
+        id: 'pvp',
+        label: 'Đấu trường PvP',
+        description: 'Giám sát trận 1v1, hủy phòng treo & reset ELO',
+        icon: Crosshair,
+        requiresUpdate: true,
+      },
+      {
+        id: 'guilds',
+        label: 'Bang hội',
+        description: 'Quản lý Bang hội, sửa thông tin, kick & giải tán',
+        icon: UsersThree,
+        requiresUpdate: true,
+      },
+      {
+        id: 'arena-ops',
+        label: 'Vận hành Arena',
+        description: 'Nhiệm vụ, Rương Bí Ẩn, cấp vật phẩm & Câu sai SRS',
+        icon: Gift,
         requiresUpdate: true,
       },
     ],
@@ -892,6 +936,10 @@ function AdminStudioContent() {
       {tab === 'bounties' && allowUpdate ? <AdminBounties /> : null}
       {tab === 'tower' && allowUpdate ? <AdminTower /> : null}
       {tab === 'coins' && allowUpdate ? <AdminCoins /> : null}
+      {tab === 'season-pass' && allowUpdate ? <AdminSeasonPass /> : null}
+      {tab === 'pvp' && allowUpdate ? <AdminPvp canDelete={allowDelete} /> : null}
+      {tab === 'guilds' && allowUpdate ? <AdminGuilds canDelete={allowDelete} /> : null}
+      {tab === 'arena-ops' && allowUpdate ? <AdminArenaOps /> : null}
       {error ? <p className="form-error" style={{ marginTop: 16 }} role="alert">{error}</p> : null}
       {notice ? <p className="form-success" style={{ marginTop: 16 }} role="status">{notice}</p> : null}
 

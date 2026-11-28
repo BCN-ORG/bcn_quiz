@@ -546,4 +546,141 @@ export class PvpService {
       });
     }
   }
+
+  // --------------------------------------------------------------------------
+  // ADMIN MANAGEMENT
+  // --------------------------------------------------------------------------
+
+  async getAdminOverview() {
+    const [total, waiting, inProgress, completed, cancelled, ratedPlayers] =
+      await Promise.all([
+        this.prisma.pvpMatch.count(),
+        this.prisma.pvpMatch.count({
+          where: { status: PvpMatchStatus.WAITING },
+        }),
+        this.prisma.pvpMatch.count({
+          where: { status: PvpMatchStatus.IN_PROGRESS },
+        }),
+        this.prisma.pvpMatch.count({
+          where: { status: PvpMatchStatus.COMPLETED },
+        }),
+        this.prisma.pvpMatch.count({
+          where: { status: PvpMatchStatus.CANCELLED },
+        }),
+        this.prisma.pvpUserRating.count(),
+      ]);
+
+    return { total, waiting, inProgress, completed, cancelled, ratedPlayers };
+  }
+
+  async listAdminMatches(status?: string, page = 1, limit = 15) {
+    const safePage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(50, Math.max(1, Math.floor(limit)))
+      : 15;
+    const validStatuses = new Set<string>(Object.values(PvpMatchStatus));
+    const where =
+      status && validStatuses.has(status)
+        ? { status: status as PvpMatchStatus }
+        : {};
+
+    const [total, rows] = await Promise.all([
+      this.prisma.pvpMatch.count({ where }),
+      this.prisma.pvpMatch.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (safePage - 1) * safeLimit,
+        take: safeLimit,
+      }),
+    ]);
+
+    const ids = Array.from(
+      new Set(
+        rows
+          .flatMap((m) => [m.player1Id, m.player2Id])
+          .filter((v): v is string => Boolean(v)),
+      ),
+    );
+    const profiles =
+      this.profilesService && ids.length > 0
+        ? await this.profilesService.resolveUsers(ids).catch(() => new Map())
+        : new Map();
+
+    return {
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+      },
+      items: rows.map((m) => ({
+        id: m.id,
+        inviteCode: m.inviteCode,
+        status: m.status,
+        player1Id: m.player1Id,
+        player1Name: profiles.get(m.player1Id)?.fullName ?? m.player1Id,
+        player1Score: m.player1Score,
+        player2Id: m.player2Id,
+        player2Name: m.player2Id
+          ? (profiles.get(m.player2Id)?.fullName ?? m.player2Id)
+          : null,
+        player2Score: m.player2Score,
+        winnerId: m.winnerId,
+        createdAt: m.createdAt.toISOString(),
+        endedAt: m.endedAt?.toISOString() ?? null,
+      })),
+    };
+  }
+
+  async cancelAdminMatch(matchId: string) {
+    const updated = await this.prisma.pvpMatch.updateMany({
+      where: {
+        id: matchId,
+        status: { in: [PvpMatchStatus.WAITING, PvpMatchStatus.IN_PROGRESS] },
+      },
+      data: { status: PvpMatchStatus.CANCELLED, endedAt: new Date() },
+    });
+    if (updated.count === 0) {
+      const match = await this.prisma.pvpMatch.findUnique({
+        where: { id: matchId },
+        select: { id: true },
+      });
+      if (!match) {
+        throw new NotFoundException('Không tìm thấy trận đấu PvP.');
+      }
+      throw new BadRequestException(
+        'Trận đấu đã kết thúc hoặc đã bị hủy trước đó.',
+      );
+    }
+
+    this.emitMatch(matchId, { type: 'MATCH_CANCELLED', matchId });
+    return { id: matchId, status: PvpMatchStatus.CANCELLED };
+  }
+
+  async resetAdminUserRating(userId: string) {
+    const existing = await this.prisma.pvpUserRating.findUnique({
+      where: { userId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy hồ sơ ELO của người chơi.');
+    }
+    return this.prisma.pvpUserRating.update({
+      where: { userId },
+      data: {
+        elo: 1000,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        winStreak: 0,
+        bestWinStreak: 0,
+      },
+    });
+  }
+
+  async resetAdminSeasonRatings() {
+    const res = await this.prisma.pvpUserRating.updateMany({
+      data: { elo: 1000, winStreak: 0 },
+    });
+    return { resetCount: res.count };
+  }
 }

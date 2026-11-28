@@ -91,4 +91,19 @@ describe('ShopService', () => {
     expect(res.roll.pityCountAfter).toBe(0);
     expect(prisma.userCosmeticPreference.upsert).toHaveBeenCalledTimes(1);
   });
+
+  it('grants STREAK_FREEZE via admin capped at MAX_STREAK_FREEZE_QTY (5)', async () => {
+    const { service, prisma } = makeSetup({ freezeQty: 4 });
+    prisma.userInventoryItem.upsert = jest.fn().mockResolvedValue({
+      itemType: ConsumableType.STREAK_FREEZE,
+      quantity: 5,
+    });
+    const res = await service.grantAdminConsumable({
+      userId: 'u1',
+      itemType: ConsumableType.STREAK_FREEZE,
+      amount: 3,
+    });
+    expect(res.granted).toBe(true);
+    expect(res.quantity).toBe(5);
+  });
 });

@@ -28,4 +28,23 @@ describe('GuildService', () => {
     });
     expect(created.tag).toBe('BCN');
   });
+
+  it('rejects reducing maxMembers below current member count in updateAdminGuild', async () => {
+    const prisma = {
+      guild: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'g1',
+          name: 'BCN Legends',
+          tag: 'BCN',
+          description: '',
+          maxMembers: 10,
+          _count: { members: 6 },
+        }),
+      },
+    };
+    const svc = new GuildService(prisma as never);
+    await expect(svc.updateAdminGuild('g1', { maxMembers: 4 })).rejects.toThrow(
+      BadRequestException,
+    );
+  });
 });

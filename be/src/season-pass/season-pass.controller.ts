@@ -6,12 +6,14 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
+  Query,
   Request,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { CONTENT_READ } from '../auth/quiz-permissions';
+import { CONTENT_READ, CONTENT_UPDATE } from '../auth/quiz-permissions';
 import { SeasonPassService } from './season-pass.service';
 
 @Controller('season-pass')
@@ -44,6 +46,80 @@ export class SeasonPassController {
       Number(tier),
       body?.track === 'premium' ? 'premium' : 'free',
     );
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('admin/seasons')
+  async listAdminSeasons() {
+    return this.seasonPassService.listAdminSeasons();
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Post('admin/seasons')
+  async createAdminSeason(
+    @Body()
+    body: {
+      code?: string;
+      title?: string;
+      startsAt?: string;
+      endsAt?: string;
+      premiumPriceCoins?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return this.seasonPassService.createAdminSeason({
+      code: body?.code ?? '',
+      title: body?.title ?? '',
+      startsAt: body?.startsAt ?? '',
+      endsAt: body?.endsAt ?? '',
+      premiumPriceCoins: body?.premiumPriceCoins,
+      isActive: body?.isActive,
+    });
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Patch('admin/seasons/:id')
+  async updateAdminSeason(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      title?: string;
+      startsAt?: string;
+      endsAt?: string;
+      premiumPriceCoins?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return this.seasonPassService.updateAdminSeason(id, body ?? {});
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Get('admin/seasons/:id/participants')
+  async listAdminParticipants(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.seasonPassService.listAdminParticipants(
+      id,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20,
+    );
+  }
+
+  @Permissions(...CONTENT_UPDATE)
+  @Post('admin/seasons/:id/grant')
+  @HttpCode(HttpStatus.OK)
+  async grantAdminBenefit(
+    @Param('id') id: string,
+    @Body()
+    body: { userId?: string; isPremium?: boolean; bonusXpDelta?: number },
+  ) {
+    return this.seasonPassService.grantAdminBenefit(id, {
+      userId: body?.userId ?? '',
+      isPremium: body?.isPremium,
+      bonusXpDelta: body?.bonusXpDelta,
+    });
   }
 
   private extractUserId(req: ExpressRequest): string {

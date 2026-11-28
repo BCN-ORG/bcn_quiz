@@ -1,10 +1,16 @@
-import { BadRequestException, Injectable, Optional } from '@nestjs/common';
-import { CoinRewardSource, ConsumableType } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { CoinRewardSource, ConsumableType, Prisma } from '@prisma/client';
 import { CoinApiClient, getCoinProviderMode } from '../coin/coin-api.client';
 import { CoinTrackingService } from '../coin/coin-tracking.service';
 import { LiveCoinRewardAdapter } from '../coin/live-coin-reward.adapter';
 import { businessDate } from '../leaderboard/leaderboard-rules';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProfilesService } from '../profiles/profiles.service';
 import { CoinWalletService } from '../wallet/coin-wallet.interface';
 import { MockCoinWalletService } from '../wallet/mock-coin-wallet.service';
 import {
@@ -24,9 +30,16 @@ export class SeasonPassService {
     @Optional() private readonly coinApiClient?: CoinApiClient,
     @Optional() private readonly coinTrackingService?: CoinTrackingService,
     @Optional() private readonly liveRewardAdapter?: LiveCoinRewardAdapter,
+    @Optional() private readonly profilesService?: ProfilesService,
   ) {}
 
   async ensureCurrentSeason(now: Date = new Date()) {
+    const active = await this.prisma.seasonPass.findFirst({
+      where: { isActive: true, endsAt: { gt: now } },
+      orderBy: { startsAt: 'desc' },
+    });
+    if (active) return active;
+
     const vnDay = businessDate(now); // YYYY-MM-DD
     const [y, m] = vnDay.split('-').map(Number);
     const code = `${y}-${String(m).padStart(2, '0')}`;
@@ -71,7 +84,10 @@ export class SeasonPassService {
       }),
     ]);
 
-    const seasonXp = Math.max(0, xpAgg._sum.amount ?? 0);
+    const seasonXp = Math.max(
+      0,
+      (xpAgg._sum.amount ?? 0) + (progress?.seasonXp ?? 0),
+    );
     const currentTier = Math.min(
       SEASON_PASS_MAX_TIERS,
       Math.floor(seasonXp / SEASON_PASS_TIER_XP),
@@ -176,12 +192,12 @@ export class SeasonPassService {
         where: { userId_seasonId: { userId, seasonId: state.season.id } },
         update:
           track === 'free'
-            ? { claimedFreeTiers: nextClaimed, seasonXp: state.seasonXp }
-            : { claimedPremiumTiers: nextClaimed, seasonXp: state.seasonXp },
+            ? { claimedFreeTiers: nextClaimed }
+            : { claimedPremiumTiers: nextClaimed },
         create: {
           userId,
           seasonId: state.season.id,
-          seasonXp: state.seasonXp,
+          seasonXp: 0,
           isPremium: fresh?.isPremium ?? state.isPremium,
           claimedFreeTiers: track === 'free' ? nextClaimed : [],
           claimedPremiumTiers: track === 'premium' ? nextClaimed : [],
@@ -365,5 +381,284 @@ export class SeasonPassService {
         description: reason,
       });
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // ADMIN MANAGEMENT
+  // --------------------------------------------------------------------------
+
+  async listAdminSeasons() {
+    await this.ensureCurrentSeason();
+    const seasons = await this.prisma.seasonPass.findMany({
+      include: {
+        _count: { select: { progresses: true } },
+        progresses: {
+          where: { isPremium: true },
+          select: { id: true },
+        },
+      },
+      orderBy: [{ isActive: 'desc' }, { startsAt: 'desc' }],
+    });
+
+    return seasons.map((s) => ({
+      id: s.id,
+      code: s.code,
+      title: s.title,
+      startsAt: s.startsAt.toISOString(),
+      endsAt: s.endsAt.toISOString(),
+      premiumPriceCoins: s.premiumPriceCoins,
+      isActive: s.isActive,
+      participantCount: s._count.progresses,
+      premiumCount: s.progresses.length,
+    }));
+  }
+
+  async createAdminSeason(dto: {
+    code: string;
+    title: string;
+    startsAt: string;
+    endsAt: string;
+    premiumPriceCoins?: number;
+    isActive?: boolean;
+  }) {
+    const code = typeof dto.code === 'string' ? dto.code.trim() : '';
+    const title = typeof dto.title === 'string' ? dto.title.trim() : '';
+    if (code.length < 2 || code.length > 32) {
+      throw new BadRequestException('Mã mùa phải từ 2 đến 32 ký tự.');
+    }
+    if (title.length < 3 || title.length > 80) {
+      throw new BadRequestException('Tên mùa phải từ 3 đến 80 ký tự.');
+    }
+    const startsAt = new Date(dto.startsAt);
+    const endsAt = new Date(dto.endsAt);
+    if (
+      Number.isNaN(startsAt.getTime()) ||
+      Number.isNaN(endsAt.getTime()) ||
+      endsAt <= startsAt
+    ) {
+      throw new BadRequestException(
+        'Thời gian kết thúc phải lớn hơn thời gian bắt đầu.',
+      );
+    }
+    const rawPrice =
+      dto.premiumPriceCoins !== undefined
+        ? Number(dto.premiumPriceCoins)
+        : SEASON_PASS_PREMIUM_PRICE_COINS;
+    if (!Number.isFinite(rawPrice) || rawPrice < 0 || rawPrice > 100000) {
+      throw new BadRequestException(
+        'Giá gói Premium phải là số không âm (tối đa 100.000 Coin).',
+      );
+    }
+    const price = Math.floor(rawPrice);
+    const isActive = Boolean(dto.isActive);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (isActive) {
+          await tx.seasonPass.updateMany({
+            where: { isActive: true },
+            data: { isActive: false },
+          });
+        }
+        return tx.seasonPass.create({
+          data: {
+            code,
+            title,
+            startsAt,
+            endsAt,
+            premiumPriceCoins: price,
+            isActive,
+          },
+        });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('Mã mùa Season Pass đã tồn tại.');
+      }
+      throw error;
+    }
+  }
+
+  async updateAdminSeason(
+    id: string,
+    dto: {
+      title?: string;
+      startsAt?: string;
+      endsAt?: string;
+      premiumPriceCoins?: number;
+      isActive?: boolean;
+    },
+  ) {
+    const existing = await this.prisma.seasonPass.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy mùa Season Pass.');
+    }
+
+    const startsAt = dto.startsAt ? new Date(dto.startsAt) : existing.startsAt;
+    const endsAt = dto.endsAt ? new Date(dto.endsAt) : existing.endsAt;
+    if (
+      Number.isNaN(startsAt.getTime()) ||
+      Number.isNaN(endsAt.getTime()) ||
+      endsAt <= startsAt
+    ) {
+      throw new BadRequestException(
+        'Thời gian kết thúc phải lớn hơn thời gian bắt đầu.',
+      );
+    }
+
+    const title =
+      dto.title !== undefined
+        ? typeof dto.title === 'string'
+          ? dto.title.trim()
+          : ''
+        : existing.title;
+    if (title.length < 3 || title.length > 80) {
+      throw new BadRequestException('Tên mùa phải từ 3 đến 80 ký tự.');
+    }
+    let premiumPriceCoins = existing.premiumPriceCoins;
+    if (dto.premiumPriceCoins !== undefined) {
+      const rawPrice = Number(dto.premiumPriceCoins);
+      if (!Number.isFinite(rawPrice) || rawPrice < 0 || rawPrice > 100000) {
+        throw new BadRequestException(
+          'Giá gói Premium phải là số không âm (tối đa 100.000 Coin).',
+        );
+      }
+      premiumPriceCoins = Math.floor(rawPrice);
+    }
+    const isActive =
+      dto.isActive !== undefined ? Boolean(dto.isActive) : existing.isActive;
+
+    return this.prisma.$transaction(async (tx) => {
+      if (isActive) {
+        await tx.seasonPass.updateMany({
+          where: { isActive: true, id: { not: id } },
+          data: { isActive: false },
+        });
+      }
+      return tx.seasonPass.update({
+        where: { id },
+        data: { title, startsAt, endsAt, premiumPriceCoins, isActive },
+      });
+    });
+  }
+
+  async listAdminParticipants(seasonId: string, page = 1, limit = 20) {
+    const season = await this.prisma.seasonPass.findUnique({
+      where: { id: seasonId },
+    });
+    if (!season) {
+      throw new NotFoundException('Không tìm thấy mùa Season Pass.');
+    }
+    const safePage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(50, Math.max(1, Math.floor(limit)))
+      : 20;
+    const [total, rows] = await Promise.all([
+      this.prisma.userSeasonProgress.count({ where: { seasonId } }),
+      this.prisma.userSeasonProgress.findMany({
+        where: { seasonId },
+        orderBy: [{ isPremium: 'desc' }, { updatedAt: 'desc' }],
+        skip: (safePage - 1) * safeLimit,
+        take: safeLimit,
+      }),
+    ]);
+
+    const userIds = rows.map((r) => r.userId);
+    const profiles =
+      this.profilesService && userIds.length > 0
+        ? await this.profilesService
+            .resolveUsers(userIds)
+            .catch(() => new Map())
+        : new Map();
+
+    const xpEvents =
+      userIds.length > 0
+        ? await this.prisma.userXpEvent.groupBy({
+            by: ['userId'],
+            where: {
+              userId: { in: userIds },
+              createdAt: { gte: season.startsAt, lt: season.endsAt },
+            },
+            _sum: { amount: true },
+          })
+        : [];
+    const xpMap = new Map(xpEvents.map((e) => [e.userId, e._sum.amount ?? 0]));
+
+    return {
+      season: { id: season.id, code: season.code, title: season.title },
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+      },
+      items: rows.map((r) => {
+        const prof = profiles.get(r.userId);
+        const totalXp = Math.max(0, (xpMap.get(r.userId) ?? 0) + r.seasonXp);
+        return {
+          userId: r.userId,
+          fullName: prof?.fullName ?? null,
+          email: prof?.email ?? null,
+          isPremium: r.isPremium,
+          bonusXp: r.seasonXp,
+          totalXp,
+          currentTier: Math.min(
+            SEASON_PASS_MAX_TIERS,
+            Math.floor(totalXp / SEASON_PASS_TIER_XP),
+          ),
+          claimedFreeCount: r.claimedFreeTiers.length,
+          claimedPremiumCount: r.claimedPremiumTiers.length,
+          updatedAt: r.updatedAt.toISOString(),
+        };
+      }),
+    };
+  }
+
+  async grantAdminBenefit(
+    seasonId: string,
+    dto: { userId: string; isPremium?: boolean; bonusXpDelta?: number },
+  ) {
+    const season = await this.prisma.seasonPass.findUnique({
+      where: { id: seasonId },
+    });
+    if (!season) {
+      throw new NotFoundException('Không tìm thấy mùa Season Pass.');
+    }
+    const userId = typeof dto.userId === 'string' ? dto.userId.trim() : '';
+    if (!userId) {
+      throw new BadRequestException('Thiếu userId học viên.');
+    }
+    const rawDelta =
+      dto.bonusXpDelta !== undefined ? Number(dto.bonusXpDelta) : 0;
+    if (!Number.isFinite(rawDelta) || rawDelta < -100000 || rawDelta > 100000) {
+      throw new BadRequestException('Season XP cộng/trừ không hợp lệ.');
+    }
+    const delta = Math.floor(rawDelta);
+
+    const existing = await this.prisma.userSeasonProgress.findUnique({
+      where: { userId_seasonId: { userId, seasonId } },
+    });
+
+    const nextPremium =
+      dto.isPremium !== undefined
+        ? Boolean(dto.isPremium)
+        : (existing?.isPremium ?? false);
+    const nextBonusXp = Math.max(0, (existing?.seasonXp ?? 0) + delta);
+
+    return this.prisma.userSeasonProgress.upsert({
+      where: { userId_seasonId: { userId, seasonId } },
+      update: { isPremium: nextPremium, seasonXp: nextBonusXp },
+      create: {
+        userId,
+        seasonId,
+        isPremium: nextPremium,
+        seasonXp: nextBonusXp,
+        claimedFreeTiers: [],
+        claimedPremiumTiers: [],
+      },
+    });
   }
 }

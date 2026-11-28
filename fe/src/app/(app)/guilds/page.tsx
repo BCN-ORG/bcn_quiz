@@ -76,6 +76,8 @@ export default function GuildsPage() {
       setMyGuild(me.guild);
       setGuilds(all ?? []);
       setBossLb(lb ?? { seasonTitle: null, leaderboard: [] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không tải được dữ liệu Bang hội.');
     } finally {
       setLoading(false);
     }
@@ -176,6 +178,8 @@ export default function GuildsPage() {
         </div>
       ) : null}
 
+      <div className="arena-two-col">
+        <div className="arena-stack">
       {myGuild ? (
         <section className="arena-card">
           <div className="arena-section-head">
@@ -342,46 +346,6 @@ export default function GuildsPage() {
         </form>
       )}
 
-      {/* Guild Boss Leaderboard */}
-      <section className="arena-card">
-        <div className="arena-section-head">
-          <h2 className="arena-section-title">
-            <Trophy size={20} weight="fill" color="#f59e0b" />
-            Bảng Xếp Hạng Guild Boss Tuần
-            {bossLb.seasonTitle ? ` · ${bossLb.seasonTitle}` : ''}
-          </h2>
-        </div>
-
-        {bossLb.leaderboard.length === 0 ? (
-          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13.5 }}>
-            Chưa có Bang hội nào ghi nhận sát thương Boss trong tuần này.
-          </p>
-        ) : (
-          <div className="arena-lb-list">
-            {bossLb.leaderboard.map((g) => (
-              <div
-                key={g.guildId}
-                className={`arena-lb-row ${g.rank <= 3 ? `is-top-${g.rank}` : ''}`}
-              >
-                <div className="arena-lb-left">
-                  <span className="arena-rank-pill">#{g.rank}</span>
-                  <span className="gd-tag-badge">{g.tag}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div className="arena-lb-name">{g.name}</div>
-                    <div className="arena-lb-sub">
-                      {g.participantCount} thành viên tham gia đánh Boss
-                    </div>
-                  </div>
-                </div>
-                <span className="arena-lb-score">
-                  {g.totalDamage.toLocaleString('vi-VN')} DMG
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
       {/* Browse Guilds */}
       {!myGuild ? (
         <section className="arena-card">
@@ -456,6 +420,48 @@ export default function GuildsPage() {
           )}
         </section>
       ) : null}
+        </div>
+
+      {/* Guild Boss Leaderboard */}
+      <section className="arena-card">
+        <div className="arena-section-head">
+          <h2 className="arena-section-title">
+            <Trophy size={20} weight="fill" color="#f59e0b" />
+            Bảng Xếp Hạng Guild Boss Tuần
+            {bossLb.seasonTitle ? ` · ${bossLb.seasonTitle}` : ''}
+          </h2>
+        </div>
+
+        {bossLb.leaderboard.length === 0 ? (
+          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13.5 }}>
+            Chưa có Bang hội nào ghi nhận sát thương Boss trong tuần này.
+          </p>
+        ) : (
+          <div className="arena-lb-list">
+            {bossLb.leaderboard.map((g) => (
+              <div
+                key={g.guildId}
+                className={`arena-lb-row ${g.rank <= 3 ? `is-top-${g.rank}` : ''}`}
+              >
+                <div className="arena-lb-left">
+                  <span className="arena-rank-pill">#{g.rank}</span>
+                  <span className="gd-tag-badge">{g.tag}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="arena-lb-name">{g.name}</div>
+                    <div className="arena-lb-sub">
+                      {g.participantCount} thành viên tham gia đánh Boss
+                    </div>
+                  </div>
+                </div>
+                <span className="arena-lb-score">
+                  {g.totalDamage.toLocaleString('vi-VN')} DMG
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      </div>
     </div>
   );
 }

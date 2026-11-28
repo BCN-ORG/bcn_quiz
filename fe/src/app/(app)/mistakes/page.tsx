@@ -54,9 +54,11 @@ export default function MistakesPage() {
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [sum, queue] = await Promise.all([
         request.get<MistakeSummary>('/mistakes/summary'),
@@ -66,6 +68,8 @@ export default function MistakesPage() {
       setItems(queue.items ?? []);
       setAnswers({});
       setResult(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không tải được danh sách câu sai.');
     } finally {
       setLoading(false);
     }
@@ -96,6 +100,8 @@ export default function MistakesPage() {
       }
       const sum = await request.get<MistakeSummary>('/mistakes/summary');
       setSummary(sum);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể nộp bài ôn tập.');
     } finally {
       setSubmitting(false);
     }
@@ -107,7 +113,7 @@ export default function MistakesPage() {
 
   return (
     <div className="arena-page">
-      <section className="arena-hero">
+      <section className="arena-hero arena-hero--mistakes">
         <div className="arena-hero__main">
           <span className="arena-hero__eyebrow">
             <BookOpenText size={13} weight="fill" /> Ôn tập lặp lại ngắt quãng
@@ -135,6 +141,12 @@ export default function MistakesPage() {
       </section>
 
       {/* KPI Stats */}
+      {error ? (
+        <div role="alert" className="arena-notice arena-notice--error">
+          <WarningCircle size={18} weight="fill" />
+          <span>{error}</span>
+        </div>
+      ) : null}
       <div className="arena-kpi-grid">
         <div className="arena-kpi-card">
           <div className="arena-kpi-icon arena-kpi-icon--amber">

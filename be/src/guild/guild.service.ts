@@ -277,4 +277,208 @@ export class GuildService {
       })),
     };
   }
+
+  // --------------------------------------------------------------------------
+  // ADMIN MANAGEMENT
+  // --------------------------------------------------------------------------
+
+  async listAdminGuilds() {
+    const guilds = await this.prisma.guild.findMany({
+      include: {
+        _count: { select: { members: true } },
+        bossStats: { orderBy: { updatedAt: 'desc' }, take: 1 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const leaderIds = Array.from(new Set(guilds.map((g) => g.leaderId)));
+    const profiles =
+      this.profilesService && leaderIds.length > 0
+        ? await this.profilesService
+            .resolveUsers(leaderIds)
+            .catch(() => new Map())
+        : new Map();
+
+    return guilds.map((g) => ({
+      id: g.id,
+      name: g.name,
+      tag: g.tag,
+      description: g.description,
+      leaderId: g.leaderId,
+      leaderName: profiles.get(g.leaderId)?.fullName ?? g.leaderId,
+      memberCount: g._count.members,
+      maxMembers: g.maxMembers,
+      latestBossDamage: g.bossStats[0]?.totalDamage ?? 0,
+      createdAt: g.createdAt.toISOString(),
+    }));
+  }
+
+  async getAdminGuildDetail(guildId: string) {
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: guildId },
+      include: {
+        members: { orderBy: { joinedAt: 'asc' } },
+        bossStats: { orderBy: { updatedAt: 'desc' }, take: 1 },
+      },
+    });
+    if (!guild) {
+      throw new NotFoundException('Không tìm thấy Bang hội.');
+    }
+
+    const memberIds = guild.members.map((m) => m.userId);
+    const profiles =
+      this.profilesService && memberIds.length > 0
+        ? await this.profilesService
+            .resolveUsers(memberIds)
+            .catch(() => new Map())
+        : new Map();
+
+    return {
+      id: guild.id,
+      name: guild.name,
+      tag: guild.tag,
+      description: guild.description,
+      leaderId: guild.leaderId,
+      maxMembers: guild.maxMembers,
+      latestBossDamage: guild.bossStats[0]?.totalDamage ?? 0,
+      createdAt: guild.createdAt.toISOString(),
+      members: guild.members.map((m) => {
+        const prof = profiles.get(m.userId);
+        return {
+          userId: m.userId,
+          role: m.role,
+          fullName: prof?.fullName ?? null,
+          email: prof?.email ?? null,
+          joinedAt: m.joinedAt.toISOString(),
+        };
+      }),
+    };
+  }
+
+  async updateAdminGuild(
+    guildId: string,
+    dto: {
+      name?: string;
+      tag?: string;
+      description?: string;
+      maxMembers?: number;
+    },
+  ) {
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: guildId },
+      include: { _count: { select: { members: true } } },
+    });
+    if (!guild) {
+      throw new NotFoundException('Không tìm thấy Bang hội.');
+    }
+
+    const name =
+      dto.name !== undefined
+        ? typeof dto.name === 'string'
+          ? dto.name.trim()
+          : ''
+        : guild.name;
+    const tag =
+      dto.tag !== undefined
+        ? typeof dto.tag === 'string'
+          ? dto.tag.trim().toUpperCase()
+          : ''
+        : guild.tag;
+    const description =
+      dto.description !== undefined
+        ? typeof dto.description === 'string'
+          ? dto.description.trim().slice(0, 240)
+          : ''
+        : guild.description;
+    const rawMax =
+      dto.maxMembers !== undefined ? Number(dto.maxMembers) : guild.maxMembers;
+    if (!Number.isFinite(rawMax)) {
+      throw new BadRequestException('Sức chứa thành viên không hợp lệ.');
+    }
+    const maxMembers = Math.floor(rawMax);
+
+    if (name.length < 3 || name.length > 32) {
+      throw new BadRequestException('Tên Bang hội phải từ 3 đến 32 ký tự.');
+    }
+    if (!/^[A-Z0-9]{2,6}$/.test(tag)) {
+      throw new BadRequestException('Tag Bang hội phải gồm 2–6 ký tự chữ/số.');
+    }
+    if (maxMembers < guild._count.members || maxMembers > 50) {
+      throw new BadRequestException(
+        `Sức chứa phải từ ${guild._count.members} đến 50 thành viên.`,
+      );
+    }
+
+    try {
+      return await this.prisma.guild.update({
+        where: { id: guildId },
+        data: { name, tag, description, maxMembers },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('Tên hoặc Tag Bang hội đã tồn tại.');
+      }
+      throw error;
+    }
+  }
+
+  async kickAdminMember(guildId: string, userId: string) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const member = await tx.guildMember.findFirst({
+          where: { guildId, userId },
+        });
+        if (!member) {
+          throw new NotFoundException(
+            'Không tìm thấy thành viên trong Bang hội này.',
+          );
+        }
+        await tx.guildMember.delete({ where: { id: member.id } });
+
+        const remaining = await tx.guildMember.findFirst({
+          where: { guildId },
+          orderBy: { joinedAt: 'asc' },
+        });
+        if (!remaining) {
+          await tx.guild.delete({ where: { id: guildId } });
+          return { kicked: true, guildDeleted: true };
+        }
+        if (member.role === GuildRole.LEADER) {
+          await tx.guildMember.update({
+            where: { id: remaining.id },
+            data: { role: GuildRole.LEADER },
+          });
+          await tx.guild.update({
+            where: { id: guildId },
+            data: { leaderId: remaining.userId },
+          });
+        }
+        return { kicked: true, guildDeleted: false };
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(
+          'Thành viên hoặc Bang hội không còn tồn tại.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async deleteAdminGuild(guildId: string) {
+    const existing = await this.prisma.guild.findUnique({
+      where: { id: guildId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy Bang hội.');
+    }
+    await this.prisma.guild.delete({ where: { id: guildId } });
+    return { deleted: true, id: guildId };
+  }
 }
