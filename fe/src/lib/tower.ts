@@ -32,6 +32,8 @@ export interface TowerOverview {
     cooldownUntil: string | null;
     isCooldownActive: boolean;
     cooldownRemainingSeconds: number;
+    isBlocked?: boolean;
+    blockedReason?: string | null;
   };
   activeAttempt: {
     id: string;
@@ -211,13 +213,64 @@ export interface TowerPoolSyncResponse {
   errorMessage?: string | null;
 }
 
+export interface TowerAntiCheatClimber {
+  userId: string;
+  fullName: string | null;
+  email: string | null;
+  currentFloor: number;
+  highestCompletedFloor: number;
+  completedFloors: number;
+  failedFloors: number;
+  avgSecPerQ: number | null;
+  fastestSecPerQ: number | null;
+  suspicionScore: number;
+  isBlocked: boolean;
+  blockedReason: string | null;
+  blockedAt: string | null;
+  flagged: boolean;
+}
+
+export interface TowerAntiCheatEventItem {
+  id: string;
+  userId: string;
+  fullName: string;
+  floor: number;
+  ruleCode: string;
+  severity: string;
+  serverResponseMs: number | null;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface TowerAntiCheatOverview {
+  summary: {
+    blockedCount: number;
+    flaggedCount: number;
+    totalEvents: number;
+    trackedClimbers: number;
+  };
+  climbers: TowerAntiCheatClimber[];
+  recentEvents: TowerAntiCheatEventItem[];
+}
+
 export const towerApi = {
   getOverview: () => request.get<TowerOverview>('/tower/overview'),
   startFloor: () => request.post<StartFloorResponse>('/tower/floor/start'),
-  submitAnswer: (optionLabel: string, quizId?: string) =>
+  submitAnswer: (
+    optionLabel: string,
+    quizId?: string,
+    signals?: { isTrusted?: boolean; webdriver?: boolean },
+  ) =>
     request.post<AnswerResponse>('/tower/floor/answer', {
       optionLabel,
       ...(quizId ? { quizId } : {}),
+      ...(signals?.isTrusted !== undefined
+        ? { isTrusted: signals.isTrusted }
+        : {}),
+      ...(signals?.webdriver !== undefined
+        ? { webdriver: signals.webdriver }
+        : {}),
     }),
   getTransactions: (limit = 50) =>
     request.get<TowerRewardTransactionItem[]>(`/tower/transactions?limit=${limit}`),
@@ -230,4 +283,21 @@ export const towerApi = {
     request.get<TowerDistributionConfigResponse>('/tower/admin/distribution'),
   updateAdminDistribution: (dto: { name?: string; rules: TowerFloorDistributionRuleDto[] }) =>
     request.put<TowerDistributionConfigResponse>('/tower/admin/distribution', dto),
+  getAdminAntiCheatOverview: () =>
+    request.get<TowerAntiCheatOverview>('/tower/admin/anticheat/overview'),
+  blockAdminTowerUser: (userId: string, reason?: string) =>
+    request.post<{ userId: string; isBlocked: boolean }>(
+      `/tower/admin/anticheat/${encodeURIComponent(userId)}/block`,
+      { reason },
+    ),
+  unblockAdminTowerUser: (userId: string) =>
+    request.post<{ userId: string; isBlocked: boolean }>(
+      `/tower/admin/anticheat/${encodeURIComponent(userId)}/unblock`,
+      {},
+    ),
+  resetAdminTowerUserFloor: (userId: string, targetFloor = 1) =>
+    request.post<{ userId: string; currentFloor: number }>(
+      `/tower/admin/anticheat/${encodeURIComponent(userId)}/reset-floor`,
+      { targetFloor },
+    ),
 };

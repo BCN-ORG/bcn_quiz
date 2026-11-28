@@ -3,10 +3,14 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { XpModule } from '../xp/xp.module';
 import { CoinRewardSource } from '@prisma/client';
 import { CoinModule } from '../coin/coin.module';
+import { DiscordWebhookModule } from '../discord-webhook/discord-webhook.module';
+import { ProfilesModule } from '../profiles/profiles.module';
 import { getCoinProviderMode } from '../coin/coin-api.client';
 import { LiveCoinRewardAdapter } from '../coin/live-coin-reward.adapter';
 import { TowerController } from './tower.controller';
 import { TowerService } from './tower.service';
+import { TowerAntiCheatService } from './tower-anticheat.service';
+import { TowerBotGuard } from './tower-bot.guard';
 import { TowerCoinService } from './coin/tower-coin.service';
 import { TowerReconciliationService } from './coin/tower-reconciliation.service';
 import { TowerDistributionService } from './tower-distribution.service';
@@ -20,10 +24,18 @@ import {
 import { MockCoinProvider } from './coin/mock-coin.provider';
 
 @Module({
-  imports: [PrismaModule, XpModule, CoinModule],
+  imports: [
+    PrismaModule,
+    XpModule,
+    CoinModule,
+    ProfilesModule,
+    DiscordWebhookModule,
+  ],
   controllers: [TowerController],
   providers: [
     TowerService,
+    TowerAntiCheatService,
+    TowerBotGuard,
     TowerCoinService,
     TowerReconciliationService,
     TowerDistributionService,

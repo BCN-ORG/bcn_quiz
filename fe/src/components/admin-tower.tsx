@@ -15,12 +15,13 @@ import {
 } from '@phosphor-icons/react';
 import { useAuth } from '@/components/auth-provider';
 import { Empty, ErrorState, Loading, Progress } from './ui';
+import { AdminTowerAntiCheat } from './admin-tower-anticheat';
 import {
   towerApi,
   type TowerAdminPoolStatsResponse,
   type TowerPoolSyncResponse,
 } from '@/lib/tower';
-import { canUpdateContent } from '@/lib/permissions';
+import { canDeleteContent, canUpdateContent } from '@/lib/permissions';
 
 const DIFFICULTY_CONFIG: Record<
   string,
@@ -46,6 +47,7 @@ function formatDateTime(val?: string | null): string {
 export function AdminTower() {
   const { user } = useAuth();
   const canManage = canUpdateContent(user);
+  const canDelete = canDeleteContent(user);
 
   const [stats, setStats] = useState<TowerAdminPoolStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export function AdminTower() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'breakdown' | 'courses' | 'antirepeat'
+    'overview' | 'breakdown' | 'courses' | 'antirepeat' | 'anticheat'
   >('overview');
 
   const loadStats = useCallback(async (isSilent = false) => {
@@ -359,6 +361,17 @@ export function AdminTower() {
         >
           <Database size={16} /> Nguồn Khóa học & Topic
         </button>
+        {canManage ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'anticheat'}
+            className={activeTab === 'anticheat' ? 'active' : ''}
+            onClick={() => setActiveTab('anticheat')}
+          >
+            <WarningOctagon size={16} /> Chống Bot & Giám sát
+          </button>
+        ) : null}
       </div>
 
       {/* TAB 1: OVERVIEW & FLOOR RANGE COVERAGE */}
@@ -770,6 +783,10 @@ export function AdminTower() {
             </div>
           </section>
         </div>
+      ) : null}
+
+      {activeTab === 'anticheat' && canManage ? (
+        <AdminTowerAntiCheat canManage={canManage} canDelete={canDelete} />
       ) : null}
     </div>
   );

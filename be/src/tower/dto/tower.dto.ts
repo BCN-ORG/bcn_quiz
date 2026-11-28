@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class AnswerQuestionDto {
   @IsString()
@@ -8,6 +8,14 @@ export class AnswerQuestionDto {
   @IsString()
   @IsOptional()
   quizId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isTrusted?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  webdriver?: boolean;
 }
 
 export interface TowerQuestionOptionDto {
@@ -42,6 +50,8 @@ export interface TowerOverviewDto {
     cooldownUntil: string | null;
     isCooldownActive: boolean;
     cooldownRemainingSeconds: number;
+    isBlocked?: boolean;
+    blockedReason?: string | null;
   };
   activeAttempt: {
     id: string;

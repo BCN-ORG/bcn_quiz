@@ -1,16 +1,22 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
   Logger,
   Optional,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { Prisma, XpSourceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TowerCoinService } from './coin/tower-coin.service';
 import { XpService } from '../xp/xp.service';
 import { TowerQuestionSelector } from './tower-question-selector.service';
+import {
+  TowerAntiCheatService,
+  type TowerAnswerClientMeta,
+} from './tower-anticheat.service';
 import {
   AnswerResponseDto,
   TowerOverviewDto,
@@ -33,6 +39,7 @@ export class TowerService {
     private readonly coinService: TowerCoinService,
     private readonly xpService: XpService,
     @Optional() private readonly questionSelector?: TowerQuestionSelector,
+    @Optional() private readonly antiCheat?: TowerAntiCheatService,
   ) {}
 
   /**
@@ -264,6 +271,8 @@ export class TowerService {
               activeAttempt.requiredStreak,
               activeAttempt.currentQuestionExpiresAt ??
                 new Date(now + TIME_LIMIT_SECONDS * 1000),
+              activeAttempt.currentQuestionToken,
+              this.parseOptionMap(activeAttempt.currentOptionMap),
             ),
           };
         } else {
@@ -292,6 +301,8 @@ export class TowerService {
           : null,
         isCooldownActive,
         cooldownRemainingSeconds,
+        isBlocked: progress.isBlocked ?? false,
+        blockedReason: progress.blockedReason ?? null,
       },
       activeAttempt: mappedAttempt,
     };
@@ -318,6 +329,7 @@ export class TowerService {
   private async startFloorAttemptInternal(userId: string) {
     const season = await this.getOrCreateCurrentSeason();
     const progress = await this.getOrCreateUserProgress(userId, season.id);
+    this.antiCheat?.assertNotBlocked(progress);
 
     const now = Date.now();
     const cooldownSeconds = this.getCooldownSeconds();
@@ -379,6 +391,8 @@ export class TowerService {
               existing.currentQuestionNumber,
               existing.requiredStreak,
               existing.currentQuestionExpiresAt!,
+              existing.currentQuestionToken,
+              this.parseOptionMap(existing.currentOptionMap),
             ),
           };
         }
@@ -430,6 +444,8 @@ export class TowerService {
     const timeLimit = this.getTimeLimitSeconds();
     const startedAt = new Date();
     const expiresAt = new Date(startedAt.getTime() + timeLimit * 1000);
+    const questionToken = randomUUID();
+    const optionMap = this.buildShuffledOptionMap(quiz.options);
 
     let attempt;
     try {
@@ -442,10 +458,13 @@ export class TowerService {
           currentStreak: 0,
           status: 'IN_PROGRESS',
           currentQuizId: quiz.id,
+          currentQuestionToken: questionToken,
+          currentOptionMap: optionMap,
           currentQuestionStartedAt: startedAt,
           currentQuestionExpiresAt: expiresAt,
           currentQuestionNumber: 1,
           usedQuizIds: [quiz.id],
+          answerTimingsMs: [],
         },
       });
     } catch (err: unknown) {
@@ -473,6 +492,8 @@ export class TowerService {
                 concurrent.currentQuestionNumber,
                 concurrent.requiredStreak,
                 concurrent.currentQuestionExpiresAt!,
+                concurrent.currentQuestionToken,
+                this.parseOptionMap(concurrent.currentOptionMap),
               ),
             };
           }
@@ -486,7 +507,14 @@ export class TowerService {
       floor: attempt.floor,
       currentStreak: attempt.currentStreak,
       requiredStreak: attempt.requiredStreak,
-      question: this.mapQuizToQuestionDto(quiz, 1, requiredStreak, expiresAt),
+      question: this.mapQuizToQuestionDto(
+        quiz,
+        1,
+        requiredStreak,
+        expiresAt,
+        questionToken,
+        optionMap,
+      ),
     };
   }
 
@@ -497,9 +525,11 @@ export class TowerService {
     userId: string,
     optionLabel: string,
     quizId?: string,
+    clientMeta?: TowerAnswerClientMeta,
   ): Promise<AnswerResponseDto> {
     const season = await this.getOrCreateCurrentSeason();
     const progress = await this.getOrCreateUserProgress(userId, season.id);
+    this.antiCheat?.assertNotBlocked(progress);
 
     // 1. Find active attempt
     const attempt = await this.prisma.towerFloorAttempt.findFirst({
@@ -516,7 +546,13 @@ export class TowerService {
     }
 
     // Reject stale answer/timeout for a question that is no longer active
-    if (quizId && attempt.currentQuizId !== quizId) {
+    const expectedQuestionKey =
+      attempt.currentQuestionToken || attempt.currentQuizId;
+    if (
+      quizId &&
+      quizId !== expectedQuestionKey &&
+      quizId !== attempt.currentQuizId
+    ) {
       throw new BadRequestException(
         'Câu hỏi này đã hết hạn hoặc đã được trả lời',
       );
@@ -568,7 +604,12 @@ export class TowerService {
       return {
         result: 'FAILED',
         reason: 'TIMEOUT',
-        correctAnswer: quizOnTimeout?.answer,
+        correctAnswer: quizOnTimeout
+          ? this.reverseMapOptionLabel(
+              this.parseOptionMap(attempt.currentOptionMap),
+              quizOnTimeout.answer,
+            )
+          : undefined,
         explanation: quizOnTimeout?.explanation,
         cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
         cooldownRemainingSeconds: cooldownSeconds,
@@ -589,11 +630,60 @@ export class TowerService {
       throw new BadRequestException('Câu hỏi không tồn tại');
     }
 
+    const normalizedSubmitted = optionLabel.trim().toUpperCase();
+    const isExplicitTimeout = normalizedSubmitted === 'TIMEOUT';
+    const prevTimings = Array.isArray(attempt.answerTimingsMs)
+      ? (attempt.answerTimingsMs as number[]).filter((v) => Number.isFinite(v))
+      : [];
+    const serverResponseMs = attempt.currentQuestionStartedAt
+      ? Math.max(0, now - attempt.currentQuestionStartedAt.getTime())
+      : 1500;
+
+    let nextTimingsMs = prevTimings;
+    if (this.antiCheat) {
+      const antiCheatEval = await this.antiCheat.evaluateAnswer({
+        userId,
+        seasonId: season.id,
+        progressId: progress.id,
+        currentSuspicionScore: progress.suspicionScore ?? 0,
+        attemptId: attempt.id,
+        floor: attempt.floor,
+        serverResponseMs,
+        previousTimingsMs: prevTimings,
+        isExplicitTimeout,
+        meta: clientMeta,
+      });
+      nextTimingsMs = antiCheatEval.nextTimingsMs;
+      if (antiCheatEval.autoBlocked) {
+        throw new ForbiddenException(
+          'Tài khoản đã bị tạm khóa Leo Tháp do phát hiện dấu hiệu dùng bot hoặc click tự động bất thường.',
+        );
+      }
+      if (antiCheatEval.rejectedAsSuperhuman) {
+        await this.prisma.towerFloorAttempt
+          .updateMany({
+            where: { id: attempt.id, status: 'IN_PROGRESS' },
+            data: { answerTimingsMs: nextTimingsMs },
+          })
+          .catch(() => undefined);
+        throw new ForbiddenException(
+          'Tốc độ trả lời bất thường. Vui lòng đọc kỹ câu hỏi trước khi chọn đáp án.',
+        );
+      }
+    }
+
+    const optionMap = this.parseOptionMap(attempt.currentOptionMap);
+    const mappedOriginalLabel =
+      optionMap?.[normalizedSubmitted] ?? normalizedSubmitted;
     const isCorrect =
-      optionLabel.trim().toUpperCase() === quiz.answer.trim().toUpperCase();
+      mappedOriginalLabel.trim().toUpperCase() ===
+      quiz.answer.trim().toUpperCase();
+    const displayedCorrectAnswer = this.reverseMapOptionLabel(
+      optionMap,
+      quiz.answer,
+    );
 
     if (!isCorrect) {
-      const isExplicitTimeout = optionLabel.trim().toUpperCase() === 'TIMEOUT';
       const cooldownSeconds = this.getCooldownSeconds();
       const cooldownUntil =
         cooldownSeconds > 0 ? new Date(now + cooldownSeconds * 1000) : null;
@@ -607,6 +697,7 @@ export class TowerService {
         data: {
           status: 'FAILED',
           failedReason: isExplicitTimeout ? 'TIMEOUT' : 'WRONG_ANSWER',
+          answerTimingsMs: nextTimingsMs,
         },
       });
 
@@ -622,7 +713,7 @@ export class TowerService {
       return {
         result: 'FAILED',
         reason: isExplicitTimeout ? 'TIMEOUT' : 'WRONG_ANSWER',
-        correctAnswer: quiz.answer,
+        correctAnswer: displayedCorrectAnswer,
         explanation: quiz.explanation,
         cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
         cooldownRemainingSeconds: cooldownSeconds,
@@ -653,6 +744,7 @@ export class TowerService {
           status: 'COMPLETED',
           currentStreak: nextStreak,
           completedAt: new Date(),
+          answerTimingsMs: nextTimingsMs,
         },
       });
 
@@ -724,6 +816,8 @@ export class TowerService {
     );
     const updatedUsedIds = [...usedIds, nextQuiz.id];
     const nextQuestionNumber = attempt.currentQuestionNumber + 1;
+    const nextQuestionToken = randomUUID();
+    const nextOptionMap = this.buildShuffledOptionMap(nextQuiz.options);
 
     const atomicUpdate = await this.prisma.towerFloorAttempt.updateMany({
       where: {
@@ -735,9 +829,12 @@ export class TowerService {
         currentStreak: nextStreak,
         currentQuestionNumber: nextQuestionNumber,
         currentQuizId: nextQuiz.id,
+        currentQuestionToken: nextQuestionToken,
+        currentOptionMap: nextOptionMap,
         currentQuestionStartedAt: questionStartedAt,
         currentQuestionExpiresAt: questionExpiresAt,
         usedQuizIds: updatedUsedIds,
+        answerTimingsMs: nextTimingsMs,
       },
     });
 
@@ -755,6 +852,8 @@ export class TowerService {
         nextQuestionNumber,
         attempt.requiredStreak,
         questionExpiresAt,
+        nextQuestionToken,
+        nextOptionMap,
       ),
     };
   }
@@ -843,8 +942,50 @@ export class TowerService {
     });
   }
 
+  private buildShuffledOptionMap(
+    options: { label: string }[],
+  ): Record<string, string> {
+    const sortedLabels = [...options]
+      .map((o) => o.label.trim().toUpperCase())
+      .sort((a, b) => a.localeCompare(b));
+    const shuffled = [...sortedLabels];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const map: Record<string, string> = {};
+    for (let i = 0; i < sortedLabels.length; i++) {
+      map[sortedLabels[i]] = shuffled[i];
+    }
+    return map;
+  }
+
+  private parseOptionMap(raw: unknown): Record<string, string> | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const result: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string' && v.trim()) {
+        result[k.trim().toUpperCase()] = v.trim().toUpperCase();
+      }
+    }
+    return Object.keys(result).length > 0 ? result : null;
+  }
+
+  private reverseMapOptionLabel(
+    optionMap: Record<string, string> | null,
+    originalAnswer: string,
+  ): string {
+    const upper = originalAnswer.trim().toUpperCase();
+    if (!optionMap) return upper;
+    for (const [displayLabel, origLabel] of Object.entries(optionMap)) {
+      if (origLabel === upper) return displayLabel;
+    }
+    return upper;
+  }
+
   /**
    * Maps a Quiz entity to a client-safe question DTO (without the correct answer).
+   * Uses opaque questionToken + shuffled option labels so answer-lookup scripts fail.
    */
   private mapQuizToQuestionDto(
     quiz: {
@@ -857,19 +998,43 @@ export class TowerService {
     questionNumber: number,
     requiredStreak: number,
     expiresAt: Date,
+    questionToken?: string | null,
+    optionMap?: Record<string, string> | null,
   ): TowerQuestionDto {
+    const byOrigLabel = new Map(
+      quiz.options.map((opt) => [opt.label.trim().toUpperCase(), opt]),
+    );
+    const mappedOptions = optionMap
+      ? Object.entries(optionMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([displayLabel, origLabel]) => {
+            const opt = byOrigLabel.get(origLabel);
+            return opt
+              ? {
+                  label: displayLabel,
+                  content: opt.content,
+                  isCode: opt.isCode,
+                }
+              : null;
+          })
+          .filter(
+            (v): v is { label: string; content: string; isCode: boolean } =>
+              v !== null,
+          )
+      : [...quiz.options]
+          .sort((a, b) => a.label.localeCompare(b.label))
+          .map((opt) => ({
+            label: opt.label,
+            content: opt.content,
+            isCode: opt.isCode,
+          }));
+
     return {
-      id: quiz.id,
+      id: questionToken || quiz.id,
       question: quiz.question,
       code: quiz.code,
       imageUrl: quiz.imageUrl,
-      options: [...quiz.options]
-        .sort((a, b) => a.label.localeCompare(b.label))
-        .map((opt) => ({
-          label: opt.label,
-          content: opt.content,
-          isCode: opt.isCode,
-        })),
+      options: mappedOptions,
       currentQuestionNumber: questionNumber,
       requiredStreak,
       timeLimitSeconds: TIME_LIMIT_SECONDS,

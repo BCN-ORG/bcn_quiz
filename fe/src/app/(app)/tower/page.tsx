@@ -197,7 +197,7 @@ export default function TowerPage() {
     }
   };
 
-  const handleSelectOption = useCallback(async (label: string) => {
+  const handleSelectOption = useCallback(async (label: string, isTrusted?: boolean) => {
     if (submittingRef.current || !isPlaying || !currentQuestion) return;
     submittingRef.current = true;
     setSubmitting(true);
@@ -207,7 +207,12 @@ export default function TowerPage() {
     setLastQuestion(questionSnapshot);
 
     try {
-      const res = await towerApi.submitAnswer(label, questionSnapshot.id);
+      const webdriver =
+        typeof navigator !== 'undefined' ? Boolean(navigator.webdriver) : false;
+      const res = await towerApi.submitAnswer(label, questionSnapshot.id, {
+        ...(isTrusted !== undefined ? { isTrusted } : {}),
+        webdriver,
+      });
 
       if (res.result === 'CORRECT') {
         setAnswerStatus('correct');
@@ -273,7 +278,7 @@ export default function TowerPage() {
         : opts.findIndex((o) => o.label.toLowerCase() === event.key.toLowerCase());
       if (index >= 0 && index < opts.length) {
         event.preventDefault();
-        void handleSelectOption(opts[index].label);
+        void handleSelectOption(opts[index].label, event.isTrusted);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -431,7 +436,9 @@ export default function TowerPage() {
                     aria-checked={isSelected}
                     className={answerClass}
                     disabled={submitting}
-                    onClick={() => void handleSelectOption(opt.label)}
+                    onClick={(e) =>
+                      void handleSelectOption(opt.label, e.nativeEvent?.isTrusted)
+                    }
                   >
                     <span>{opt.label}</span>
                     <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
@@ -582,7 +589,12 @@ export default function TowerPage() {
             </div>
             <div className="figma-stat">
               <span>Trạng thái</span>
-              {cooldownRemaining > 0 ? (
+              {overview.progress.isBlocked ? (
+                <>
+                  <strong style={{ color: 'var(--danger)' }}>Đã tạm khóa</strong>
+                  <small>Liên hệ Ban Quản Trị</small>
+                </>
+              ) : cooldownRemaining > 0 ? (
                 <>
                   <strong style={{ color: 'var(--danger)' }}>
                     {formatCooldown(cooldownRemaining)}
@@ -643,7 +655,15 @@ export default function TowerPage() {
                 </div>
               </div>
 
-              {isAllConquered ? (
+              {overview.progress.isBlocked ? (
+                <div className="notice notice-danger" role="alert" style={{ marginTop: 0 }}>
+                  <strong>Tính năng Leo Tháp của bạn đang tạm khóa</strong>
+                  <p style={{ margin: '6px 0 0' }}>
+                    {overview.progress.blockedReason ||
+                      'Tài khoản bị tạm khóa do phát hiện dấu hiệu bất thường. Vui lòng liên hệ Ban Quản Trị.'}
+                  </p>
+                </div>
+              ) : isAllConquered ? (
                 <div className="notice notice-success" style={{ marginTop: 0 }}>
                   <strong>Bạn đã hoàn thành toàn bộ 100 tầng trong mùa giải này!</strong>
                   <p style={{ margin: '6px 0 0' }}>

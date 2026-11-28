@@ -185,7 +185,9 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
 
       expect(result.floor).toBe(3);
       expect(result.requiredStreak).toBe(3);
-      expect(result.question.id).toBe('q-101');
+      // Question ID is replaced with an opaque per-turn UUID token to prevent answer lookup
+      expect(result.question.id).not.toBe('q-101');
+      expect(result.question.id).toMatch(/^[0-9a-f-]{36}$/i);
       expect(result.question.timeLimitSeconds).toBe(10);
       // Answer must NOT be leaked
       expect(
@@ -322,7 +324,8 @@ describe('TowerService (Gameplay, Streak, Timer & Cooldown)', () => {
       expect(response.result).toBe('CORRECT');
       expect(response.currentStreak).toBe(1);
       expect(response.requiredStreak).toBe(2);
-      expect(response.nextQuestion?.id).toBe('q-2');
+      expect(response.nextQuestion?.id).not.toBe('q-2');
+      expect(response.nextQuestion?.id).toMatch(/^[0-9a-f-]{36}$/i);
       // Verify options are sorted deterministically
       expect(response.nextQuestion?.options[0].label).toBe('A');
       expect(response.nextQuestion?.options[1].label).toBe('B');

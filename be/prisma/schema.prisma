@@ -458,6 +458,10 @@ model TowerUserProgress {
   currentFloor          Int       @default(1)
   highestCompletedFloor Int       @default(0)
   cooldownUntil         DateTime?
+  isBlocked             Boolean   @default(false)
+  blockedReason         String?
+  blockedAt             DateTime?
+  suspicionScore        Int       @default(0)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -465,6 +469,7 @@ model TowerUserProgress {
 
   @@unique([userId, seasonId])
   @@index([userId, seasonId])
+  @@index([seasonId, isBlocked, suspicionScore])
   @@map("tower_user_progresses")
 }
 
@@ -477,10 +482,13 @@ model TowerFloorAttempt {
   currentStreak            Int                @default(0)
   status                   TowerAttemptStatus @default(IN_PROGRESS)
   currentQuizId            String?
+  currentQuestionToken     String?
+  currentOptionMap         Json?
   currentQuestionStartedAt DateTime?
   currentQuestionExpiresAt DateTime?
   currentQuestionNumber    Int                @default(1)
   usedQuizIds              Json               @default("[]")
+  answerTimingsMs          Json               @default("[]")
   failedReason             String?
   startedAt                DateTime           @default(now())
   completedAt              DateTime?
@@ -492,6 +500,26 @@ model TowerFloorAttempt {
   @@index([userId, seasonId, floor, status])
   @@index([userId, status, currentQuestionExpiresAt])
   @@map("tower_floor_attempts")
+}
+
+model TowerAntiCheatEvent {
+  id               String   @id @default(cuid())
+  userId           String
+  seasonId         String?
+  attemptId        String?
+  floor            Int      @default(0)
+  ruleCode         String
+  severity         String   @default("MEDIUM")
+  serverResponseMs Int?
+  ip               String?
+  userAgent        String?
+  details          Json?
+  createdAt        DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([ruleCode, createdAt])
+  @@index([createdAt])
+  @@map("tower_anti_cheat_events")
 }
 
 model TowerRewardTransaction {
